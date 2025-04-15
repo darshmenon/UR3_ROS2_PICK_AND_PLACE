@@ -1,4 +1,0 @@
-Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description -- -j4 -l4
-Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description -- -j4 -l4
-Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description
-Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_description

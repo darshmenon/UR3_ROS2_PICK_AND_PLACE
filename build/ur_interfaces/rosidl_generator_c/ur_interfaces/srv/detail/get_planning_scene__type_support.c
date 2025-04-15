@@ -4,10 +4,10 @@
 
 #include <string.h>
 
-#include "ur_interfaces/srv/detail/get_planning_scene__functions.h"
-#include "rosidl_typesupport_interface/macros.h"
 #include "ur_interfaces/srv/detail/get_planning_scene__type_support.h"
 #include "ur_interfaces/srv/detail/get_planning_scene__struct.h"
+#include "ur_interfaces/srv/detail/get_planning_scene__functions.h"
+#include "rosidl_typesupport_interface/macros.h"
 
 #ifdef __cplusplus
 extern "C"

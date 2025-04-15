@@ -1,0 +1,142 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Release-50cc0c7d4761acbff7b6.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "ur_mtc_pick_place_demo",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "cluster_extraction::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-cluster_extraction-Release-fc4930cc96ebea427e0e.json",
+					"name" : "cluster_extraction",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "get_planning_scene_client::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-get_planning_scene_client-Release-7242021b53bdcc9966c0.json",
+					"name" : "get_planning_scene_client",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "get_planning_scene_client_node::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-get_planning_scene_client_node-Release-d250a5a78a8e771de6c8.json",
+					"name" : "get_planning_scene_client_node",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "get_planning_scene_server::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-get_planning_scene_server-Release-735f3cdb57282274ae8c.json",
+					"name" : "get_planning_scene_server",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "mtc_node::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-mtc_node-Release-cab20def9a0d8a7e649f.json",
+					"name" : "mtc_node",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "normals_curvature_and_rsd_estimation::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-normals_curvature_and_rsd_estimation-Release-fb2d3c5c5c64cc822760.json",
+					"name" : "normals_curvature_and_rsd_estimation",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "object_segmentation::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-object_segmentation-Release-4b131f255f74ffc1d7b9.json",
+					"name" : "object_segmentation",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "plane_segmentation::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-plane_segmentation-Release-51cb49f8829769fd7157.json",
+					"name" : "plane_segmentation",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-Release-5ecd27014cd764d7dda5.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ur_mtc_pick_place_demo_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ur_mtc_pick_place_demo_uninstall-Release-103fb38345eadbc31d47.json",
+					"name" : "ur_mtc_pick_place_demo_uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_mtc_pick_place_demo",
+		"source" : "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_mtc_pick_place_demo"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 6
+	}
+}

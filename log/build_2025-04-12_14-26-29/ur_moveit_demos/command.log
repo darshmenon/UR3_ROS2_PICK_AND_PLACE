@@ -1,1 +1,0 @@
-Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_moveit_demos': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /home/darsh/UR3_ROS2_PICK_AND_PLACE/ur_moveit_demos -DCMAKE_INSTALL_PREFIX=/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_moveit_demos

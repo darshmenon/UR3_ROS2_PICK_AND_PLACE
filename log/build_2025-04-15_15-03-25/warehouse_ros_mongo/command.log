@@ -1,0 +1,1 @@
+Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo -- -j4 -l4

@@ -1,0 +1,31 @@
+[0.257s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools -- -j4 -l4
+[1.405s] [100%] Built target rviz_marker_tools
+[1.449s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools -- -j4 -l4
+[1.459s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools
+[1.518s] -- Install configuration: "Release"
+[1.518s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/include
+[1.519s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/include/rviz_marker_tools
+[1.519s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/include/rviz_marker_tools/marker_creation.h
+[1.536s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/lib/librviz_marker_tools.so
+[1.540s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/environment/library_path.sh
+[1.540s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/environment/library_path.dsv
+[1.541s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/ament_index/resource_index/package_run_dependencies/rviz_marker_tools
+[1.542s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/ament_index/resource_index/parent_prefix_path/rviz_marker_tools
+[1.542s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/environment/ament_prefix_path.sh
+[1.543s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/environment/ament_prefix_path.dsv
+[1.543s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/environment/path.sh
+[1.543s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/environment/path.dsv
+[1.544s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/local_setup.bash
+[1.544s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/local_setup.sh
+[1.544s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/local_setup.zsh
+[1.544s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/local_setup.dsv
+[1.545s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/package.dsv
+[1.558s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/ament_index/resource_index/packages/rviz_marker_tools
+[1.562s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/cmake/rviz_marker_toolsTargetsExport.cmake
+[1.562s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/cmake/rviz_marker_toolsTargetsExport-release.cmake
+[1.563s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/cmake/ament_cmake_export_targets-extras.cmake
+[1.563s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/cmake/ament_cmake_export_dependencies-extras.cmake
+[1.563s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/cmake/rviz_marker_toolsConfig.cmake
+[1.564s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/cmake/rviz_marker_toolsConfig-version.cmake
+[1.564s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/share/rviz_marker_tools/package.xml
+[1.588s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/rviz_marker_tools

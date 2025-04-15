@@ -4,10 +4,10 @@
 
 #include <string.h>
 
-#include "moveit_task_constructor_msgs/msg/detail/solution_info__struct.h"
-#include "moveit_task_constructor_msgs/msg/detail/solution_info__functions.h"
-#include "rosidl_typesupport_interface/macros.h"
 #include "moveit_task_constructor_msgs/msg/detail/solution_info__type_support.h"
+#include "rosidl_typesupport_interface/macros.h"
+#include "moveit_task_constructor_msgs/msg/detail/solution_info__functions.h"
+#include "moveit_task_constructor_msgs/msg/detail/solution_info__struct.h"
 
 #ifdef __cplusplus
 extern "C"

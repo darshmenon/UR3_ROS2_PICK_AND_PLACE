@@ -1,0 +1,62 @@
+[0.041s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo -- -j4 -l4
+[0.421s] [  0%] Built target ament_cmake_python_copy_warehouse_ros_mongo
+[0.488s] [ 20%] Built target gtest
+[2.358s] running egg_info
+[2.570s] writing warehouse_ros_mongo.egg-info/PKG-INFO
+[2.572s] writing dependency_links to warehouse_ros_mongo.egg-info/dependency_links.txt
+[2.575s] writing top-level names to warehouse_ros_mongo.egg-info/top_level.txt
+[3.235s] reading manifest file 'warehouse_ros_mongo.egg-info/SOURCES.txt'
+[3.252s] writing manifest file 'warehouse_ros_mongo.egg-info/SOURCES.txt'
+[3.516s] [ 20%] Built target ament_cmake_python_build_warehouse_ros_mongo_egg
+[3.679s] [ 40%] Built target gtest_main
+[3.872s] [ 80%] Built target warehouse_ros_mongo
+[4.126s] [100%] Built target test_warehouse_ros_mongo_cpp
+[4.173s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo -- -j4 -l4
+[4.173s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo
+[4.209s] -- Install configuration: ""
+[4.209s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/pythonpath.sh
+[4.209s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/pythonpath.dsv
+[4.211s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo-2.0.3-py3.12.egg-info
+[4.212s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo-2.0.3-py3.12.egg-info/dependency_links.txt
+[4.214s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo-2.0.3-py3.12.egg-info/top_level.txt
+[4.216s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo-2.0.3-py3.12.egg-info/SOURCES.txt
+[4.218s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo-2.0.3-py3.12.egg-info/PKG-INFO
+[4.219s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo
+[4.220s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo/mongo_wrapper_ros.py
+[4.221s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo/__init__.py
+[4.392s] Listing '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/python3.12/site-packages/warehouse_ros_mongo'...
+[4.417s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/warehouse_ros_mongo/mongo_wrapper_ros.py
+[4.417s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/include
+[4.417s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/include/database_connection.h
+[4.417s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/include/query_results.h
+[4.418s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/include/metadata.h
+[4.418s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/include/message_collection.h
+[4.418s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/include/warehouse_ros_mongo/config.h
+[4.418s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/warehouse_ros_mongo.launch.py
+[4.418s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/FindMONGODB.cmake
+[4.419s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/lib/libwarehouse_ros_mongo.so
+[4.419s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/library_path.sh
+[4.419s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/library_path.dsv
+[4.419s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/mongo_database_connection_plugin_description.xml
+[4.419s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/ament_index/resource_index/package_run_dependencies/warehouse_ros_mongo
+[4.420s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/ament_index/resource_index/parent_prefix_path/warehouse_ros_mongo
+[4.420s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/ament_prefix_path.sh
+[4.420s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/ament_prefix_path.dsv
+[4.420s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/path.sh
+[4.420s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/environment/path.dsv
+[4.420s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/local_setup.bash
+[4.421s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/local_setup.sh
+[4.421s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/local_setup.zsh
+[4.421s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/local_setup.dsv
+[4.421s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/package.dsv
+[4.430s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/ament_index/resource_index/packages/warehouse_ros_mongo
+[4.431s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/ament_index/resource_index/warehouse_ros__pluginlib__plugin/warehouse_ros_mongo
+[4.431s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/export_warehouse_ros_mongoExport.cmake
+[4.451s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/export_warehouse_ros_mongoExport-noconfig.cmake
+[4.452s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/ConfigExtras.cmake
+[4.452s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/ament_cmake_export_targets-extras.cmake
+[4.452s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/ament_cmake_export_dependencies-extras.cmake
+[4.452s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/warehouse_ros_mongoConfig.cmake
+[4.452s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/warehouse_ros_mongoConfig-version.cmake
+[4.452s] -- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/warehouse_ros_mongo/share/warehouse_ros_mongo/package.xml
+[4.453s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo

@@ -1,0 +1,77 @@
+[ 11%] Built target pick_place_demo_parameters
+[ 16%] [32mBuilding CXX object CMakeFiles/moveit_task_constructor_demo_cartesian.dir/src/cartesian.cpp.o[0m
+[ 22%] [32mBuilding CXX object CMakeFiles/moveit_task_constructor_demo_modular.dir/src/modular.cpp.o[0m
+[ 33%] Built target moveit_task_constructor_demo_alternative_path_costs
+[ 44%] Built target ik_clearance_cost_parameters
+[ 50%] [32mBuilding CXX object CMakeFiles/moveit_task_constructor_demo_fallbacks_move_to.dir/src/fallbacks_move_to.cpp.o[0m
+[ 55%] [32mBuilding CXX object CMakeFiles/moveit_task_constructor_demo_pick_place_task.dir/src/pick_place_task.cpp.o[0m
+[ 61%] [32m[1mLinking CXX executable cartesian[0m
+[ 66%] [32m[1mLinking CXX executable modular[0m
+[ 66%] Built target moveit_task_constructor_demo_modular
+[ 66%] Built target moveit_task_constructor_demo_cartesian
+[ 72%] [32m[1mLinking CXX executable fallbacks_move_to[0m
+[ 72%] Built target moveit_task_constructor_demo_fallbacks_move_to
+[ 77%] [32m[1mLinking CXX shared library libmoveit_task_constructor_demo_pick_place_task.so[0m
+[ 77%] Built target moveit_task_constructor_demo_pick_place_task
+[ 83%] [32mBuilding CXX object CMakeFiles/moveit_task_constructor_demo_ik_clearance_cost.dir/src/ik_clearance_cost.cpp.o[0m
+[ 88%] [32m[1mLinking CXX executable ik_clearance_cost[0m
+[ 88%] Built target moveit_task_constructor_demo_ik_clearance_cost
+[ 94%] [32mBuilding CXX object CMakeFiles/moveit_task_constructor_demo_pick_place_demo.dir/src/pick_place_demo.cpp.o[0m
+[100%] [32m[1mLinking CXX executable pick_place_demo[0m
+[100%] Built target moveit_task_constructor_demo_pick_place_demo
+-- Install configuration: "Release"
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/libmoveit_task_constructor_demo_pick_place_task.so
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/libmoveit_task_constructor_demo_pick_place_task.so" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/cartesian
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/cartesian" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/modular
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/modular" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/alternative_path_costs
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/alternative_path_costs" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/include/moveit_task_constructor_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/include/moveit_task_constructor_demo/ik_clearance_cost_parameters.hpp
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/include/moveit_task_constructor_demo/pick_place_demo_parameters.hpp
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/ik_clearance_cost
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/ik_clearance_cost" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/fallbacks_move_to
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/fallbacks_move_to" to ""
+-- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/include/moveit_task_constructor_demo
+-- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/include/moveit_task_constructor_demo/ik_clearance_cost_parameters.hpp
+-- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/include/moveit_task_constructor_demo/pick_place_demo_parameters.hpp
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/pick_place_demo
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/pick_place_demo" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/alternatives.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/cartesian.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/compute_ik.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/constrained.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/current_state.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/fallbacks.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/fix_collision_objects.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/fixed_state.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/generate_pose.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/merger.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/modify_planning_scene.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/multi_planner.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/pickplace.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/lib/moveit_task_constructor_demo/properties.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/launch
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/launch/demo.launch.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/launch/run.launch.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/config
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/config/mtc.rviz
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/config/panda_config.yaml
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/ament_index/resource_index/package_run_dependencies/moveit_task_constructor_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/ament_index/resource_index/parent_prefix_path/moveit_task_constructor_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/environment/ament_prefix_path.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/environment/ament_prefix_path.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/environment/path.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/environment/path.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/local_setup.bash
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/local_setup.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/local_setup.zsh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/local_setup.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/package.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/ament_index/resource_index/packages/moveit_task_constructor_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/cmake/moveit_task_constructor_demoConfig.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/cmake/moveit_task_constructor_demoConfig-version.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_demo/share/moveit_task_constructor_demo/package.xml

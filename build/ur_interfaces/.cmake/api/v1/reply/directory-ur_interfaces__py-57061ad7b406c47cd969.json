@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "ur_interfaces__py",
+		"source" : "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/ur_interfaces__py"
+	}
+}

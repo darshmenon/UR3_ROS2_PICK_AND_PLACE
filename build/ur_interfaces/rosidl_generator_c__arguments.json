@@ -1,12 +1,12 @@
 {
   "package_name": "ur_interfaces",
-  "output_dir": "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_generator_c/ur_interfaces",
+  "output_dir": "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_generator_c/ur_interfaces",
   "template_dir": "/opt/ros/jazzy/share/rosidl_generator_c/cmake/../resource",
   "idl_tuples": [
-    "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_adapter/ur_interfaces:srv/GetPlanningScene.idl"
+    "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_adapter/ur_interfaces:srv/GetPlanningScene.idl"
   ],
   "ros_interface_files": [
-    "/home/darsh/UR3_ROS2_PICK_AND_PLACE/ur_interfaces/srv/GetPlanningScene.srv"
+    "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_interfaces/srv/GetPlanningScene.srv"
   ],
   "ros_interface_dependencies": [
     "moveit_msgs:/opt/ros/jazzy/share/moveit_msgs/msg/AllowedCollisionEntry.idl",
@@ -228,7 +228,7 @@
     "/opt/ros/jazzy/share/rosidl_generator_c/cmake/../resource/msg__type_support.h.em",
     "/opt/ros/jazzy/share/rosidl_generator_c/cmake/../resource/srv__type_support.c.em",
     "/opt/ros/jazzy/share/rosidl_generator_c/cmake/../resource/srv__type_support.h.em",
-    "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_adapter/ur_interfaces/srv/GetPlanningScene.idl",
+    "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_adapter/ur_interfaces/srv/GetPlanningScene.idl",
     "/opt/ros/jazzy/share/moveit_msgs/msg/AllowedCollisionEntry.idl",
     "/opt/ros/jazzy/share/moveit_msgs/msg/AllowedCollisionMatrix.idl",
     "/opt/ros/jazzy/share/moveit_msgs/msg/AttachedCollisionObject.idl",
@@ -429,6 +429,6 @@
     "/opt/ros/jazzy/share/service_msgs/msg/ServiceEventInfo.idl"
   ],
   "type_description_tuples": [
-    "srv/GetPlanningScene.idl:/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_generator_type_description/ur_interfaces/srv/GetPlanningScene.json"
+    "srv/GetPlanningScene.idl:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_generator_type_description/ur_interfaces/srv/GetPlanningScene.json"
   ]
 }

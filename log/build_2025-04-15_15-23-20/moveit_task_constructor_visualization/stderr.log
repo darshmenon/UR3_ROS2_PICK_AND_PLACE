@@ -1,0 +1,3 @@
+[0mmoveit_task_constructor_visualization: You did not request a specific build type: Choosing 'Release' for maximum performance[0m
+gmake[1]: *** [CMakeFiles/Makefile2:303: visualization_tools/CMakeFiles/moveit_task_visualization_tools.dir/all] Killed
+gmake: *** [Makefile:146: all] Error 2

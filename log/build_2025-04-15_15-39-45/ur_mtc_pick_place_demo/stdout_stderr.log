@@ -1,0 +1,89 @@
+[  6%] [32mBuilding CXX object CMakeFiles/get_planning_scene_client.dir/src/get_planning_scene_client.cpp.o[0m
+[ 18%] Built target cluster_extraction
+[ 25%] [32mBuilding CXX object CMakeFiles/normals_curvature_and_rsd_estimation.dir/src/normals_curvature_and_rsd_estimation.cpp.o[0m
+[ 31%] [32mBuilding CXX object CMakeFiles/object_segmentation.dir/src/object_segmentation.cpp.o[0m
+[ 37%] [32mBuilding CXX object CMakeFiles/plane_segmentation.dir/src/plane_segmentation.cpp.o[0m
+[ 43%] [32m[1mLinking CXX shared library libget_planning_scene_client.so[0m
+[ 43%] Built target get_planning_scene_client
+[ 50%] [32m[1mLinking CXX shared library libnormals_curvature_and_rsd_estimation.so[0m
+[ 56%] [32m[1mLinking CXX shared library libobject_segmentation.so[0m
+[ 56%] Built target normals_curvature_and_rsd_estimation
+[ 56%] Built target object_segmentation
+[ 62%] [32m[1mLinking CXX shared library libplane_segmentation.so[0m
+[ 62%] Built target plane_segmentation
+[ 68%] [32mBuilding CXX object CMakeFiles/mtc_node.dir/src/mtc_node.cpp.o[0m
+In file included from [01m[K/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_mtc_pick_place_demo/src/mtc_node.cpp:39[m[K:
+[01m[K/opt/ros/jazzy/include/moveit_core/moveit/planning_scene/planning_scene.h:50:77:[m[K [01;36m[Knote: [m[K‘[01m[K#pragma message: .h header is obsolete. Please use the .hpp header instead.[m[K’
+   50 | #pragma message(".h header is obsolete. Please use the .hpp header instead."[01;36m[K)[m[K
+      |                                                                             [01;36m[K^[m[K
+In file included from [01m[K/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_mtc_pick_place_demo/src/mtc_node.cpp:40[m[K:
+[01m[K/opt/ros/jazzy/include/moveit_ros_planning_interface/moveit/planning_scene_interface/planning_scene_interface.h:50:77:[m[K [01;36m[Knote: [m[K‘[01m[K#pragma message: .h header is obsolete. Please use the .hpp header instead.[m[K’
+   50 | #pragma message(".h header is obsolete. Please use the .hpp header instead."[01;36m[K)[m[K
+      |                                                                             [01;36m[K^[m[K
+[ 75%] [32m[1mLinking CXX executable mtc_node[0m
+[ 75%] Built target mtc_node
+[ 81%] [32mBuilding CXX object CMakeFiles/get_planning_scene_server.dir/src/get_planning_scene_server.cpp.o[0m
+[ 87%] [32m[1mLinking CXX executable get_planning_scene_server[0m
+[ 87%] Built target get_planning_scene_server
+[ 93%] [32mBuilding CXX object CMakeFiles/get_planning_scene_client_node.dir/src/get_planning_scene_client.cpp.o[0m
+[100%] [32m[1mLinking CXX executable get_planning_scene_client_node[0m
+[100%] Built target get_planning_scene_client_node
+-- Install configuration: "Release"
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/ur_mtc_pick_place_demo/get_planning_scene_client_node
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/ur_mtc_pick_place_demo/get_planning_scene_client_node" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/ur_mtc_pick_place_demo/get_planning_scene_server
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/ur_mtc_pick_place_demo/get_planning_scene_server" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/ur_mtc_pick_place_demo/mtc_node
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/ur_mtc_pick_place_demo/mtc_node" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libcluster_extraction.so
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libcluster_extraction.so" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libget_planning_scene_client.so
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libget_planning_scene_client.so" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libnormals_curvature_and_rsd_estimation.so
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libnormals_curvature_and_rsd_estimation.so" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libobject_segmentation.so
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libobject_segmentation.so" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libplane_segmentation.so
+-- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/lib/libplane_segmentation.so" to ""
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/config
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/config/get_planning_scene_server.yaml
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/config/mtc_node_params.yaml
+-- Up-to-date: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/ur_mtc_pick_place_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/ur_mtc_pick_place_demo/normals_curvature_and_rsd_estimation.h
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/ur_mtc_pick_place_demo/plane_segmentation.h
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/ur_mtc_pick_place_demo/cluster_extraction.h
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/ur_mtc_pick_place_demo/get_planning_scene_client.h
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/ur_mtc_pick_place_demo/object_segmentation.h
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/launch
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/launch/pick_place_demo.launch.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/launch/point_cloud_viewer.launch.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/launch/get_planning_scene_server.launch.py
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/rviz
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/rviz/mtc_demos.rviz
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/rviz/point_cloud_viewer.rviz
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/scripts
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/scripts/robot.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/scripts/pointcloud.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/environment/library_path.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/environment/library_path.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ament_index/resource_index/package_run_dependencies/ur_mtc_pick_place_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ament_index/resource_index/parent_prefix_path/ur_mtc_pick_place_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/environment/ament_prefix_path.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/environment/ament_prefix_path.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/environment/path.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/environment/path.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/local_setup.bash
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/local_setup.sh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/local_setup.zsh
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/local_setup.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/package.dsv
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ament_index/resource_index/packages/ur_mtc_pick_place_demo
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/cmake/export_ur_mtc_pick_place_demoExport.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/cmake/export_ur_mtc_pick_place_demoExport-release.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/cmake/ament_cmake_export_libraries-extras.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/cmake/ament_cmake_export_targets-extras.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/cmake/ur_mtc_pick_place_demoConfig.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/cmake/ur_mtc_pick_place_demoConfig-version.cmake
+-- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo/share/ur_mtc_pick_place_demo/package.xml

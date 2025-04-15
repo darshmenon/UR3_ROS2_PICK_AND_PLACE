@@ -1,8 +1,0 @@
-In file included from [01m[K/home/darsh/UR3_ROS2_PICK_AND_PLACE/ur_mtc_pick_place_demo/src/mtc_node.cpp:39[m[K:
-[01m[K/opt/ros/jazzy/include/moveit_core/moveit/planning_scene/planning_scene.h:50:77:[m[K [01;36m[Knote: [m[K‘[01m[K#pragma message: .h header is obsolete. Please use the .hpp header instead.[m[K’
-   50 | #pragma message(".h header is obsolete. Please use the .hpp header instead."[01;36m[K)[m[K
-      |                                                                             [01;36m[K^[m[K
-In file included from [01m[K/home/darsh/UR3_ROS2_PICK_AND_PLACE/ur_mtc_pick_place_demo/src/mtc_node.cpp:40[m[K:
-[01m[K/opt/ros/jazzy/include/moveit_ros_planning_interface/moveit/planning_scene_interface/planning_scene_interface.h:50:77:[m[K [01;36m[Knote: [m[K‘[01m[K#pragma message: .h header is obsolete. Please use the .hpp header instead.[m[K’
-   50 | #pragma message(".h header is obsolete. Please use the .hpp header instead."[01;36m[K)[m[K
-      |                                                                             [01;36m[K^[m[K

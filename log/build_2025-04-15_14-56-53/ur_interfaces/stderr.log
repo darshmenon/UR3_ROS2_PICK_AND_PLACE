@@ -1,0 +1,3 @@
+gmake[2]: *** [CMakeFiles/ur_interfaces__rosidl_generator_c.dir/build.make:343: CMakeFiles/ur_interfaces__rosidl_generator_c.dir/rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__type_support.c.o] Killed
+gmake[1]: *** [CMakeFiles/Makefile2:241: CMakeFiles/ur_interfaces__rosidl_generator_c.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2

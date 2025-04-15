@@ -1,6 +1,6 @@
 {
   "package_name": "ur_interfaces",
   "non_idl_tuples": [
-    "/home/darsh/UR3_ROS2_PICK_AND_PLACE/ur_interfaces:srv/GetPlanningScene.srv"
+    "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_interfaces:srv/GetPlanningScene.srv"
   ]
 }

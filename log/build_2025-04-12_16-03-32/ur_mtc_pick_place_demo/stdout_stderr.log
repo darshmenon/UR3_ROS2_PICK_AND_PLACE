@@ -1,9 +1,0 @@
-[ 12%] Built target get_planning_scene_client
-[ 25%] Built target cluster_extraction
-[ 37%] Built target object_segmentation
-[ 50%] Built target normals_curvature_and_rsd_estimation
-gmake[1]: *** [CMakeFiles/Makefile2:255: CMakeFiles/plane_segmentation.dir/all] Interrupt
-gmake[1]: *** [CMakeFiles/Makefile2:336: CMakeFiles/mtc_node.dir/all] Interrupt
-[ 62%] Built target get_planning_scene_client_node
-gmake[1]: *** [CMakeFiles/Makefile2:282: CMakeFiles/get_planning_scene_client_node.dir/all] Interrupt
-gmake: *** [Makefile:146: all] Interrupt

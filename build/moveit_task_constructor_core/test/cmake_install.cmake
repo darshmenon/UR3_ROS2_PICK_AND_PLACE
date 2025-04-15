@@ -1,8 +1,8 @@
-# Install script for directory: /home/darsh/UR3_ROS2_PICK_AND_PLACE/src/moveit_task_constructor/core/test
+# Install script for directory: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/src/moveit_task_constructor/core/test
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_core")
+  set(CMAKE_INSTALL_PREFIX "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -44,11 +44,11 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/moveit_task_constructor_core/gmock/cmake_install.cmake")
+  include("/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_core/gmock/cmake_install.cmake")
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/moveit_task_constructor_core/gtest/cmake_install.cmake")
+  include("/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_core/gtest/cmake_install.cmake")
 endif()
 

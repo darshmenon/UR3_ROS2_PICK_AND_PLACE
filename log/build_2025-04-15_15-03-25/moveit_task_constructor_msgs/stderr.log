@@ -1,0 +1,3 @@
+gmake[1]: *** [CMakeFiles/Makefile2:293: CMakeFiles/moveit_task_constructor_msgs__cpp.dir/all] Killed
+gmake: *** [Makefile:146: all] Error 2
+gmake: INTERNAL: Exiting with 1 jobserver tokens available; should be 4!

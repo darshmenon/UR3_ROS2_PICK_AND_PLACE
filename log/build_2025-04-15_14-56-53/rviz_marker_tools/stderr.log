@@ -1,0 +1,4 @@
+[0mrviz_marker_tools: You did not request a specific build type: Choosing 'Release' for maximum performance[0m
+gmake[2]: *** [CMakeFiles/rviz_marker_tools.dir/build.make:76: CMakeFiles/rviz_marker_tools.dir/src/marker_creation.cpp.o] Killed
+gmake[1]: *** [CMakeFiles/Makefile2:137: CMakeFiles/rviz_marker_tools.dir/all] Error 2
+gmake: *** [Makefile:146: all] Error 2

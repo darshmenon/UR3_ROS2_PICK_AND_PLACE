@@ -1,8 +1,8 @@
-# Install script for directory: /home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/ur_interfaces__py
+# Install script for directory: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/ur_interfaces__py
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_interfaces")
+  set(CMAKE_INSTALL_PREFIX "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 

@@ -1,0 +1,157 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-7733dfd95bce255c4522.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.15"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						4,
+						5,
+						6,
+						7
+					]
+				},
+				{
+					"build" : "gtest",
+					"jsonFile" : "directory-gtest-0908a8c91ddba5d6c989.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.8"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "/opt/ros/jazzy/src/gtest_vendor",
+					"targetIndexes" : 
+					[
+						2,
+						3
+					]
+				}
+			],
+			"name" : "",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "warehouse_ros_mongo",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						4,
+						5,
+						6,
+						7
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "gtest",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						2,
+						3
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ament_cmake_python_build_warehouse_ros_mongo_egg::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ament_cmake_python_build_warehouse_ros_mongo_egg-3747add19ea96f600dbe.json",
+					"name" : "ament_cmake_python_build_warehouse_ros_mongo_egg",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ament_cmake_python_copy_warehouse_ros_mongo::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ament_cmake_python_copy_warehouse_ros_mongo-443bbf2cf1641bad63b1.json",
+					"name" : "ament_cmake_python_copy_warehouse_ros_mongo",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "gtest::@0af4add9fe94340e763e",
+					"jsonFile" : "target-gtest-d8ccbfddb5a9695b0d9f.json",
+					"name" : "gtest",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "gtest_main::@0af4add9fe94340e763e",
+					"jsonFile" : "target-gtest_main-136a8b63a30ca51c7e12.json",
+					"name" : "gtest_main",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "test_warehouse_ros_mongo_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-test_warehouse_ros_mongo_cpp-7a60de79a426cf335264.json",
+					"name" : "test_warehouse_ros_mongo_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-07f4fe4e241a9e6927e2.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "warehouse_ros_mongo::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-warehouse_ros_mongo-ab66e4b128447818bf17.json",
+					"name" : "warehouse_ros_mongo",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "warehouse_ros_mongo_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-warehouse_ros_mongo_uninstall-3ffd7ead4af9e1220b2f.json",
+					"name" : "warehouse_ros_mongo_uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/warehouse_ros_mongo",
+		"source" : "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/src/warehouse_ros_mongo"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 6
+	}
+}

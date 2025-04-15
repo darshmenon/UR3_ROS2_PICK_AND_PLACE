@@ -1,8 +1,8 @@
-# Install script for directory: /home/darsh/UR3_ROS2_PICK_AND_PLACE/build/moveit_task_constructor_msgs/moveit_task_constructor_msgs__py
+# Install script for directory: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_msgs/moveit_task_constructor_msgs__py
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_msgs")
+  set(CMAKE_INSTALL_PREFIX "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 

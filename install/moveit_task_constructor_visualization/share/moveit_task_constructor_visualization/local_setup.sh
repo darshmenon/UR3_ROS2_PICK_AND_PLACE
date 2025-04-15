@@ -2,7 +2,7 @@
 
 # since this file is sourced use either the provided AMENT_CURRENT_PREFIX
 # or fall back to the destination set at configure time
-: ${AMENT_CURRENT_PREFIX:="/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_visualization"}
+: ${AMENT_CURRENT_PREFIX:="/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_visualization"}
 if [ ! -d "$AMENT_CURRENT_PREFIX" ]; then
   if [ -z "$COLCON_CURRENT_PREFIX" ]; then
     echo "The compile time prefix path '$AMENT_CURRENT_PREFIX' doesn't " \

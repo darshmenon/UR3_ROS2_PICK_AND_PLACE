@@ -1,0 +1,181 @@
+[0.641s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_mtc_pick_place_demo': AMENT_PREFIX_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs:${AMENT_PREFIX_PATH} CMAKE_MODULE_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/share/moveit_task_constructor_core/cmake:${CMAKE_MODULE_PATH} CMAKE_PREFIX_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_config:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_mtc_pick_place_demo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_mtc_demos:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_moveit_demos:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_gazebo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_description:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_visualization:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_demo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_capabilities:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/robotiq_2f_85_gripper_visualization:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_msgs:/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor:/opt/ros/jazzy LD_LIBRARY_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/lib/python3.12/site-packages:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces/lib/python3.12/site-packages:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/cmake /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_mtc_pick_place_demo -DCMAKE_INSTALL_PREFIX=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo
+[0.904s] -- The C compiler identification is GNU 13.3.0
+[1.798s] -- The CXX compiler identification is GNU 13.3.0
+[2.543s] -- Detecting C compiler ABI info
+[3.095s] -- Detecting C compiler ABI info - done
+[3.111s] -- Check for working C compiler: /usr/bin/cc - skipped
+[3.112s] -- Detecting C compile features
+[3.113s] -- Detecting C compile features - done
+[3.246s] -- Detecting CXX compiler ABI info
+[3.649s] -- Detecting CXX compiler ABI info - done
+[3.675s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[3.676s] -- Detecting CXX compile features
+[3.677s] -- Detecting CXX compile features - done
+[3.727s] -- Found ament_cmake: 2.5.3 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[4.356s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[4.918s] -- Found generate_parameter_library: 0.4.0 (/opt/ros/jazzy/share/generate_parameter_library/cmake)
+[4.959s] -- Found parameter_traits: 0.4.0 (/opt/ros/jazzy/share/parameter_traits/cmake)
+[5.400s] -- Found rosidl_generator_c: 4.6.5 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[5.446s] -- Found rosidl_generator_cpp: 4.6.5 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[5.524s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[5.631s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[5.923s] -- Found rmw_implementation_cmake: 7.3.1 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+[5.936s] -- Found rmw_fastrtps_cpp: 8.4.1 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+[6.218s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.13")  
+[6.521s] -- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+[6.683s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[7.315s] -- Found rclcpp_lifecycle: 28.1.6 (/opt/ros/jazzy/share/rclcpp_lifecycle/cmake)
+[7.526s] -- Found moveit_common: 2.12.2 (/opt/ros/jazzy/share/moveit_common/cmake)
+[7.980s] -- Found moveit_core: 2.12.2 (/opt/ros/jazzy/share/moveit_core/cmake)
+[8.618s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: chrono date_time filesystem iostreams program_options regex serialization system thread 
+[10.308s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: filesystem 
+[10.921s] -- Found Eigen3: TRUE (found version "3.4.0") 
+[10.921s] -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+[12.193s] -- Found moveit_ros_planning: 2.12.2 (/opt/ros/jazzy/share/moveit_ros_planning/cmake)
+[12.203s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: system filesystem date_time program_options thread chrono 
+[12.345s] -- Found moveit_ros_planning_interface: 2.12.2 (/opt/ros/jazzy/share/moveit_ros_planning_interface/cmake)
+[12.376s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: date_time filesystem program_options system thread 
+[12.448s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: thread system filesystem regex date_time program_options 
+[12.532s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: system filesystem date_time program_options thread 
+[12.640s] -- Found moveit_task_constructor_core: 0.1.3 (/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/share/moveit_task_constructor_core/cmake)
+[12.967s] -- Found ur_interfaces: 0.0.0 (/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces/share/ur_interfaces/cmake)
+[13.130s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found suitable version "1.83.0", minimum required is "1.65.0") found components: system filesystem iostreams serialization 
+[13.142s] [33mCMake Warning (dev) at /usr/lib/x86_64-linux-gnu/cmake/pcl/Modules/FindFLANN.cmake:45 (find_package):
+[13.142s]   Policy CMP0144 is not set: find_package uses upper-case <PACKAGENAME>_ROOT
+[13.142s]   variables.  Run "cmake --help-policy CMP0144" for policy details.  Use the
+[13.142s]   cmake_policy command to set the policy and suppress this warning.
+[13.142s] 
+[13.143s]   CMake variable FLANN_ROOT is set to:
+[13.143s] 
+[13.143s]     /usr
+[13.143s] 
+[13.143s]   For compatibility, find_package is ignoring the variable, but code in a
+[13.144s]   .cmake module might still use it.
+[13.144s] Call Stack (most recent call first):
+[13.144s]   /usr/lib/x86_64-linux-gnu/cmake/pcl/PCLConfig.cmake:261 (find_package)
+[13.144s]   /usr/lib/x86_64-linux-gnu/cmake/pcl/PCLConfig.cmake:306 (find_flann)
+[13.144s]   /usr/lib/x86_64-linux-gnu/cmake/pcl/PCLConfig.cmake:570 (find_external_library)
+[13.145s]   CMakeLists.txt:52 (find_package)
+[13.145s] This warning is for project developers.  Use -Wno-dev to suppress it.
+[13.152s] [0m
+[13.159s] -- Found flann version 1.9.2
+[15.000s] -- Found OpenMP_CXX: -fopenmp (found version "4.5") 
+[15.001s] -- Found OpenMP: TRUE (found version "4.5") found components: CXX 
+[15.145s] -- Found Threads: TRUE  
+[15.152s] -- Found GLEW: /usr/lib/x86_64-linux-gnu/libGLEW.so  
+[15.255s] -- Found OpenGL: /usr/lib/x86_64-linux-gnu/libOpenGL.so  found components: OpenGL GLX 
+[16.054s] -- Found MPI_C: /usr/lib/x86_64-linux-gnu/libmpi.so (found version "3.1") 
+[16.055s] -- Found MPI: TRUE (found version "3.1") found components: C 
+[16.063s] -- Found JsonCpp: /usr/lib/x86_64-linux-gnu/libjsoncpp.so (found suitable version "1.9.5", minimum required is "0.7.0") 
+[16.853s] -- Found ZLIB: /usr/lib/x86_64-linux-gnu/libz.so (found version "1.3")  
+[17.703s] -- Found PNG: /usr/lib/x86_64-linux-gnu/libpng.so (found version "1.6.43") 
+[17.799s] -- Found Eigen3: /usr/include/eigen3 (found version "3.4.0") 
+[22.272s] -- Found X11: /usr/include   
+[22.273s] -- Looking for XOpenDisplay in /usr/lib/x86_64-linux-gnu/libX11.so;/usr/lib/x86_64-linux-gnu/libXext.so
+[22.867s] -- Looking for XOpenDisplay in /usr/lib/x86_64-linux-gnu/libX11.so;/usr/lib/x86_64-linux-gnu/libXext.so - found
+[22.867s] -- Looking for gethostbyname
+[23.486s] -- Looking for gethostbyname - found
+[23.487s] -- Looking for connect
+[24.017s] -- Looking for connect - found
+[24.017s] -- Looking for remove
+[24.675s] -- Looking for remove - found
+[24.675s] -- Looking for shmat
+[25.354s] -- Looking for shmat - found
+[25.355s] -- Looking for IceConnectionNumber in ICE
+[25.904s] -- Looking for IceConnectionNumber in ICE - found
+[31.153s] -- Found EXPAT: /usr/lib/x86_64-linux-gnu/libexpat.so (found version "2.6.1") 
+[31.167s] -- Found double-conversion: /usr/lib/x86_64-linux-gnu/libdouble-conversion.so  
+[31.199s] -- Found LZ4: /usr/lib/x86_64-linux-gnu/liblz4.so (found version "1.9.4") 
+[31.224s] -- Found LZMA: /usr/lib/x86_64-linux-gnu/liblzma.so (found version "5.4.5") 
+[31.680s] -- Found JPEG: /usr/lib/x86_64-linux-gnu/libjpeg.so (found version "80") 
+[33.727s] -- Found TIFF: /usr/lib/x86_64-linux-gnu/libtiff.so (found version "4.5.1")  
+[33.748s] -- Found Freetype: /usr/lib/x86_64-linux-gnu/libfreetype.so (found version "2.13.2") 
+[33.809s] -- Found utf8cpp: /usr/include/utf8cpp  
+[34.544s] -- Checking for module 'libusb-1.0'
+[34.662s] --   Found libusb-1.0, version 1.0.27
+[35.017s] -- Found libusb: /usr/lib/x86_64-linux-gnu/libusb-1.0.so  
+[35.017s] -- Found OpenNI: /usr/lib/libOpenNI.so;libusb::libusb (found version "1.5.4.0") 
+[35.017s] -- OpenNI found (version: 1.5.4.0, include: /usr/include/ni, lib: /usr/lib/libOpenNI.so;libusb::libusb)
+[35.510s] -- Found OpenNI2: /usr/lib/x86_64-linux-gnu/libOpenNI2.so;libusb::libusb (found version "2.2.0.33") 
+[35.511s] -- OpenNI2 found (version: 2.2.0.33, include: /usr/include/openni2, lib: /usr/lib/x86_64-linux-gnu/libOpenNI2.so;libusb::libusb)
+[35.601s] -- Found Pcap: /usr/lib/x86_64-linux-gnu/libpcap.so  
+[49.238s] -- OpenNI found (version: 1.5.4.0, include: /usr/include/ni, lib: /usr/lib/libOpenNI.so;libusb::libusb)
+[49.271s] -- OpenNI2 found (version: 2.2.0.33, include: /usr/include/openni2, lib: /usr/lib/x86_64-linux-gnu/libOpenNI2.so;libusb::libusb)
+[61.213s] -- Found Qhull version 8.0.2
+[73.476s] -- OpenNI found (version: 1.5.4.0, include: /usr/include/ni, lib: /usr/lib/libOpenNI.so;libusb::libusb)
+[86.606s] -- looking for PCL_COMMON
+[86.608s] -- Found PCL_COMMON: /usr/lib/x86_64-linux-gnu/libpcl_common.so  
+[86.610s] -- looking for PCL_KDTREE
+[86.616s] -- Found PCL_KDTREE: /usr/lib/x86_64-linux-gnu/libpcl_kdtree.so  
+[86.616s] -- looking for PCL_OCTREE
+[86.623s] -- Found PCL_OCTREE: /usr/lib/x86_64-linux-gnu/libpcl_octree.so  
+[86.625s] -- looking for PCL_SEARCH
+[86.629s] -- Found PCL_SEARCH: /usr/lib/x86_64-linux-gnu/libpcl_search.so  
+[86.630s] -- looking for PCL_SAMPLE_CONSENSUS
+[86.635s] -- Found PCL_SAMPLE_CONSENSUS: /usr/lib/x86_64-linux-gnu/libpcl_sample_consensus.so  
+[86.636s] -- looking for PCL_FILTERS
+[86.639s] -- Found PCL_FILTERS: /usr/lib/x86_64-linux-gnu/libpcl_filters.so  
+[86.640s] -- looking for PCL_2D
+[86.642s] -- Found PCL_2D: /usr/include/pcl-1.14  
+[86.643s] -- looking for PCL_GEOMETRY
+[86.644s] -- Found PCL_GEOMETRY: /usr/include/pcl-1.14  
+[86.644s] -- looking for PCL_IO
+[86.650s] -- Found PCL_IO: /usr/lib/x86_64-linux-gnu/libpcl_io.so  
+[86.651s] -- looking for PCL_FEATURES
+[86.653s] -- Found PCL_FEATURES: /usr/lib/x86_64-linux-gnu/libpcl_features.so  
+[86.654s] -- looking for PCL_ML
+[86.672s] -- Found PCL_ML: /usr/lib/x86_64-linux-gnu/libpcl_ml.so  
+[86.673s] -- looking for PCL_SEGMENTATION
+[86.673s] -- Found PCL_SEGMENTATION: /usr/lib/x86_64-linux-gnu/libpcl_segmentation.so  
+[86.673s] -- looking for PCL_VISUALIZATION
+[86.673s] -- Found PCL_VISUALIZATION: /usr/lib/x86_64-linux-gnu/libpcl_visualization.so  
+[86.673s] -- looking for PCL_SURFACE
+[86.679s] -- Found PCL_SURFACE: /usr/lib/x86_64-linux-gnu/libpcl_surface.so  
+[86.679s] -- looking for PCL_REGISTRATION
+[86.685s] -- Found PCL_REGISTRATION: /usr/lib/x86_64-linux-gnu/libpcl_registration.so  
+[86.686s] -- looking for PCL_KEYPOINTS
+[86.689s] -- Found PCL_KEYPOINTS: /usr/lib/x86_64-linux-gnu/libpcl_keypoints.so  
+[86.690s] -- looking for PCL_TRACKING
+[86.698s] -- Found PCL_TRACKING: /usr/lib/x86_64-linux-gnu/libpcl_tracking.so  
+[86.699s] -- looking for PCL_RECOGNITION
+[86.701s] -- Found PCL_RECOGNITION: /usr/lib/x86_64-linux-gnu/libpcl_recognition.so  
+[86.704s] -- looking for PCL_STEREO
+[86.711s] -- Found PCL_STEREO: /usr/lib/x86_64-linux-gnu/libpcl_stereo.so  
+[86.715s] -- looking for PCL_APPS
+[86.721s] -- Found PCL_APPS: /usr/lib/x86_64-linux-gnu/libpcl_apps.so  
+[86.723s] -- looking for PCL_IN_HAND_SCANNER
+[86.723s] -- Found PCL_IN_HAND_SCANNER: /usr/include/pcl-1.14  
+[86.724s] -- looking for PCL_MODELER
+[86.729s] -- Found PCL_MODELER: /usr/include/pcl-1.14  
+[86.729s] -- looking for PCL_POINT_CLOUD_EDITOR
+[86.730s] -- Found PCL_POINT_CLOUD_EDITOR: /usr/include/pcl-1.14  
+[86.734s] -- looking for PCL_OUTOFCORE
+[86.736s] -- Found PCL_OUTOFCORE: /usr/lib/x86_64-linux-gnu/libpcl_outofcore.so  
+[86.737s] -- looking for PCL_PEOPLE
+[86.743s] -- Found PCL_PEOPLE: /usr/lib/x86_64-linux-gnu/libpcl_people.so  
+[86.744s] -- Found PCL: pcl_common;pcl_kdtree;pcl_octree;pcl_search;pcl_sample_consensus;pcl_filters;pcl_io;pcl_features;pcl_ml;pcl_segmentation;pcl_visualization;pcl_surface;pcl_registration;pcl_keypoints;pcl_tracking;pcl_recognition;pcl_stereo;pcl_apps;pcl_outofcore;pcl_people;Boost::system;Boost::filesystem;Boost::iostreams;Boost::serialization;/usr/lib/libOpenNI.so;libusb::libusb;/usr/lib/x86_64-linux-gnu/libOpenNI2.so;libusb::libusb;VTK::ChartsCore;VTK::CommonColor;VTK::CommonComputationalGeometry;VTK::CommonCore;VTK::CommonDataModel;VTK::CommonExecutionModel;VTK::CommonMath;VTK::CommonMisc;VTK::CommonTransforms;VTK::FiltersCore;VTK::FiltersExtraction;VTK::FiltersGeneral;VTK::FiltersGeometry;VTK::FiltersModeling;VTK::FiltersSources;VTK::ImagingCore;VTK::ImagingSources;VTK::InteractionImage;VTK::InteractionStyle;VTK::InteractionWidgets;VTK::IOCore;VTK::IOGeometry;VTK::IOImage;VTK::IOLegacy;VTK::IOPLY;VTK::RenderingAnnotation;VTK::RenderingCore;VTK::RenderingContext2D;VTK::RenderingLOD;VTK::RenderingFreeType;VTK::ViewsCore;VTK::ViewsContext2D;VTK::RenderingOpenGL2;VTK::RenderingContextOpenGL2;VTK::GUISupportQt;FLANN::FLANN;QHULL::QHULL  
+[86.766s] -- Found pcl_conversions: 2.6.2 (/opt/ros/jazzy/share/pcl_conversions/cmake)
+[86.906s] -- Found pcl_ros: 2.6.2 (/opt/ros/jazzy/share/pcl_ros/cmake)
+[88.010s] -- Found ament_lint_auto: 0.17.1 (/opt/ros/jazzy/share/ament_lint_auto/cmake)
+[88.161s] -- Added test 'cppcheck' to perform static code analysis on C / C++ code
+[88.167s] -- Configured cppcheck include dirs: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_mtc_pick_place_demo/include;$<BUILD_INTERFACE:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_mtc_pick_place_demo/include>
+[88.167s] -- Configured cppcheck exclude dirs and/or files: 
+[88.169s] -- Added test 'flake8' to check Python code syntax and style conventions
+[88.170s] -- Configured 'flake8' exclude dirs and/or files: 
+[88.177s] -- Added test 'lint_cmake' to check CMake code style
+[88.180s] -- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+[88.184s] -- Added test 'uncrustify' to check C / C++ code style
+[88.185s] -- Configured uncrustify additional arguments: 
+[88.187s] -- Added test 'xmllint' to check XML markup files
+[88.203s] -- Configuring done (87.5s)
+[89.843s] -- Generating done (1.3s)
+[89.963s] -- Build files have been written to: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_mtc_pick_place_demo
+[90.059s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_mtc_pick_place_demo' returned '0': AMENT_PREFIX_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs:${AMENT_PREFIX_PATH} CMAKE_MODULE_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/share/moveit_task_constructor_core/cmake:${CMAKE_MODULE_PATH} CMAKE_PREFIX_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_config:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_mtc_pick_place_demo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_mtc_demos:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_moveit_demos:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_gazebo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_description:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_visualization:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_demo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_capabilities:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/robotiq_2f_85_gripper_visualization:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_msgs:/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor:/opt/ros/jazzy LD_LIBRARY_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/lib/python3.12/site-packages:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces/lib/python3.12/site-packages:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/cmake /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_mtc_pick_place_demo -DCMAKE_INSTALL_PREFIX=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_mtc_pick_place_demo
+[90.062s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_mtc_pick_place_demo': AMENT_PREFIX_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs:${AMENT_PREFIX_PATH} CMAKE_MODULE_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/share/moveit_task_constructor_core/cmake:${CMAKE_MODULE_PATH} CMAKE_PREFIX_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_config:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_mtc_pick_place_demo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_mtc_demos:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_moveit_demos:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_interfaces:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_gazebo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/ur_description:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_visualization:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_demo:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_capabilities:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_core:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/rviz_marker_tools:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/robotiq_2f_85_gripper_visualization:/home/darsh/UR3_ROS2_PICK_AND_PLACE/install/moveit_task_constructor_msgs:/opt/ros/jazzy/opt/gz_sim_vendor:/opt/ros/jazzy/opt/gz_sensors_vendor:/opt/ros/jazzy/opt/gz_physics_vendor:/opt/ros/jazzy/opt/sdformat_vendor:/opt/ros/jazzy/opt/gz_gui_vendor:/opt/ros/jazzy/opt/gz_transport_vendor:/opt/ros/jazzy/opt/gz_rendering_vendor:/opt/ros/jazzy/opt/gz_plugin_vendor:/opt/ros/jazzy/opt/gz_fuel_tools_vendor:/opt/ros/jazzy/opt/gz_msgs_vendor:/opt/ros/jazzy/opt/gz_common_vendor:/opt/ros/jazzy/opt/gz_math_vendor:/opt/ros/jazzy/opt/gz_utils_vendor:/opt/ros/jazzy/opt/gz_tools_vendor:/opt/ros/jazzy/opt/gz_ogre_next_vendor:/opt/ros/jazzy/opt/gz_dartsim_vendor:/opt/ros/jazzy/opt/gz_cmake_vendor:/opt/ros/jazzy LD_LIBRARY_PATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/rviz_marker_tools/lib:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_core/lib/python3.12/site-packages:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_interfaces/lib/python3.12/site-packages:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_mtc_pick_place_demo -- -j4 -l4
+[90.210s] [  6%] [32mBuilding CXX object CMakeFiles/cluster_extraction.dir/src/cluster_extraction.cpp.o[0m
+[152.535s] [ 12%] [32m[1mLinking CXX shared library libcluster_extraction.so[0m
+[161.422s] [ 12%] Built target cluster_extraction
+[161.503s] [ 18%] [32mBuilding CXX object CMakeFiles/object_segmentation.dir/src/object_segmentation.cpp.o[0m
+[190.310s] gmake[2]: *** [CMakeFiles/object_segmentation.dir/build.make:76: CMakeFiles/object_segmentation.dir/src/object_segmentation.cpp.o] Killed
+[190.310s] gmake[1]: *** [CMakeFiles/Makefile2:229: CMakeFiles/object_segmentation.dir/all] Error 2
+[190.311s] gmake: *** [Makefile:146: all] Error 2

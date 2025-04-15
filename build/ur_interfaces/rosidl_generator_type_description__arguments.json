@@ -1,8 +1,8 @@
 {
   "package_name": "ur_interfaces",
-  "output_dir": "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_generator_type_description/ur_interfaces",
+  "output_dir": "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_generator_type_description/ur_interfaces",
   "idl_tuples": [
-    "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_adapter/ur_interfaces:srv/GetPlanningScene.idl"
+    "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_adapter/ur_interfaces:srv/GetPlanningScene.idl"
   ],
   "include_paths": [
     "moveit_msgs:/opt/ros/jazzy/share/moveit_msgs",

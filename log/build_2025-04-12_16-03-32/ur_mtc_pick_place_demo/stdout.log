@@ -1,5 +1,0 @@
-[ 12%] Built target get_planning_scene_client
-[ 25%] Built target cluster_extraction
-[ 37%] Built target object_segmentation
-[ 50%] Built target normals_curvature_and_rsd_estimation
-[ 62%] Built target get_planning_scene_client_node

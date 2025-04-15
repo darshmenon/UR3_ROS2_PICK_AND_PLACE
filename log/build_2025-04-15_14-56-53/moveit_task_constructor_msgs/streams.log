@@ -1,0 +1,41 @@
+[0.057s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_msgs': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/src/moveit_task_constructor/msgs -DCMAKE_INSTALL_PREFIX=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs
+[0.415s] -- The C compiler identification is GNU 13.3.0
+[1.314s] -- The CXX compiler identification is GNU 13.3.0
+[1.949s] -- Detecting C compiler ABI info
+[2.348s] -- Detecting C compiler ABI info - done
+[2.376s] -- Check for working C compiler: /usr/bin/cc - skipped
+[2.377s] -- Detecting C compile features
+[2.377s] -- Detecting C compile features - done
+[2.524s] -- Detecting CXX compiler ABI info
+[2.985s] -- Detecting CXX compiler ABI info - done
+[2.994s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.995s] -- Detecting CXX compile features
+[2.996s] -- Detecting CXX compile features - done
+[3.006s] -- Found ament_cmake: 2.5.3 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[3.545s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[3.985s] -- Found builtin_interfaces: 2.0.2 (/opt/ros/jazzy/share/builtin_interfaces/cmake)
+[4.515s] -- Found rosidl_generator_c: 4.6.5 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[4.615s] -- Found rosidl_generator_cpp: 4.6.5 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[4.690s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[4.728s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[4.785s] -- Found moveit_msgs: 2.6.0 (/opt/ros/jazzy/share/moveit_msgs/cmake)
+[5.768s] -- Found rosidl_default_generators: 1.6.0 (/opt/ros/jazzy/share/rosidl_default_generators/cmake)
+[5.812s] -- Found rosidl_adapter: 4.6.5 (/opt/ros/jazzy/share/rosidl_adapter/cmake)
+[5.828s] -- Found visualization_msgs: 5.3.5 (/opt/ros/jazzy/share/visualization_msgs/cmake)
+[7.634s] -- Found ament_cmake_ros: 0.12.0 (/opt/ros/jazzy/share/ament_cmake_ros/cmake)
+[10.965s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[12.310s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[12.321s] -- Found python_cmake_module: 0.11.1 (/opt/ros/jazzy/share/python_cmake_module/cmake)
+[12.739s] -- Found PythonExtra: /usr/bin/python3  
+[13.881s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter Development NumPy Development.Module Development.Embed 
+[14.431s] -- Configuring done (14.3s)
+[14.853s] -- Generating done (0.3s)
+[14.909s] -- Build files have been written to: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_msgs
+[14.939s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_msgs' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/src/moveit_task_constructor/msgs -DCMAKE_INSTALL_PREFIX=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/moveit_task_constructor_msgs
+[14.940s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_msgs': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/moveit_task_constructor_msgs -- -j4 -l4
+[15.228s] [  1%] [34m[1mGenerating type hashes for ROS interfaces[0m
+[17.951s] [  1%] Built target moveit_task_constructor_msgs__rosidl_generator_type_description
+[18.110s] [  1%] Built target ament_cmake_python_copy_moveit_task_constructor_msgs
+[18.259s] [  2%] [34m[1mGenerating C code for ROS interfaces[0m
+[18.299s] gmake[1]: *** [CMakeFiles/Makefile2:240: CMakeFiles/moveit_task_constructor_msgs__rosidl_generator_c.dir/all] Killed
+[18.299s] gmake: *** [Makefile:146: all] Error 2

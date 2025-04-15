@@ -4,8 +4,8 @@
 
 #include <string.h>
 
-#include "moveit_task_constructor_msgs/srv/detail/get_solution__functions.h"
 #include "rosidl_typesupport_interface/macros.h"
+#include "moveit_task_constructor_msgs/srv/detail/get_solution__functions.h"
 #include "moveit_task_constructor_msgs/srv/detail/get_solution__type_support.h"
 #include "moveit_task_constructor_msgs/srv/detail/get_solution__struct.h"
 

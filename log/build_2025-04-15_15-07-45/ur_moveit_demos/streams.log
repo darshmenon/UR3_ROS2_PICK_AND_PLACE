@@ -1,0 +1,124 @@
+[0.003s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_moveit_demos -DCMAKE_INSTALL_PREFIX=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos
+[0.232s] -- The C compiler identification is GNU 13.3.0
+[2.495s] -- The CXX compiler identification is GNU 13.3.0
+[3.369s] -- Detecting C compiler ABI info
+[3.836s] -- Detecting C compiler ABI info - done
+[3.870s] -- Check for working C compiler: /usr/bin/cc - skipped
+[3.870s] -- Detecting C compile features
+[3.871s] -- Detecting C compile features - done
+[4.055s] -- Detecting CXX compiler ABI info
+[4.546s] -- Detecting CXX compiler ABI info - done
+[4.561s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[4.562s] -- Detecting CXX compile features
+[4.564s] -- Detecting CXX compile features - done
+[4.578s] -- Found ament_cmake: 2.5.3 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[5.132s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[5.319s] -- Found moveit_msgs: 2.6.0 (/opt/ros/jazzy/share/moveit_msgs/cmake)
+[5.606s] -- Found rosidl_generator_c: 4.6.5 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[5.669s] -- Found rosidl_generator_cpp: 4.6.5 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[5.709s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[5.743s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[6.588s] -- Found moveit_ros_planning_interface: 2.12.2 (/opt/ros/jazzy/share/moveit_ros_planning_interface/cmake)
+[6.987s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: date_time filesystem program_options system thread 
+[7.084s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: chrono date_time filesystem iostreams program_options regex serialization system thread 
+[8.705s] -- Found parameter_traits: 0.4.0 (/opt/ros/jazzy/share/parameter_traits/cmake)
+[8.815s] -- Found rmw_implementation_cmake: 7.3.1 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+[8.822s] -- Found rmw_fastrtps_cpp: 8.4.1 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+[8.948s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.13")  
+[9.174s] -- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+[9.297s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[9.716s] -- Found rclcpp_lifecycle: 28.1.6 (/opt/ros/jazzy/share/rclcpp_lifecycle/cmake)
+[9.793s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: filesystem 
+[9.974s] -- Found Eigen3: TRUE (found version "3.4.0") 
+[9.974s] -- Ensuring Eigen3 include directory is part of orocos-kdl CMake target
+[10.231s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: system filesystem date_time program_options thread chrono 
+[10.302s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: thread system filesystem regex date_time program_options 
+[10.342s] -- Found Boost: /usr/lib/x86_64-linux-gnu/cmake/Boost-1.83.0/BoostConfig.cmake (found version "1.83.0") found components: system filesystem date_time program_options thread 
+[10.400s] -- Found moveit_visual_tools: 4.1.2 (/opt/ros/jazzy/share/moveit_visual_tools/cmake)
+[10.599s] -- Setting OGRE_DIR to: '/opt/ros/jazzy/share/rviz_ogre_vendor/cmake/../../../opt/rviz_ogre_vendor/lib/OGRE/cmake'
+[10.601s] -- Found OGRE
+[10.601s] --   static     : OFF
+[10.601s] --   components : MeshLodGenerator;Overlay;Paging;Property;RTShaderSystem;Terrain;Volume
+[10.601s] --   plugins    : Plugin_BSPSceneManager;Plugin_OctreeSceneManager;Plugin_PCZSceneManager;Plugin_ParticleFX;RenderSystem_GL;RenderSystem_GL3Plus;Codec_STBI
+[10.601s] --   media      : /opt/ros/jazzy/opt/rviz_ogre_vendor/share/OGRE/Media
+[10.602s] -- OGRE_LIBRARIES: OgreMeshLodGenerator;OgreOverlay;OgrePaging;OgreProperty;OgreRTShaderSystem;OgreTerrain;OgreVolume;OgreMain
+[10.602s] -- OGRE_LIBRARY_DIRS: /opt/ros/jazzy/opt/rviz_ogre_vendor/lib
+[10.602s] -- OGRE_PLUGINS: Plugin_BSPSceneManager;Plugin_OctreeSceneManager;Plugin_PCZSceneManager;Plugin_ParticleFX;RenderSystem_GL;RenderSystem_GL3Plus;Codec_STBI
+[10.602s] -- OGRE_PLUGIN_DIR: /opt/ros/jazzy/opt/rviz_ogre_vendor/lib/OGRE
+[10.603s] -- rviz_ogre_vendor::OgreOverlay for IMPORTED_LOCATION_RELEASE: /opt/ros/jazzy/opt/rviz_ogre_vendor/lib/libOgreOverlay.so
+[10.603s] -- rviz_ogre_vendor::OgreOverlay for IMPORTED_LOCATION_DEBUG: /opt/ros/jazzy/opt/rviz_ogre_vendor/lib/libOgreOverlay.so
+[10.604s] -- rviz_ogre_vendor::OgreMain for IMPORTED_LOCATION_RELEASE: /opt/ros/jazzy/opt/rviz_ogre_vendor/lib/libOgreMain.so
+[10.604s] -- rviz_ogre_vendor::OgreMain for IMPORTED_LOCATION_DEBUG: /opt/ros/jazzy/opt/rviz_ogre_vendor/lib/libOgreMain.so
+[16.621s] -- Found ZLIB: /usr/lib/x86_64-linux-gnu/libz.so (found version "1.3")  
+[17.469s] -- Found OpenGL: /usr/lib/x86_64-linux-gnu/libOpenGL.so   
+[24.465s] -- Found X11: /usr/include   
+[24.466s] -- Looking for XOpenDisplay in /usr/lib/x86_64-linux-gnu/libX11.so;/usr/lib/x86_64-linux-gnu/libXext.so
+[24.791s] -- Looking for XOpenDisplay in /usr/lib/x86_64-linux-gnu/libX11.so;/usr/lib/x86_64-linux-gnu/libXext.so - found
+[24.791s] -- Looking for gethostbyname
+[25.469s] -- Looking for gethostbyname - found
+[25.470s] -- Looking for connect
+[26.656s] -- Looking for connect - found
+[26.668s] -- Looking for remove
+[27.794s] -- Looking for remove - found
+[27.795s] -- Looking for shmat
+[28.866s] -- Looking for shmat - found
+[28.867s] -- Looking for IceConnectionNumber in ICE
+[29.881s] -- Looking for IceConnectionNumber in ICE - found
+[30.191s] -- Setting yaml-cpp_DIR to: '/opt/ros/jazzy/share/yaml_cpp_vendor/cmake/../../../opt/yaml_cpp_vendor/share/cmake/yaml-cpp'
+[30.706s] -- Found ament_lint_auto: 0.17.1 (/opt/ros/jazzy/share/ament_lint_auto/cmake)
+[30.988s] -- Added test 'cppcheck' to perform static code analysis on C / C++ code
+[30.988s] -- Configured cppcheck include dirs: $<BUILD_INTERFACE:/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_moveit_demos/include>
+[30.989s] -- Configured cppcheck exclude dirs and/or files: 
+[30.992s] -- Added test 'lint_cmake' to check CMake code style
+[30.994s] -- Added test 'uncrustify' to check C / C++ code style
+[30.994s] -- Configured uncrustify additional arguments: 
+[30.996s] -- Added test 'xmllint' to check XML markup files
+[31.002s] -- Configuring done (31.6s)
+[31.141s] -- Generating done (0.1s)
+[31.155s] -- Build files have been written to: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos
+[31.223s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_moveit_demos -DCMAKE_INSTALL_PREFIX=/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos
+[31.224s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos -- -j4 -l4
+[31.461s] [ 25%] [32mBuilding CXX object CMakeFiles/hello_moveit.dir/src/hello_moveit.cpp.o[0m
+[37.234s] In file included from [01m[K/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_moveit_demos/src/hello_moveit.cpp:16[m[K:
+[37.234s] [01m[K/opt/ros/jazzy/include/moveit_ros_planning_interface/moveit/move_group_interface/move_group_interface.h:51:77:[m[K [01;36m[Knote: [m[K‘[01m[K#pragma message: .h header is obsolete. Please use the .hpp header instead.[m[K’
+[37.235s]    51 | header is obsolete. Please use the .hpp header instead."[01;36m[K)[m[K
+[37.235s]       |                                                         [01;36m[K^[m[K
+[37.236s] 
+[49.181s] [ 50%] [32m[1mLinking CXX executable hello_moveit[0m
+[49.657s] [ 50%] Built target hello_moveit
+[49.683s] [ 75%] [32mBuilding CXX object CMakeFiles/plan_around_objects.dir/src/plan_around_objects.cpp.o[0m
+[51.687s] In file included from [01m[K/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_moveit_demos/src/plan_around_objects.cpp:13[m[K:
+[51.687s] [01m[K/opt/ros/jazzy/include/moveit_ros_planning_interface/moveit/move_group_interface/move_group_interface.h:51:77:[m[K [01;36m[Knote: [m[K‘[01m[K#pragma message: .h header is obsolete. Please use the .hpp header instead.[m[K’
+[51.687s]    51 | header is obsolete. Please use the .hpp header instead."[01;36m[K)[m[K
+[51.687s]       |                                                         [01;36m[K^[m[K
+[51.687s] 
+[61.578s] In file included from [01m[K/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/ur_moveit_demos/src/plan_around_objects.cpp:14[m[K:
+[61.579s] [01m[K/opt/ros/jazzy/include/moveit_ros_planning_interface/moveit/planning_scene_interface/planning_scene_interface.h:50:77:[m[K [01;36m[Knote: [m[K‘[01m[K#pragma message: .h header is obsolete. Please use the .hpp header instead.[m[K’
+[61.579s]    50 | header is obsolete. Please use the .hpp header instead."[01;36m[K)[m[K
+[61.579s]       |                                                         [01;36m[K^[m[K
+[61.579s] 
+[77.685s] [100%] [32m[1mLinking CXX executable plan_around_objects[0m
+[80.392s] [100%] Built target plan_around_objects
+[80.439s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos -- -j4 -l4
+[80.439s] Invoking command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos
+[80.468s] -- Install configuration: ""
+[80.473s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/lib/ur_moveit_demos/hello_moveit
+[80.482s] -- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/lib/ur_moveit_demos/hello_moveit" to ""
+[80.482s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/lib/ur_moveit_demos/plan_around_objects
+[80.484s] -- Set non-toolchain portion of runtime path of "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/lib/ur_moveit_demos/plan_around_objects" to ""
+[80.492s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ament_index/resource_index/package_run_dependencies/ur_moveit_demos
+[80.493s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ament_index/resource_index/parent_prefix_path/ur_moveit_demos
+[80.494s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/environment/ament_prefix_path.sh
+[80.495s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/environment/ament_prefix_path.dsv
+[80.506s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/environment/path.sh
+[80.506s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/environment/path.dsv
+[80.507s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/local_setup.bash
+[80.507s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/local_setup.sh
+[80.507s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/local_setup.zsh
+[80.507s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/local_setup.dsv
+[80.507s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/package.dsv
+[80.507s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ament_index/resource_index/packages/ur_moveit_demos
+[80.517s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/cmake/ur_moveit_demosConfig.cmake
+[80.522s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/cmake/ur_moveit_demosConfig-version.cmake
+[80.522s] -- Installing: /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/install/ur_moveit_demos/share/ur_moveit_demos/package.xml
+[80.531s] Invoked command in '/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_moveit_demos

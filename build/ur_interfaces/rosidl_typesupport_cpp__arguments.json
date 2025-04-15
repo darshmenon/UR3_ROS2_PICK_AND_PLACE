@@ -1,9 +1,9 @@
 {
   "package_name": "ur_interfaces",
-  "output_dir": "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_typesupport_cpp/ur_interfaces",
+  "output_dir": "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_typesupport_cpp/ur_interfaces",
   "template_dir": "/opt/ros/jazzy/share/rosidl_typesupport_cpp/resource",
   "idl_tuples": [
-    "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_adapter/ur_interfaces:srv/GetPlanningScene.idl"
+    "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_adapter/ur_interfaces:srv/GetPlanningScene.idl"
   ],
   "ros_interface_dependencies": [
     "moveit_msgs:/opt/ros/jazzy/share/moveit_msgs/msg/AllowedCollisionEntry.idl",
@@ -212,7 +212,7 @@
     "/opt/ros/jazzy/share/rosidl_typesupport_cpp/resource/idl__type_support.cpp.em",
     "/opt/ros/jazzy/share/rosidl_typesupport_cpp/resource/msg__type_support.cpp.em",
     "/opt/ros/jazzy/share/rosidl_typesupport_cpp/resource/srv__type_support.cpp.em",
-    "/home/darsh/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_adapter/ur_interfaces/srv/GetPlanningScene.idl",
+    "/home/darsh/UR3_ROS2_PICK_AND_PLACE_random_name/build/ur_interfaces/rosidl_adapter/ur_interfaces/srv/GetPlanningScene.idl",
     "/opt/ros/jazzy/share/moveit_msgs/msg/AllowedCollisionEntry.idl",
     "/opt/ros/jazzy/share/moveit_msgs/msg/AllowedCollisionMatrix.idl",
     "/opt/ros/jazzy/share/moveit_msgs/msg/AttachedCollisionObject.idl",
