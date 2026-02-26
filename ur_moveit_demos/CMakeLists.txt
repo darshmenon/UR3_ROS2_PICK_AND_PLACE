@@ -36,10 +36,27 @@ ament_target_dependencies(
   "rclcpp"
 )
 
+add_executable(test_planning_execution src/test_planning_execution.cpp)
+target_include_directories(test_planning_execution PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
+target_compile_features(test_planning_execution PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  test_planning_execution
+  "moveit_ros_planning_interface"
+  "rclcpp"
+)
+
 install(TARGETS
   hello_moveit
   plan_around_objects
+  test_planning_execution
   DESTINATION lib/${PROJECT_NAME})
+
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

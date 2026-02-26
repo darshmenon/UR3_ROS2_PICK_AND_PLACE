@@ -40,6 +40,11 @@ int main(int argc, char * argv[])
   // as our program runs.
   auto const logger = rclcpp::get_logger("hello_moveit");
 
+  // Spin a single-threaded executor in a background thread for MoveIt action servers.
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(node);
+  auto spinner = std::thread([&executor]() { executor.spin(); });
+
   // Create the MoveIt MoveGroup Interfaces
   // These interfaces are used to plan and execute movements, set target poses,
   // and perform other motion-related tasks for each respective part of the robot.
@@ -79,7 +84,6 @@ int main(int argc, char * argv[])
     msg.pose.position.x = 0.061;
     msg.pose.position.y = -0.176;
     msg.pose.position.z = 0.168;
-    msg.pose.orientation.x = 1.0;
     msg.pose.orientation.y = 0.0;
     msg.pose.orientation.z = 0.0;
     msg.pose.orientation.w = 0.0;
@@ -112,7 +116,11 @@ int main(int argc, char * argv[])
     RCLCPP_ERROR(logger, "Planning failed!");
   }
 
-  // Shut down ROS 2 cleanly when we're done
+  // Clean up and shut down the ROS 2 node
   rclcpp::shutdown();
+
+  // Wait for the spinner thread to finish
+  spinner.join();
+
   return 0;
 }
