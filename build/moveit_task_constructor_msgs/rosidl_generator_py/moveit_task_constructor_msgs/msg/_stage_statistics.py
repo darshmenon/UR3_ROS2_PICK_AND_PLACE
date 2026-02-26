@@ -2,13 +2,6 @@
 # with input from moveit_task_constructor_msgs:msg/StageStatistics.idl
 # generated code does not contain a copyright notice
 
-# This is being done at the module level and not on the instance level to avoid looking
-# for the same variable multiple times on each instance. This variable is not supposed to
-# change during runtime so it makes sense to only look for it once.
-from os import getenv
-
-ros_python_check_fields = getenv('ROS_PYTHON_CHECK_FIELDS', default='')
-
 
 # Import statements for member types
 
@@ -73,7 +66,6 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
         '_failed',
         '_num_failed',
         '_total_compute_time',
-        '_check_fields',
     ]
 
     _fields_and_field_types = {
@@ -84,8 +76,6 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
         'total_compute_time': 'double',
     }
 
-    # This attribute is used to store an rosidl_parser.definition variable
-    # related to the data type of each of the components the message.
     SLOT_TYPES = (
         rosidl_parser.definition.BasicType('uint32'),  # noqa: E501
         rosidl_parser.definition.UnboundedSequence(rosidl_parser.definition.BasicType('uint32')),  # noqa: E501
@@ -95,14 +85,9 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
     )
 
     def __init__(self, **kwargs):
-        if 'check_fields' in kwargs:
-            self._check_fields = kwargs['check_fields']
-        else:
-            self._check_fields = ros_python_check_fields == '1'
-        if self._check_fields:
-            assert all('_' + key in self.__slots__ for key in kwargs.keys()), \
-                'Invalid arguments passed to constructor: %s' % \
-                ', '.join(sorted(k for k in kwargs.keys() if '_' + k not in self.__slots__))
+        assert all('_' + key in self.__slots__ for key in kwargs.keys()), \
+            'Invalid arguments passed to constructor: %s' % \
+            ', '.join(sorted(k for k in kwargs.keys() if '_' + k not in self.__slots__))
         self.id = kwargs.get('id', int())
         self.solved = array.array('I', kwargs.get('solved', []))
         self.failed = array.array('I', kwargs.get('failed', []))
@@ -114,7 +99,7 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
         typename.pop()
         typename.append(self.__class__.__name__)
         args = []
-        for s, t in zip(self.get_fields_and_field_types().keys(), self.SLOT_TYPES):
+        for s, t in zip(self.__slots__, self.SLOT_TYPES):
             field = getattr(self, s)
             fieldstr = repr(field)
             # We use Python array type for fields that can be directly stored
@@ -128,12 +113,11 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
                 if len(field) == 0:
                     fieldstr = '[]'
                 else:
-                    if self._check_fields:
-                        assert fieldstr.startswith('array(')
+                    assert fieldstr.startswith('array(')
                     prefix = "array('X', "
                     suffix = ')'
                     fieldstr = fieldstr[len(prefix):-len(suffix)]
-            args.append(s + '=' + fieldstr)
+            args.append(s[1:] + '=' + fieldstr)
         return '%s(%s)' % ('.'.join(typename), ', '.join(args))
 
     def __eq__(self, other):
@@ -163,7 +147,7 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
 
     @id.setter  # noqa: A003
     def id(self, value):  # noqa: A003
-        if self._check_fields:
+        if __debug__:
             assert \
                 isinstance(value, int), \
                 "The 'id' field must be of type 'int'"
@@ -178,12 +162,12 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
 
     @solved.setter
     def solved(self, value):
-        if self._check_fields:
-            if isinstance(value, array.array):
-                assert value.typecode == 'I', \
-                    "The 'solved' array.array() must have the type code of 'I'"
-                self._solved = value
-                return
+        if isinstance(value, array.array):
+            assert value.typecode == 'I', \
+                "The 'solved' array.array() must have the type code of 'I'"
+            self._solved = value
+            return
+        if __debug__:
             from collections.abc import Sequence
             from collections.abc import Set
             from collections import UserList
@@ -206,12 +190,12 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
 
     @failed.setter
     def failed(self, value):
-        if self._check_fields:
-            if isinstance(value, array.array):
-                assert value.typecode == 'I', \
-                    "The 'failed' array.array() must have the type code of 'I'"
-                self._failed = value
-                return
+        if isinstance(value, array.array):
+            assert value.typecode == 'I', \
+                "The 'failed' array.array() must have the type code of 'I'"
+            self._failed = value
+            return
+        if __debug__:
             from collections.abc import Sequence
             from collections.abc import Set
             from collections import UserList
@@ -234,7 +218,7 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
 
     @num_failed.setter
     def num_failed(self, value):
-        if self._check_fields:
+        if __debug__:
             assert \
                 isinstance(value, int), \
                 "The 'num_failed' field must be of type 'int'"
@@ -249,7 +233,7 @@ class StageStatistics(metaclass=Metaclass_StageStatistics):
 
     @total_compute_time.setter
     def total_compute_time(self, value):
-        if self._check_fields:
+        if __debug__:
             assert \
                 isinstance(value, float), \
                 "The 'total_compute_time' field must be of type 'float'"

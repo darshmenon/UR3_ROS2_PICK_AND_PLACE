@@ -6,7 +6,6 @@
 #include "rosidl_runtime_c/message_type_support_struct.h"
 #include "moveit_task_constructor_msgs/msg/detail/stage_description__struct.h"
 #include "moveit_task_constructor_msgs/msg/detail/stage_description__type_support.h"
-#include "moveit_task_constructor_msgs/msg/detail/stage_description__functions.h"
 #include "rosidl_typesupport_c/identifier.h"
 #include "rosidl_typesupport_c/message_type_support_dispatch.h"
 #include "rosidl_typesupport_c/type_support_map.h"
@@ -73,9 +72,6 @@ static const rosidl_message_type_support_t StageDescription_message_type_support
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_StageDescription_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__msg__StageDescription__get_type_hash,
-  &moveit_task_constructor_msgs__msg__StageDescription__get_type_description,
-  &moveit_task_constructor_msgs__msg__StageDescription__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c

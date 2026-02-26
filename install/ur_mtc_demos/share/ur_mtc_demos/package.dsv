@@ -1,6 +1,0 @@
-source;share/ur_mtc_demos/hook/cmake_prefix_path.dsv
-source;share/ur_mtc_demos/hook/cmake_prefix_path.sh
-source;share/ur_mtc_demos/local_setup.bash
-source;share/ur_mtc_demos/local_setup.dsv
-source;share/ur_mtc_demos/local_setup.sh
-source;share/ur_mtc_demos/local_setup.zsh

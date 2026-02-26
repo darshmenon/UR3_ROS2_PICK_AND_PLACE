@@ -9,7 +9,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/pymoveit_mtc.dir/src/solvers.cpp.o.d"
   "CMakeFiles/pymoveit_mtc.dir/src/stages.cpp.o"
   "CMakeFiles/pymoveit_mtc.dir/src/stages.cpp.o.d"
-  "pymoveit_mtc.cpython-312-x86_64-linux-gnu.so"
+  "pymoveit_mtc.cpython-310-x86_64-linux-gnu.so"
   "pymoveit_mtc.pdb"
 )
 

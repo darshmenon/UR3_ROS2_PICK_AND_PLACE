@@ -52,7 +52,7 @@ def generate_launch_description():
 
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
-        default_value='move_group.rviz',
+        default_value='moveit.rviz',
         description='RViz configuration file')
 
     declare_rviz_config_package_cmd = DeclareLaunchArgument(
@@ -74,7 +74,7 @@ def generate_launch_description():
         kinematics_file_path = os.path.join(moveit_config_share, "config", "kinematics.yaml")
         pilz_cartesian_limits_file_path = os.path.join(moveit_config_share, "config", "pilz_cartesian_limits.yaml")
         moveit_controllers_file_path = os.path.join(moveit_config_share, "config", "moveit_controllers.yaml")
-        initial_positions_file_path = os.path.join(moveit_config_share, "config", "start_positions.yaml")
+        initial_positions_file_path = os.path.join(moveit_config_share, "config", "initial_positions.yaml")
 
         # Create MoveIt configuration
         moveit_config = (

@@ -1,7 +1,1 @@
-<library path="warehouse_ros_mongo">
-  <class type="warehouse_ros_mongo::MongoDatabaseConnection" base_class_type="warehouse_ros::DatabaseConnection">
-    <description>
-    	This is an implementation of warehouse_ros for MongoDB
-    </description>
-  </class>
-</library>
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/src/warehouse_ros_mongo/mongo_database_connection_plugin_description.xml

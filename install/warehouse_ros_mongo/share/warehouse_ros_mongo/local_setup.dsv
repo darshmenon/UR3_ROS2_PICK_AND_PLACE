@@ -1,4 +1,1 @@
-source;share/warehouse_ros_mongo/environment/ament_prefix_path.sh
-source;share/warehouse_ros_mongo/environment/library_path.sh
-source;share/warehouse_ros_mongo/environment/path.sh
-source;share/warehouse_ros_mongo/environment/pythonpath.sh
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/warehouse_ros_mongo/ament_cmake_environment_hooks/local_setup.dsv

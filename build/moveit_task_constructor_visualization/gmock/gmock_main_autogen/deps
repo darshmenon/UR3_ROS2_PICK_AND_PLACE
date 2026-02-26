@@ -1,5 +1,0 @@
-gmock_main_autogen/timestamp: \
-	/opt/ros/jazzy/share/gtest_vendor/cmake/gtest_vendorConfig.cmake \
-	/opt/ros/jazzy/src/gmock_vendor/CMakeLists.txt \
-	/opt/ros/jazzy/src/gmock_vendor/src/gmock_main.cc \
-	/usr/bin/cmake

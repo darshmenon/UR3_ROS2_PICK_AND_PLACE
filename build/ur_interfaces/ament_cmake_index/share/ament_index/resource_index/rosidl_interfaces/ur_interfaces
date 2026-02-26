@@ -1,2 +1,4 @@
 srv/GetPlanningScene.idl
 srv/GetPlanningScene.srv
+srv/GetPlanningScene_Request.msg
+srv/GetPlanningScene_Response.msg

@@ -1,14 +1,1 @@
-# generated from ament/cmake/core/templates/nameConfig-version.cmake.in
-set(PACKAGE_VERSION "2.0.3")
-
-set(PACKAGE_VERSION_EXACT False)
-set(PACKAGE_VERSION_COMPATIBLE False)
-
-if("${PACKAGE_FIND_VERSION}" VERSION_EQUAL "${PACKAGE_VERSION}")
-  set(PACKAGE_VERSION_EXACT True)
-  set(PACKAGE_VERSION_COMPATIBLE True)
-endif()
-
-if("${PACKAGE_FIND_VERSION}" VERSION_LESS "${PACKAGE_VERSION}")
-  set(PACKAGE_VERSION_COMPATIBLE True)
-endif()
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/warehouse_ros_mongo/ament_cmake_core/warehouse_ros_mongoConfig-version.cmake

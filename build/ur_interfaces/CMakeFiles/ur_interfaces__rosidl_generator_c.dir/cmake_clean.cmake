@@ -1,17 +1,11 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/ur_interfaces__rosidl_generator_c.dir/rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__description.c.o"
-  "CMakeFiles/ur_interfaces__rosidl_generator_c.dir/rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__description.c.o.d"
   "CMakeFiles/ur_interfaces__rosidl_generator_c.dir/rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__functions.c.o"
   "CMakeFiles/ur_interfaces__rosidl_generator_c.dir/rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__functions.c.o.d"
-  "CMakeFiles/ur_interfaces__rosidl_generator_c.dir/rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__type_support.c.o"
-  "CMakeFiles/ur_interfaces__rosidl_generator_c.dir/rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__type_support.c.o.d"
   "libur_interfaces__rosidl_generator_c.pdb"
   "libur_interfaces__rosidl_generator_c.so"
-  "rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__description.c"
   "rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__functions.c"
   "rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__functions.h"
   "rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__struct.h"
-  "rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__type_support.c"
   "rosidl_generator_c/ur_interfaces/srv/detail/get_planning_scene__type_support.h"
   "rosidl_generator_c/ur_interfaces/srv/get_planning_scene.h"
 )

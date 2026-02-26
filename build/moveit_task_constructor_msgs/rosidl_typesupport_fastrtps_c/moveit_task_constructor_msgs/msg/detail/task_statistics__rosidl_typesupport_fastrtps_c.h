@@ -9,23 +9,11 @@
 #include "rosidl_runtime_c/message_type_support_struct.h"
 #include "rosidl_typesupport_interface/macros.h"
 #include "moveit_task_constructor_msgs/msg/rosidl_typesupport_fastrtps_c__visibility_control.h"
-#include "moveit_task_constructor_msgs/msg/detail/task_statistics__struct.h"
-#include "fastcdr/Cdr.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_moveit_task_constructor_msgs
-bool cdr_serialize_moveit_task_constructor_msgs__msg__TaskStatistics(
-  const moveit_task_constructor_msgs__msg__TaskStatistics * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_moveit_task_constructor_msgs
-bool cdr_deserialize_moveit_task_constructor_msgs__msg__TaskStatistics(
-  eprosima::fastcdr::Cdr &,
-  moveit_task_constructor_msgs__msg__TaskStatistics * ros_message);
 
 ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_moveit_task_constructor_msgs
 size_t get_serialized_size_moveit_task_constructor_msgs__msg__TaskStatistics(
@@ -34,22 +22,6 @@ size_t get_serialized_size_moveit_task_constructor_msgs__msg__TaskStatistics(
 
 ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_moveit_task_constructor_msgs
 size_t max_serialized_size_moveit_task_constructor_msgs__msg__TaskStatistics(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_moveit_task_constructor_msgs
-bool cdr_serialize_key_moveit_task_constructor_msgs__msg__TaskStatistics(
-  const moveit_task_constructor_msgs__msg__TaskStatistics * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_moveit_task_constructor_msgs
-size_t get_serialized_size_key_moveit_task_constructor_msgs__msg__TaskStatistics(
-  const void * untyped_ros_message,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_moveit_task_constructor_msgs
-size_t max_serialized_size_key_moveit_task_constructor_msgs__msg__TaskStatistics(
   bool & full_bounded,
   bool & is_plain,
   size_t current_alignment);

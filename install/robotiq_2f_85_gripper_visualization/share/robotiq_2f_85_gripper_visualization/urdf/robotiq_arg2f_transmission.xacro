@@ -1,15 +1,1 @@
-<?xml version="1.0"?>
-<robot xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:macro name="robotiq_arg2f_transmission" params="prefix">
-    <transmission name="${prefix}finger_joint_trans">
-      <type>transmission_interface/SimpleTransmission</type>
-      <joint name="${prefix}finger_joint">
-        <hardwareInterface>PositionJointInterface</hardwareInterface>
-      </joint>
-      <actuator name="${prefix}finger_joint_motor">
-        <mechanicalReduction>1</mechanicalReduction>
-      </actuator>
-    </transmission>
-    
-  </xacro:macro>
-</robot>
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/robotiq_2f_85_gripper_visualization/urdf/robotiq_arg2f_transmission.xacro

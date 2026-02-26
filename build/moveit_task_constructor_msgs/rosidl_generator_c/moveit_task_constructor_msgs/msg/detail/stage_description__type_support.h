@@ -2,9 +2,6 @@
 // with input from moveit_task_constructor_msgs:msg/StageDescription.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "moveit_task_constructor_msgs/msg/stage_description.h"
-
-
 #ifndef MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__STAGE_DESCRIPTION__TYPE_SUPPORT_H_
 #define MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__STAGE_DESCRIPTION__TYPE_SUPPORT_H_
 
@@ -27,7 +24,7 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(
   moveit_task_constructor_msgs,
   msg,
   StageDescription
-)(void);
+)();
 
 #ifdef __cplusplus
 }

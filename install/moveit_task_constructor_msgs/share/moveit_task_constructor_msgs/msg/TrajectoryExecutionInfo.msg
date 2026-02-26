@@ -1,2 +1,1 @@
-# List of controllers to use when executing the trajectory
-string[] controller_names
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/src/moveit_task_constructor/msgs/msg/TrajectoryExecutionInfo.msg

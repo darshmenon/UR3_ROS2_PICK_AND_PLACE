@@ -1,6 +1,5 @@
 file(REMOVE_RECURSE
   "CMakeFiles/ur_interfaces__cpp"
-  "rosidl_generator_cpp/ur_interfaces/msg/rosidl_generator_cpp__visibility_control.hpp"
   "rosidl_generator_cpp/ur_interfaces/srv/detail/get_planning_scene__builder.hpp"
   "rosidl_generator_cpp/ur_interfaces/srv/detail/get_planning_scene__struct.hpp"
   "rosidl_generator_cpp/ur_interfaces/srv/detail/get_planning_scene__traits.hpp"

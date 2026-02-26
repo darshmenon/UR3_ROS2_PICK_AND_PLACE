@@ -2,9 +2,6 @@
 // with input from moveit_task_constructor_msgs:msg/TaskDescription.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "moveit_task_constructor_msgs/msg/task_description.h"
-
-
 #ifndef MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__TASK_DESCRIPTION__FUNCTIONS_H_
 #define MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__TASK_DESCRIPTION__FUNCTIONS_H_
 
@@ -16,12 +13,6 @@ extern "C"
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include "rosidl_runtime_c/action_type_support_struct.h"
-#include "rosidl_runtime_c/message_type_support_struct.h"
-#include "rosidl_runtime_c/service_type_support_struct.h"
-#include "rosidl_runtime_c/type_description/type_description__struct.h"
-#include "rosidl_runtime_c/type_description/type_source__struct.h"
-#include "rosidl_runtime_c/type_hash.h"
 #include "rosidl_runtime_c/visibility_control.h"
 #include "moveit_task_constructor_msgs/msg/rosidl_generator_c__visibility_control.h"
 
@@ -62,7 +53,7 @@ moveit_task_constructor_msgs__msg__TaskDescription__fini(moveit_task_constructor
  */
 ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
 moveit_task_constructor_msgs__msg__TaskDescription *
-moveit_task_constructor_msgs__msg__TaskDescription__create(void);
+moveit_task_constructor_msgs__msg__TaskDescription__create();
 
 /// Destroy msg/TaskDescription message.
 /**
@@ -101,30 +92,6 @@ bool
 moveit_task_constructor_msgs__msg__TaskDescription__copy(
   const moveit_task_constructor_msgs__msg__TaskDescription * input,
   moveit_task_constructor_msgs__msg__TaskDescription * output);
-
-/// Retrieve pointer to the hash of the description of this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_type_hash_t *
-moveit_task_constructor_msgs__msg__TaskDescription__get_type_hash(
-  const rosidl_message_type_support_t * type_support);
-
-/// Retrieve pointer to the description of this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_runtime_c__type_description__TypeDescription *
-moveit_task_constructor_msgs__msg__TaskDescription__get_type_description(
-  const rosidl_message_type_support_t * type_support);
-
-/// Retrieve pointer to the single raw source text that defined this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_runtime_c__type_description__TypeSource *
-moveit_task_constructor_msgs__msg__TaskDescription__get_individual_type_description_source(
-  const rosidl_message_type_support_t * type_support);
-
-/// Retrieve pointer to the recursive raw sources that defined the description of this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_runtime_c__type_description__TypeSource__Sequence *
-moveit_task_constructor_msgs__msg__TaskDescription__get_type_description_sources(
-  const rosidl_message_type_support_t * type_support);
 
 /// Initialize array of msg/TaskDescription messages.
 /**

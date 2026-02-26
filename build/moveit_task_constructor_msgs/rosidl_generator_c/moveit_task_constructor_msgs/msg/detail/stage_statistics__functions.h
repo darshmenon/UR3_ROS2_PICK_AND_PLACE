@@ -2,9 +2,6 @@
 // with input from moveit_task_constructor_msgs:msg/StageStatistics.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "moveit_task_constructor_msgs/msg/stage_statistics.h"
-
-
 #ifndef MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__STAGE_STATISTICS__FUNCTIONS_H_
 #define MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__STAGE_STATISTICS__FUNCTIONS_H_
 
@@ -16,12 +13,6 @@ extern "C"
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include "rosidl_runtime_c/action_type_support_struct.h"
-#include "rosidl_runtime_c/message_type_support_struct.h"
-#include "rosidl_runtime_c/service_type_support_struct.h"
-#include "rosidl_runtime_c/type_description/type_description__struct.h"
-#include "rosidl_runtime_c/type_description/type_source__struct.h"
-#include "rosidl_runtime_c/type_hash.h"
 #include "rosidl_runtime_c/visibility_control.h"
 #include "moveit_task_constructor_msgs/msg/rosidl_generator_c__visibility_control.h"
 
@@ -62,7 +53,7 @@ moveit_task_constructor_msgs__msg__StageStatistics__fini(moveit_task_constructor
  */
 ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
 moveit_task_constructor_msgs__msg__StageStatistics *
-moveit_task_constructor_msgs__msg__StageStatistics__create(void);
+moveit_task_constructor_msgs__msg__StageStatistics__create();
 
 /// Destroy msg/StageStatistics message.
 /**
@@ -101,30 +92,6 @@ bool
 moveit_task_constructor_msgs__msg__StageStatistics__copy(
   const moveit_task_constructor_msgs__msg__StageStatistics * input,
   moveit_task_constructor_msgs__msg__StageStatistics * output);
-
-/// Retrieve pointer to the hash of the description of this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_type_hash_t *
-moveit_task_constructor_msgs__msg__StageStatistics__get_type_hash(
-  const rosidl_message_type_support_t * type_support);
-
-/// Retrieve pointer to the description of this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_runtime_c__type_description__TypeDescription *
-moveit_task_constructor_msgs__msg__StageStatistics__get_type_description(
-  const rosidl_message_type_support_t * type_support);
-
-/// Retrieve pointer to the single raw source text that defined this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_runtime_c__type_description__TypeSource *
-moveit_task_constructor_msgs__msg__StageStatistics__get_individual_type_description_source(
-  const rosidl_message_type_support_t * type_support);
-
-/// Retrieve pointer to the recursive raw sources that defined the description of this type.
-ROSIDL_GENERATOR_C_PUBLIC_moveit_task_constructor_msgs
-const rosidl_runtime_c__type_description__TypeSource__Sequence *
-moveit_task_constructor_msgs__msg__StageStatistics__get_type_description_sources(
-  const rosidl_message_type_support_t * type_support);
 
 /// Initialize array of msg/StageStatistics messages.
 /**

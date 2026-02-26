@@ -46,7 +46,6 @@ file(REMOVE_RECURSE
   "rosidl_generator_cpp/moveit_task_constructor_msgs/msg/detail/trajectory_execution_info__traits.hpp"
   "rosidl_generator_cpp/moveit_task_constructor_msgs/msg/detail/trajectory_execution_info__type_support.hpp"
   "rosidl_generator_cpp/moveit_task_constructor_msgs/msg/property.hpp"
-  "rosidl_generator_cpp/moveit_task_constructor_msgs/msg/rosidl_generator_cpp__visibility_control.hpp"
   "rosidl_generator_cpp/moveit_task_constructor_msgs/msg/solution.hpp"
   "rosidl_generator_cpp/moveit_task_constructor_msgs/msg/solution_info.hpp"
   "rosidl_generator_cpp/moveit_task_constructor_msgs/msg/stage_description.hpp"

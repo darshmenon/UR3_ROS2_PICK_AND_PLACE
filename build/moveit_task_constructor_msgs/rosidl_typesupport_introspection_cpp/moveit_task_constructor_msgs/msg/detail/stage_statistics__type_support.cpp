@@ -9,7 +9,6 @@
 #include "rosidl_runtime_c/message_type_support_struct.h"
 #include "rosidl_typesupport_cpp/message_type_support.hpp"
 #include "rosidl_typesupport_interface/macros.h"
-#include "moveit_task_constructor_msgs/msg/detail/stage_statistics__functions.h"
 #include "moveit_task_constructor_msgs/msg/detail/stage_statistics__struct.hpp"
 #include "rosidl_typesupport_introspection_cpp/field_types.hpp"
 #include "rosidl_typesupport_introspection_cpp/identifier.hpp"
@@ -134,7 +133,6 @@ static const ::rosidl_typesupport_introspection_cpp::MessageMember StageStatisti
     ::rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT32,  // type
     0,  // upper bound of string
     nullptr,  // members of sub message
-    false,  // is key
     false,  // is array
     0,  // array size
     false,  // is upper bound
@@ -152,7 +150,6 @@ static const ::rosidl_typesupport_introspection_cpp::MessageMember StageStatisti
     ::rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT32,  // type
     0,  // upper bound of string
     nullptr,  // members of sub message
-    false,  // is key
     true,  // is array
     0,  // array size
     false,  // is upper bound
@@ -170,7 +167,6 @@ static const ::rosidl_typesupport_introspection_cpp::MessageMember StageStatisti
     ::rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT32,  // type
     0,  // upper bound of string
     nullptr,  // members of sub message
-    false,  // is key
     true,  // is array
     0,  // array size
     false,  // is upper bound
@@ -188,7 +184,6 @@ static const ::rosidl_typesupport_introspection_cpp::MessageMember StageStatisti
     ::rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT32,  // type
     0,  // upper bound of string
     nullptr,  // members of sub message
-    false,  // is key
     false,  // is array
     0,  // array size
     false,  // is upper bound
@@ -206,7 +201,6 @@ static const ::rosidl_typesupport_introspection_cpp::MessageMember StageStatisti
     ::rosidl_typesupport_introspection_cpp::ROS_TYPE_DOUBLE,  // type
     0,  // upper bound of string
     nullptr,  // members of sub message
-    false,  // is key
     false,  // is array
     0,  // array size
     false,  // is upper bound
@@ -226,7 +220,6 @@ static const ::rosidl_typesupport_introspection_cpp::MessageMembers StageStatist
   "StageStatistics",  // message name
   5,  // number of fields
   sizeof(moveit_task_constructor_msgs::msg::StageStatistics),
-  false,  // has_any_key_member_
   StageStatistics_message_member_array,  // message members
   StageStatistics_init_function,  // function to initialize message memory (memory has to be allocated)
   StageStatistics_fini_function  // function to terminate message instance (will not free memory)
@@ -236,9 +229,6 @@ static const rosidl_message_type_support_t StageStatistics_message_type_support_
   ::rosidl_typesupport_introspection_cpp::typesupport_identifier,
   &StageStatistics_message_members,
   get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__msg__StageStatistics__get_type_hash,
-  &moveit_task_constructor_msgs__msg__StageStatistics__get_type_description,
-  &moveit_task_constructor_msgs__msg__StageStatistics__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_introspection_cpp

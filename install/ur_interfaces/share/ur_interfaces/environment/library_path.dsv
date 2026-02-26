@@ -1,1 +1,1 @@
-prepend-non-duplicate;LD_LIBRARY_PATH;lib
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/ament_cmake_environment_hooks/library_path.dsv

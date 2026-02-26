@@ -2,9 +2,6 @@
 // with input from ur_interfaces:srv/GetPlanningScene.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "ur_interfaces/srv/get_planning_scene.h"
-
-
 #ifndef UR_INTERFACES__SRV__DETAIL__GET_PLANNING_SCENE__STRUCT_H_
 #define UR_INTERFACES__SRV__DETAIL__GET_PLANNING_SCENE__STRUCT_H_
 
@@ -44,6 +41,7 @@ typedef struct ur_interfaces__srv__GetPlanningScene_Request__Sequence
   /// The number of allocated items in data
   size_t capacity;
 } ur_interfaces__srv__GetPlanningScene_Request__Sequence;
+
 
 // Constants defined in the message
 
@@ -86,42 +84,6 @@ typedef struct ur_interfaces__srv__GetPlanningScene_Response__Sequence
   /// The number of allocated items in data
   size_t capacity;
 } ur_interfaces__srv__GetPlanningScene_Response__Sequence;
-
-// Constants defined in the message
-
-// Include directives for member types
-// Member 'info'
-#include "service_msgs/msg/detail/service_event_info__struct.h"
-
-// constants for array fields with an upper bound
-// request
-enum
-{
-  ur_interfaces__srv__GetPlanningScene_Event__request__MAX_SIZE = 1
-};
-// response
-enum
-{
-  ur_interfaces__srv__GetPlanningScene_Event__response__MAX_SIZE = 1
-};
-
-/// Struct defined in srv/GetPlanningScene in the package ur_interfaces.
-typedef struct ur_interfaces__srv__GetPlanningScene_Event
-{
-  service_msgs__msg__ServiceEventInfo info;
-  ur_interfaces__srv__GetPlanningScene_Request__Sequence request;
-  ur_interfaces__srv__GetPlanningScene_Response__Sequence response;
-} ur_interfaces__srv__GetPlanningScene_Event;
-
-// Struct for a sequence of ur_interfaces__srv__GetPlanningScene_Event.
-typedef struct ur_interfaces__srv__GetPlanningScene_Event__Sequence
-{
-  ur_interfaces__srv__GetPlanningScene_Event * data;
-  /// The number of valid items in data
-  size_t size;
-  /// The number of allocated items in data
-  size_t capacity;
-} ur_interfaces__srv__GetPlanningScene_Event__Sequence;
 
 #ifdef __cplusplus
 }

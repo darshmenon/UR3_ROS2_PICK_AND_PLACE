@@ -38,13 +38,5 @@ colcon_zsh_convert_to_array() {
 _colcon_package_zsh_source_script "$_colcon_package_zsh_COLCON_CURRENT_PREFIX/share/ur_mtc_pick_place_demo/package.sh"
 unset convert_zsh_to_array
 
-# setting COLCON_CURRENT_PREFIX avoids determining the prefix in the sourced scripts
-COLCON_CURRENT_PREFIX="$_colcon_package_zsh_COLCON_CURRENT_PREFIX"
-
-# source zsh hooks
-_colcon_package_zsh_source_script "$COLCON_CURRENT_PREFIX/share/ur_mtc_pick_place_demo/local_setup.zsh"
-
-unset COLCON_CURRENT_PREFIX
-
 unset _colcon_package_zsh_source_script
 unset _colcon_package_zsh_COLCON_CURRENT_PREFIX

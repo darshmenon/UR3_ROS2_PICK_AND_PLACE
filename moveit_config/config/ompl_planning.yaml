@@ -1,16 +1,15 @@
 planning_plugins:
   - ompl_interface/OMPLPlanner
-# To optionally use Ruckig for jerk-limited smoothing, add this line to the request adapters below
-# default_planner_request_adapters/AddRuckigTrajectorySmoothing
-request_adapters:
-  - default_planning_request_adapters/ResolveConstraintFrames
-  - default_planning_request_adapters/ValidateWorkspaceBounds
-  - default_planning_request_adapters/CheckStartStateBounds
-  - default_planning_request_adapters/CheckStartStateCollision
-response_adapters:
-  - default_planning_response_adapters/AddTimeOptimalParameterization
-  - default_planning_response_adapters/ValidateSolution
-  - default_planning_response_adapters/DisplayMotionPath
+# To optionally use Ruckig for jerk-limited smoothing, add it to request_adapters below
+request_adapters: >-
+  default_planning_request_adapters/ResolveConstraintFrames
+  default_planning_request_adapters/ValidateWorkspaceBounds
+  default_planning_request_adapters/CheckStartStateBounds
+  default_planning_request_adapters/CheckStartStateCollision
+response_adapters: >-
+  default_planning_response_adapters/AddTimeOptimalParameterization
+  default_planning_response_adapters/ValidateSolution
+  default_planning_response_adapters/DisplayMotionPath
 planner_configs:
   APSConfigDefault:
     type: geometric::AnytimePathShortening

@@ -1,4 +1,1 @@
-source;share/moveit_task_constructor_msgs/environment/ament_prefix_path.sh
-source;share/moveit_task_constructor_msgs/environment/library_path.sh
-source;share/moveit_task_constructor_msgs/environment/path.sh
-source;share/moveit_task_constructor_msgs/environment/pythonpath.sh
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/moveit_task_constructor_msgs/ament_cmake_environment_hooks/local_setup.dsv

@@ -12,8 +12,8 @@ set_target_properties(rviz_marker_tools::rviz_marker_tools PROPERTIES
   IMPORTED_SONAME_RELEASE "librviz_marker_tools.so"
   )
 
-list(APPEND _cmake_import_check_targets rviz_marker_tools::rviz_marker_tools )
-list(APPEND _cmake_import_check_files_for_rviz_marker_tools::rviz_marker_tools "${_IMPORT_PREFIX}/lib/librviz_marker_tools.so" )
+list(APPEND _IMPORT_CHECK_TARGETS rviz_marker_tools::rviz_marker_tools )
+list(APPEND _IMPORT_CHECK_FILES_FOR_rviz_marker_tools::rviz_marker_tools "${_IMPORT_PREFIX}/lib/librviz_marker_tools.so" )
 
 # Commands beyond this point should not need to know the version.
 set(CMAKE_IMPORT_FILE_VERSION)

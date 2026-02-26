@@ -2,9 +2,6 @@
 // with input from moveit_task_constructor_msgs:msg/Property.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "moveit_task_constructor_msgs/msg/property.h"
-
-
 #ifndef MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__PROPERTY__STRUCT_H_
 #define MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__PROPERTY__STRUCT_H_
 
@@ -16,6 +13,7 @@ extern "C"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
 
 // Constants defined in the message
 

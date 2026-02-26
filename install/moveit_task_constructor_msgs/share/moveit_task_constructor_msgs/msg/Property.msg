@@ -1,4 +1,1 @@
-string name
-string description
-string type
-string value
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/src/moveit_task_constructor/msgs/msg/Property.msg

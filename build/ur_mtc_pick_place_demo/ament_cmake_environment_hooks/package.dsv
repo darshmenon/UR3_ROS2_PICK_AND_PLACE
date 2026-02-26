@@ -1,4 +1,0 @@
-source;share/ur_mtc_pick_place_demo/local_setup.bash
-source;share/ur_mtc_pick_place_demo/local_setup.dsv
-source;share/ur_mtc_pick_place_demo/local_setup.sh
-source;share/ur_mtc_pick_place_demo/local_setup.zsh

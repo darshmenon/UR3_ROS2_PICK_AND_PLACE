@@ -93,7 +93,7 @@ moveit_task_constructor_msgs__msg__TaskDescription__copy(
 }
 
 moveit_task_constructor_msgs__msg__TaskDescription *
-moveit_task_constructor_msgs__msg__TaskDescription__create(void)
+moveit_task_constructor_msgs__msg__TaskDescription__create()
 {
   rcutils_allocator_t allocator = rcutils_get_default_allocator();
   moveit_task_constructor_msgs__msg__TaskDescription * msg = (moveit_task_constructor_msgs__msg__TaskDescription *)allocator.allocate(sizeof(moveit_task_constructor_msgs__msg__TaskDescription), allocator.state);

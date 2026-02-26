@@ -23,8 +23,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/moveit_task_constructor_msgs__rosidl_generator_py.dir/rosidl_generator_py/moveit_task_constructor_msgs/msg/_trajectory_execution_info_s.c.o.d"
   "CMakeFiles/moveit_task_constructor_msgs__rosidl_generator_py.dir/rosidl_generator_py/moveit_task_constructor_msgs/srv/_get_solution_s.c.o"
   "CMakeFiles/moveit_task_constructor_msgs__rosidl_generator_py.dir/rosidl_generator_py/moveit_task_constructor_msgs/srv/_get_solution_s.c.o.d"
-  "libmoveit_task_constructor_msgs__rosidl_generator_py.pdb"
-  "libmoveit_task_constructor_msgs__rosidl_generator_py.so"
+  "rosidl_generator_py/moveit_task_constructor_msgs/libmoveit_task_constructor_msgs__rosidl_generator_py.pdb"
+  "rosidl_generator_py/moveit_task_constructor_msgs/libmoveit_task_constructor_msgs__rosidl_generator_py.so"
 )
 
 # Per-language clean rules from dependency scanning.

@@ -2,9 +2,6 @@
 // with input from moveit_task_constructor_msgs:msg/StageStatistics.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "moveit_task_constructor_msgs/msg/stage_statistics.hpp"
-
-
 #ifndef MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__STAGE_STATISTICS__STRUCT_HPP_
 #define MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__STAGE_STATISTICS__STRUCT_HPP_
 

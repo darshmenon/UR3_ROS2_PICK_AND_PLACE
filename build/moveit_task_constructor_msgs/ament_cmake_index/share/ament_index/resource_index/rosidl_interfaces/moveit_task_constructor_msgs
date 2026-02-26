@@ -22,3 +22,5 @@ msg/TrajectoryExecutionInfo.idl
 msg/TrajectoryExecutionInfo.msg
 srv/GetSolution.idl
 srv/GetSolution.srv
+srv/GetSolution_Request.msg
+srv/GetSolution_Response.msg

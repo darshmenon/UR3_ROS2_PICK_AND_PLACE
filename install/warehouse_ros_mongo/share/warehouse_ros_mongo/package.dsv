@@ -1,12 +1,14 @@
+source;share/warehouse_ros_mongo/hook/cmake_module_path.ps1
 source;share/warehouse_ros_mongo/hook/cmake_module_path.dsv
 source;share/warehouse_ros_mongo/hook/cmake_module_path.sh
+source;share/warehouse_ros_mongo/hook/cmake_prefix_path.ps1
 source;share/warehouse_ros_mongo/hook/cmake_prefix_path.dsv
 source;share/warehouse_ros_mongo/hook/cmake_prefix_path.sh
+source;share/warehouse_ros_mongo/hook/ld_library_path_lib.ps1
 source;share/warehouse_ros_mongo/hook/ld_library_path_lib.dsv
 source;share/warehouse_ros_mongo/hook/ld_library_path_lib.sh
-source;share/warehouse_ros_mongo/hook/pythonpath.dsv
-source;share/warehouse_ros_mongo/hook/pythonpath.sh
 source;share/warehouse_ros_mongo/local_setup.bash
 source;share/warehouse_ros_mongo/local_setup.dsv
+source;share/warehouse_ros_mongo/local_setup.ps1
 source;share/warehouse_ros_mongo/local_setup.sh
 source;share/warehouse_ros_mongo/local_setup.zsh

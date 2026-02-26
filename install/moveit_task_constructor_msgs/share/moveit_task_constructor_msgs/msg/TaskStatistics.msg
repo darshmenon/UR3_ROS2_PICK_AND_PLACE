@@ -1,5 +1,1 @@
-# unique id of generating task
-string task_id
-
-# list of all stages, including the task stage itself
-StageStatistics[] stages
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/src/moveit_task_constructor/msgs/msg/TaskStatistics.msg

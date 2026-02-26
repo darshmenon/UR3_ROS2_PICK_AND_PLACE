@@ -72,7 +72,7 @@ moveit_task_constructor_msgs__msg__TrajectoryExecutionInfo__copy(
 }
 
 moveit_task_constructor_msgs__msg__TrajectoryExecutionInfo *
-moveit_task_constructor_msgs__msg__TrajectoryExecutionInfo__create(void)
+moveit_task_constructor_msgs__msg__TrajectoryExecutionInfo__create()
 {
   rcutils_allocator_t allocator = rcutils_get_default_allocator();
   moveit_task_constructor_msgs__msg__TrajectoryExecutionInfo * msg = (moveit_task_constructor_msgs__msg__TrajectoryExecutionInfo *)allocator.allocate(sizeof(moveit_task_constructor_msgs__msg__TrajectoryExecutionInfo), allocator.state);

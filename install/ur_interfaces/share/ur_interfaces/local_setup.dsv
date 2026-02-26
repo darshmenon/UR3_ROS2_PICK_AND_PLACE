@@ -1,4 +1,1 @@
-source;share/ur_interfaces/environment/ament_prefix_path.sh
-source;share/ur_interfaces/environment/library_path.sh
-source;share/ur_interfaces/environment/path.sh
-source;share/ur_interfaces/environment/pythonpath.sh
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/ament_cmake_environment_hooks/local_setup.dsv

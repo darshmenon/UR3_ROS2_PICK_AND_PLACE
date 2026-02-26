@@ -2,13 +2,6 @@
 # with input from moveit_task_constructor_msgs:msg/Solution.idl
 # generated code does not contain a copyright notice
 
-# This is being done at the module level and not on the instance level to avoid looking
-# for the same variable multiple times on each instance. This variable is not supposed to
-# change during runtime so it makes sense to only look for it once.
-from os import getenv
-
-ros_python_check_fields = getenv('ROS_PYTHON_CHECK_FIELDS', default='')
-
 
 # Import statements for member types
 
@@ -78,7 +71,6 @@ class Solution(metaclass=Metaclass_Solution):
         '_start_scene',
         '_sub_solution',
         '_sub_trajectory',
-        '_check_fields',
     ]
 
     _fields_and_field_types = {
@@ -88,8 +80,6 @@ class Solution(metaclass=Metaclass_Solution):
         'sub_trajectory': 'sequence<moveit_task_constructor_msgs/SubTrajectory>',
     }
 
-    # This attribute is used to store an rosidl_parser.definition variable
-    # related to the data type of each of the components the message.
     SLOT_TYPES = (
         rosidl_parser.definition.UnboundedString(),  # noqa: E501
         rosidl_parser.definition.NamespacedType(['moveit_msgs', 'msg'], 'PlanningScene'),  # noqa: E501
@@ -98,14 +88,9 @@ class Solution(metaclass=Metaclass_Solution):
     )
 
     def __init__(self, **kwargs):
-        if 'check_fields' in kwargs:
-            self._check_fields = kwargs['check_fields']
-        else:
-            self._check_fields = ros_python_check_fields == '1'
-        if self._check_fields:
-            assert all('_' + key in self.__slots__ for key in kwargs.keys()), \
-                'Invalid arguments passed to constructor: %s' % \
-                ', '.join(sorted(k for k in kwargs.keys() if '_' + k not in self.__slots__))
+        assert all('_' + key in self.__slots__ for key in kwargs.keys()), \
+            'Invalid arguments passed to constructor: %s' % \
+            ', '.join(sorted(k for k in kwargs.keys() if '_' + k not in self.__slots__))
         self.task_id = kwargs.get('task_id', str())
         from moveit_msgs.msg import PlanningScene
         self.start_scene = kwargs.get('start_scene', PlanningScene())
@@ -117,7 +102,7 @@ class Solution(metaclass=Metaclass_Solution):
         typename.pop()
         typename.append(self.__class__.__name__)
         args = []
-        for s, t in zip(self.get_fields_and_field_types().keys(), self.SLOT_TYPES):
+        for s, t in zip(self.__slots__, self.SLOT_TYPES):
             field = getattr(self, s)
             fieldstr = repr(field)
             # We use Python array type for fields that can be directly stored
@@ -131,12 +116,11 @@ class Solution(metaclass=Metaclass_Solution):
                 if len(field) == 0:
                     fieldstr = '[]'
                 else:
-                    if self._check_fields:
-                        assert fieldstr.startswith('array(')
+                    assert fieldstr.startswith('array(')
                     prefix = "array('X', "
                     suffix = ')'
                     fieldstr = fieldstr[len(prefix):-len(suffix)]
-            args.append(s + '=' + fieldstr)
+            args.append(s[1:] + '=' + fieldstr)
         return '%s(%s)' % ('.'.join(typename), ', '.join(args))
 
     def __eq__(self, other):
@@ -164,7 +148,7 @@ class Solution(metaclass=Metaclass_Solution):
 
     @task_id.setter
     def task_id(self, value):
-        if self._check_fields:
+        if __debug__:
             assert \
                 isinstance(value, str), \
                 "The 'task_id' field must be of type 'str'"
@@ -177,7 +161,7 @@ class Solution(metaclass=Metaclass_Solution):
 
     @start_scene.setter
     def start_scene(self, value):
-        if self._check_fields:
+        if __debug__:
             from moveit_msgs.msg import PlanningScene
             assert \
                 isinstance(value, PlanningScene), \
@@ -191,7 +175,7 @@ class Solution(metaclass=Metaclass_Solution):
 
     @sub_solution.setter
     def sub_solution(self, value):
-        if self._check_fields:
+        if __debug__:
             from moveit_task_constructor_msgs.msg import SubSolution
             from collections.abc import Sequence
             from collections.abc import Set
@@ -215,7 +199,7 @@ class Solution(metaclass=Metaclass_Solution):
 
     @sub_trajectory.setter
     def sub_trajectory(self, value):
-        if self._check_fields:
+        if __debug__:
             from moveit_task_constructor_msgs.msg import SubTrajectory
             from collections.abc import Sequence
             from collections.abc import Set

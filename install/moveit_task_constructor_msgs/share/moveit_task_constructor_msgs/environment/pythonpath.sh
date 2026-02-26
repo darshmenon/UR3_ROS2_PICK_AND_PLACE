@@ -1,3 +1,1 @@
-# generated from ament_package/template/environment_hook/pythonpath.sh.in
-
-ament_prepend_unique_value PYTHONPATH "$AMENT_CURRENT_PREFIX/lib/python3.12/site-packages"
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/moveit_task_constructor_msgs/ament_cmake_environment_hooks/pythonpath.sh

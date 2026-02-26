@@ -1,8 +1,0 @@
-source;share/ur_mtc_pick_place_demo/hook/cmake_prefix_path.dsv
-source;share/ur_mtc_pick_place_demo/hook/cmake_prefix_path.sh
-source;share/ur_mtc_pick_place_demo/hook/ld_library_path_lib.dsv
-source;share/ur_mtc_pick_place_demo/hook/ld_library_path_lib.sh
-source;share/ur_mtc_pick_place_demo/local_setup.bash
-source;share/ur_mtc_pick_place_demo/local_setup.dsv
-source;share/ur_mtc_pick_place_demo/local_setup.sh
-source;share/ur_mtc_pick_place_demo/local_setup.zsh

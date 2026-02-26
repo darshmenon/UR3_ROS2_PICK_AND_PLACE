@@ -2,9 +2,6 @@
 // with input from ur_interfaces:srv/GetPlanningScene.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "ur_interfaces/srv/get_planning_scene.hpp"
-
-
 #ifndef UR_INTERFACES__SRV__DETAIL__GET_PLANNING_SCENE__BUILDER_HPP_
 #define UR_INTERFACES__SRV__DETAIL__GET_PLANNING_SCENE__BUILDER_HPP_
 
@@ -190,80 +187,6 @@ inline
 auto build<::ur_interfaces::srv::GetPlanningScene_Response>()
 {
   return ur_interfaces::srv::builder::Init_GetPlanningScene_Response_scene_world();
-}
-
-}  // namespace ur_interfaces
-
-
-namespace ur_interfaces
-{
-
-namespace srv
-{
-
-namespace builder
-{
-
-class Init_GetPlanningScene_Event_response
-{
-public:
-  explicit Init_GetPlanningScene_Event_response(::ur_interfaces::srv::GetPlanningScene_Event & msg)
-  : msg_(msg)
-  {}
-  ::ur_interfaces::srv::GetPlanningScene_Event response(::ur_interfaces::srv::GetPlanningScene_Event::_response_type arg)
-  {
-    msg_.response = std::move(arg);
-    return std::move(msg_);
-  }
-
-private:
-  ::ur_interfaces::srv::GetPlanningScene_Event msg_;
-};
-
-class Init_GetPlanningScene_Event_request
-{
-public:
-  explicit Init_GetPlanningScene_Event_request(::ur_interfaces::srv::GetPlanningScene_Event & msg)
-  : msg_(msg)
-  {}
-  Init_GetPlanningScene_Event_response request(::ur_interfaces::srv::GetPlanningScene_Event::_request_type arg)
-  {
-    msg_.request = std::move(arg);
-    return Init_GetPlanningScene_Event_response(msg_);
-  }
-
-private:
-  ::ur_interfaces::srv::GetPlanningScene_Event msg_;
-};
-
-class Init_GetPlanningScene_Event_info
-{
-public:
-  Init_GetPlanningScene_Event_info()
-  : msg_(::rosidl_runtime_cpp::MessageInitialization::SKIP)
-  {}
-  Init_GetPlanningScene_Event_request info(::ur_interfaces::srv::GetPlanningScene_Event::_info_type arg)
-  {
-    msg_.info = std::move(arg);
-    return Init_GetPlanningScene_Event_request(msg_);
-  }
-
-private:
-  ::ur_interfaces::srv::GetPlanningScene_Event msg_;
-};
-
-}  // namespace builder
-
-}  // namespace srv
-
-template<typename MessageType>
-auto build();
-
-template<>
-inline
-auto build<::ur_interfaces::srv::GetPlanningScene_Event>()
-{
-  return ur_interfaces::srv::builder::Init_GetPlanningScene_Event_info();
 }
 
 }  // namespace ur_interfaces

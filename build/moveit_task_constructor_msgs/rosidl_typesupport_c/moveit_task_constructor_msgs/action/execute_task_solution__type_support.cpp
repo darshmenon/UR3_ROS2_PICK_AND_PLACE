@@ -6,7 +6,6 @@
 #include "rosidl_runtime_c/message_type_support_struct.h"
 #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-#include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 #include "rosidl_typesupport_c/identifier.h"
 #include "rosidl_typesupport_c/message_type_support_dispatch.h"
 #include "rosidl_typesupport_c/type_support_map.h"
@@ -73,9 +72,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_Goal_message_type
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_Goal_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Goal__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Goal__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Goal__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -106,8 +102,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 // already included above
 // #include "rosidl_typesupport_c/identifier.h"
 // already included above
@@ -179,9 +173,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_Result_message_ty
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_Result_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Result__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Result__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Result__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -212,8 +203,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 // already included above
 // #include "rosidl_typesupport_c/identifier.h"
 // already included above
@@ -285,9 +274,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_Feedback_message_
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_Feedback_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Feedback__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Feedback__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_Feedback__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -318,8 +304,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 // already included above
 // #include "rosidl_typesupport_c/identifier.h"
 // already included above
@@ -391,9 +375,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_SendGoal_Request_
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_SendGoal_Request_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Request__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Request__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Request__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -424,8 +405,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 // already included above
 // #include "rosidl_typesupport_c/identifier.h"
 // already included above
@@ -497,9 +476,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_SendGoal_Response
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_SendGoal_Response_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Response__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Response__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Response__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -524,112 +500,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 
 // already included above
 // #include "cstddef"
-// already included above
-// #include "rosidl_runtime_c/message_type_support_struct.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
-// already included above
-// #include "rosidl_typesupport_c/identifier.h"
-// already included above
-// #include "rosidl_typesupport_c/message_type_support_dispatch.h"
-// already included above
-// #include "rosidl_typesupport_c/type_support_map.h"
-// already included above
-// #include "rosidl_typesupport_c/visibility_control.h"
-// already included above
-// #include "rosidl_typesupport_interface/macros.h"
-
-namespace moveit_task_constructor_msgs
-{
-
-namespace action
-{
-
-namespace rosidl_typesupport_c
-{
-
-typedef struct _ExecuteTaskSolution_SendGoal_Event_type_support_ids_t
-{
-  const char * typesupport_identifier[2];
-} _ExecuteTaskSolution_SendGoal_Event_type_support_ids_t;
-
-static const _ExecuteTaskSolution_SendGoal_Event_type_support_ids_t _ExecuteTaskSolution_SendGoal_Event_message_typesupport_ids = {
-  {
-    "rosidl_typesupport_fastrtps_c",  // ::rosidl_typesupport_fastrtps_c::typesupport_identifier,
-    "rosidl_typesupport_introspection_c",  // ::rosidl_typesupport_introspection_c::typesupport_identifier,
-  }
-};
-
-typedef struct _ExecuteTaskSolution_SendGoal_Event_type_support_symbol_names_t
-{
-  const char * symbol_name[2];
-} _ExecuteTaskSolution_SendGoal_Event_type_support_symbol_names_t;
-
-#define STRINGIFY_(s) #s
-#define STRINGIFY(s) STRINGIFY_(s)
-
-static const _ExecuteTaskSolution_SendGoal_Event_type_support_symbol_names_t _ExecuteTaskSolution_SendGoal_Event_message_typesupport_symbol_names = {
-  {
-    STRINGIFY(ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_fastrtps_c, moveit_task_constructor_msgs, action, ExecuteTaskSolution_SendGoal_Event)),
-    STRINGIFY(ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_introspection_c, moveit_task_constructor_msgs, action, ExecuteTaskSolution_SendGoal_Event)),
-  }
-};
-
-typedef struct _ExecuteTaskSolution_SendGoal_Event_type_support_data_t
-{
-  void * data[2];
-} _ExecuteTaskSolution_SendGoal_Event_type_support_data_t;
-
-static _ExecuteTaskSolution_SendGoal_Event_type_support_data_t _ExecuteTaskSolution_SendGoal_Event_message_typesupport_data = {
-  {
-    0,  // will store the shared library later
-    0,  // will store the shared library later
-  }
-};
-
-static const type_support_map_t _ExecuteTaskSolution_SendGoal_Event_message_typesupport_map = {
-  2,
-  "moveit_task_constructor_msgs",
-  &_ExecuteTaskSolution_SendGoal_Event_message_typesupport_ids.typesupport_identifier[0],
-  &_ExecuteTaskSolution_SendGoal_Event_message_typesupport_symbol_names.symbol_name[0],
-  &_ExecuteTaskSolution_SendGoal_Event_message_typesupport_data.data[0],
-};
-
-static const rosidl_message_type_support_t ExecuteTaskSolution_SendGoal_Event_message_type_support_handle = {
-  rosidl_typesupport_c__typesupport_identifier,
-  reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_SendGoal_Event_message_typesupport_map),
-  rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event__get_type_description_sources,
-};
-
-}  // namespace rosidl_typesupport_c
-
-}  // namespace action
-
-}  // namespace moveit_task_constructor_msgs
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-const rosidl_message_type_support_t *
-ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_task_constructor_msgs, action, ExecuteTaskSolution_SendGoal_Event)() {
-  return &::moveit_task_constructor_msgs::action::rosidl_typesupport_c::ExecuteTaskSolution_SendGoal_Event_message_type_support_handle;
-}
-
-#ifdef __cplusplus
-}
-#endif
-
-// already included above
-// #include "cstddef"
 #include "rosidl_runtime_c/service_type_support_struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
@@ -640,8 +510,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "rosidl_typesupport_c/type_support_map.h"
 // already included above
 // #include "rosidl_typesupport_interface/macros.h"
-#include "service_msgs/msg/service_event_info.h"
-#include "builtin_interfaces/msg/time.h"
 
 namespace moveit_task_constructor_msgs
 {
@@ -651,6 +519,7 @@ namespace action
 
 namespace rosidl_typesupport_c
 {
+
 typedef struct _ExecuteTaskSolution_SendGoal_type_support_ids_t
 {
   const char * typesupport_identifier[2];
@@ -702,24 +571,6 @@ static const rosidl_service_type_support_t ExecuteTaskSolution_SendGoal_service_
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_SendGoal_service_typesupport_map),
   rosidl_typesupport_c__get_service_typesupport_handle_function,
-  &ExecuteTaskSolution_SendGoal_Request_message_type_support_handle,
-  &ExecuteTaskSolution_SendGoal_Response_message_type_support_handle,
-  &ExecuteTaskSolution_SendGoal_Event_message_type_support_handle,
-  ROSIDL_TYPESUPPORT_INTERFACE__SERVICE_CREATE_EVENT_MESSAGE_SYMBOL_NAME(
-    rosidl_typesupport_c,
-    moveit_task_constructor_msgs,
-    action,
-    ExecuteTaskSolution_SendGoal
-  ),
-  ROSIDL_TYPESUPPORT_INTERFACE__SERVICE_DESTROY_EVENT_MESSAGE_SYMBOL_NAME(
-    rosidl_typesupport_c,
-    moveit_task_constructor_msgs,
-    action,
-    ExecuteTaskSolution_SendGoal
-  ),
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -750,8 +601,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__SERVICE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 // already included above
 // #include "rosidl_typesupport_c/identifier.h"
 // already included above
@@ -823,9 +672,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_GetResult_Request
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_GetResult_Request_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Request__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Request__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Request__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -856,8 +702,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 // already included above
 // #include "rosidl_typesupport_c/identifier.h"
 // already included above
@@ -929,9 +773,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_GetResult_Respons
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_GetResult_Response_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Response__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Response__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Response__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -957,112 +798,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // already included above
 // #include "cstddef"
 // already included above
-// #include "rosidl_runtime_c/message_type_support_struct.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
-// already included above
-// #include "rosidl_typesupport_c/identifier.h"
-// already included above
-// #include "rosidl_typesupport_c/message_type_support_dispatch.h"
-// already included above
-// #include "rosidl_typesupport_c/type_support_map.h"
-// already included above
-// #include "rosidl_typesupport_c/visibility_control.h"
-// already included above
-// #include "rosidl_typesupport_interface/macros.h"
-
-namespace moveit_task_constructor_msgs
-{
-
-namespace action
-{
-
-namespace rosidl_typesupport_c
-{
-
-typedef struct _ExecuteTaskSolution_GetResult_Event_type_support_ids_t
-{
-  const char * typesupport_identifier[2];
-} _ExecuteTaskSolution_GetResult_Event_type_support_ids_t;
-
-static const _ExecuteTaskSolution_GetResult_Event_type_support_ids_t _ExecuteTaskSolution_GetResult_Event_message_typesupport_ids = {
-  {
-    "rosidl_typesupport_fastrtps_c",  // ::rosidl_typesupport_fastrtps_c::typesupport_identifier,
-    "rosidl_typesupport_introspection_c",  // ::rosidl_typesupport_introspection_c::typesupport_identifier,
-  }
-};
-
-typedef struct _ExecuteTaskSolution_GetResult_Event_type_support_symbol_names_t
-{
-  const char * symbol_name[2];
-} _ExecuteTaskSolution_GetResult_Event_type_support_symbol_names_t;
-
-#define STRINGIFY_(s) #s
-#define STRINGIFY(s) STRINGIFY_(s)
-
-static const _ExecuteTaskSolution_GetResult_Event_type_support_symbol_names_t _ExecuteTaskSolution_GetResult_Event_message_typesupport_symbol_names = {
-  {
-    STRINGIFY(ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_fastrtps_c, moveit_task_constructor_msgs, action, ExecuteTaskSolution_GetResult_Event)),
-    STRINGIFY(ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_introspection_c, moveit_task_constructor_msgs, action, ExecuteTaskSolution_GetResult_Event)),
-  }
-};
-
-typedef struct _ExecuteTaskSolution_GetResult_Event_type_support_data_t
-{
-  void * data[2];
-} _ExecuteTaskSolution_GetResult_Event_type_support_data_t;
-
-static _ExecuteTaskSolution_GetResult_Event_type_support_data_t _ExecuteTaskSolution_GetResult_Event_message_typesupport_data = {
-  {
-    0,  // will store the shared library later
-    0,  // will store the shared library later
-  }
-};
-
-static const type_support_map_t _ExecuteTaskSolution_GetResult_Event_message_typesupport_map = {
-  2,
-  "moveit_task_constructor_msgs",
-  &_ExecuteTaskSolution_GetResult_Event_message_typesupport_ids.typesupport_identifier[0],
-  &_ExecuteTaskSolution_GetResult_Event_message_typesupport_symbol_names.symbol_name[0],
-  &_ExecuteTaskSolution_GetResult_Event_message_typesupport_data.data[0],
-};
-
-static const rosidl_message_type_support_t ExecuteTaskSolution_GetResult_Event_message_type_support_handle = {
-  rosidl_typesupport_c__typesupport_identifier,
-  reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_GetResult_Event_message_typesupport_map),
-  rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event__get_type_description_sources,
-};
-
-}  // namespace rosidl_typesupport_c
-
-}  // namespace action
-
-}  // namespace moveit_task_constructor_msgs
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-const rosidl_message_type_support_t *
-ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_task_constructor_msgs, action, ExecuteTaskSolution_GetResult_Event)() {
-  return &::moveit_task_constructor_msgs::action::rosidl_typesupport_c::ExecuteTaskSolution_GetResult_Event_message_type_support_handle;
-}
-
-#ifdef __cplusplus
-}
-#endif
-
-// already included above
-// #include "cstddef"
-// already included above
 // #include "rosidl_runtime_c/service_type_support_struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
@@ -1074,10 +809,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "rosidl_typesupport_c/type_support_map.h"
 // already included above
 // #include "rosidl_typesupport_interface/macros.h"
-// already included above
-// #include "service_msgs/msg/service_event_info.h"
-// already included above
-// #include "builtin_interfaces/msg/time.h"
 
 namespace moveit_task_constructor_msgs
 {
@@ -1087,6 +818,7 @@ namespace action
 
 namespace rosidl_typesupport_c
 {
+
 typedef struct _ExecuteTaskSolution_GetResult_type_support_ids_t
 {
   const char * typesupport_identifier[2];
@@ -1138,24 +870,6 @@ static const rosidl_service_type_support_t ExecuteTaskSolution_GetResult_service
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_GetResult_service_typesupport_map),
   rosidl_typesupport_c__get_service_typesupport_handle_function,
-  &ExecuteTaskSolution_GetResult_Request_message_type_support_handle,
-  &ExecuteTaskSolution_GetResult_Response_message_type_support_handle,
-  &ExecuteTaskSolution_GetResult_Event_message_type_support_handle,
-  ROSIDL_TYPESUPPORT_INTERFACE__SERVICE_CREATE_EVENT_MESSAGE_SYMBOL_NAME(
-    rosidl_typesupport_c,
-    moveit_task_constructor_msgs,
-    action,
-    ExecuteTaskSolution_GetResult
-  ),
-  ROSIDL_TYPESUPPORT_INTERFACE__SERVICE_DESTROY_EVENT_MESSAGE_SYMBOL_NAME(
-    rosidl_typesupport_c,
-    moveit_task_constructor_msgs,
-    action,
-    ExecuteTaskSolution_GetResult
-  ),
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -1186,8 +900,6 @@ ROSIDL_TYPESUPPORT_INTERFACE__SERVICE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__struct.h"
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
-// already included above
-// #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__functions.h"
 // already included above
 // #include "rosidl_typesupport_c/identifier.h"
 // already included above
@@ -1259,9 +971,6 @@ static const rosidl_message_type_support_t ExecuteTaskSolution_FeedbackMessage_m
   rosidl_typesupport_c__typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_ExecuteTaskSolution_FeedbackMessage_message_typesupport_map),
   rosidl_typesupport_c__get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_FeedbackMessage__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_FeedbackMessage__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution_FeedbackMessage__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_c
@@ -1290,12 +999,7 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_c, moveit_t
 // already included above
 // #include "moveit_task_constructor_msgs/action/detail/execute_task_solution__type_support.h"
 
-static rosidl_action_type_support_t _moveit_task_constructor_msgs__action__ExecuteTaskSolution__typesupport_c = {
-  NULL, NULL, NULL, NULL, NULL,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution__get_type_hash,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution__get_type_description,
-  &moveit_task_constructor_msgs__action__ExecuteTaskSolution__get_type_description_sources,
-};
+static rosidl_action_type_support_t _moveit_task_constructor_msgs__action__ExecuteTaskSolution__typesupport_c;
 
 #ifdef __cplusplus
 extern "C"

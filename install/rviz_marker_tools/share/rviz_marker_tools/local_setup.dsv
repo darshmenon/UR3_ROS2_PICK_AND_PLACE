@@ -1,3 +1,1 @@
-source;share/rviz_marker_tools/environment/ament_prefix_path.sh
-source;share/rviz_marker_tools/environment/library_path.sh
-source;share/rviz_marker_tools/environment/path.sh
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/rviz_marker_tools/ament_cmake_environment_hooks/local_setup.dsv

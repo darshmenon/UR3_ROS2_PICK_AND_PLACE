@@ -2,9 +2,6 @@
 // with input from moveit_task_constructor_msgs:msg/Solution.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "moveit_task_constructor_msgs/msg/solution.hpp"
-
-
 #ifndef MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__SOLUTION__BUILDER_HPP_
 #define MOVEIT_TASK_CONSTRUCTOR_MSGS__MSG__DETAIL__SOLUTION__BUILDER_HPP_
 

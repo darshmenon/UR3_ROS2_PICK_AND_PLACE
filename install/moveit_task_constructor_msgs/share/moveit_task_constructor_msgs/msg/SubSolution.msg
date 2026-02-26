@@ -1,5 +1,1 @@
-# generic solution information
-SolutionInfo info
-
-# IDs of subsolutions
-uint32[] sub_solution_id
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/src/moveit_task_constructor/msgs/msg/SubSolution.msg

@@ -1,10 +1,1 @@
-# Default initial positions for ur's ros2_control fake system
-
-initial_positions:
-  elbow_joint: -0.2256
-  finger_joint: 0
-  shoulder_lift_joint: 4.7557
-  shoulder_pan_joint: -0.4513
-  wrist_1_joint: -1.2844
-  wrist_2_joint: -0.1041
-  wrist_3_joint: 1.4753
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/ur_description/config/initial_positions.yaml

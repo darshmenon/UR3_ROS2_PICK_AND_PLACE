@@ -1,4 +1,0 @@
-gtest_main_autogen/timestamp: \
-	/opt/ros/jazzy/src/gtest_vendor/CMakeLists.txt \
-	/opt/ros/jazzy/src/gtest_vendor/src/gtest_main.cc \
-	/usr/bin/cmake

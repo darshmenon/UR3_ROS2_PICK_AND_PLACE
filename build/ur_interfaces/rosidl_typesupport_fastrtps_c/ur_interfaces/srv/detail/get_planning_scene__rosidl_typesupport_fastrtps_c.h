@@ -9,23 +9,11 @@
 #include "rosidl_runtime_c/message_type_support_struct.h"
 #include "rosidl_typesupport_interface/macros.h"
 #include "ur_interfaces/msg/rosidl_typesupport_fastrtps_c__visibility_control.h"
-#include "ur_interfaces/srv/detail/get_planning_scene__struct.h"
-#include "fastcdr/Cdr.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_serialize_ur_interfaces__srv__GetPlanningScene_Request(
-  const ur_interfaces__srv__GetPlanningScene_Request * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_deserialize_ur_interfaces__srv__GetPlanningScene_Request(
-  eprosima::fastcdr::Cdr &,
-  ur_interfaces__srv__GetPlanningScene_Request * ros_message);
 
 ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
 size_t get_serialized_size_ur_interfaces__srv__GetPlanningScene_Request(
@@ -34,22 +22,6 @@ size_t get_serialized_size_ur_interfaces__srv__GetPlanningScene_Request(
 
 ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
 size_t max_serialized_size_ur_interfaces__srv__GetPlanningScene_Request(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_serialize_key_ur_interfaces__srv__GetPlanningScene_Request(
-  const ur_interfaces__srv__GetPlanningScene_Request * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t get_serialized_size_key_ur_interfaces__srv__GetPlanningScene_Request(
-  const void * untyped_ros_message,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t max_serialized_size_key_ur_interfaces__srv__GetPlanningScene_Request(
   bool & full_bounded,
   bool & is_plain,
   size_t current_alignment);
@@ -70,25 +42,11 @@ ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_fastrtps_c,
 // #include "rosidl_typesupport_interface/macros.h"
 // already included above
 // #include "ur_interfaces/msg/rosidl_typesupport_fastrtps_c__visibility_control.h"
-// already included above
-// #include "ur_interfaces/srv/detail/get_planning_scene__struct.h"
-// already included above
-// #include "fastcdr/Cdr.h"
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_serialize_ur_interfaces__srv__GetPlanningScene_Response(
-  const ur_interfaces__srv__GetPlanningScene_Response * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_deserialize_ur_interfaces__srv__GetPlanningScene_Response(
-  eprosima::fastcdr::Cdr &,
-  ur_interfaces__srv__GetPlanningScene_Response * ros_message);
 
 ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
 size_t get_serialized_size_ur_interfaces__srv__GetPlanningScene_Response(
@@ -102,87 +60,8 @@ size_t max_serialized_size_ur_interfaces__srv__GetPlanningScene_Response(
   size_t current_alignment);
 
 ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_serialize_key_ur_interfaces__srv__GetPlanningScene_Response(
-  const ur_interfaces__srv__GetPlanningScene_Response * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t get_serialized_size_key_ur_interfaces__srv__GetPlanningScene_Response(
-  const void * untyped_ros_message,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t max_serialized_size_key_ur_interfaces__srv__GetPlanningScene_Response(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
 const rosidl_message_type_support_t *
 ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_fastrtps_c, ur_interfaces, srv, GetPlanningScene_Response)();
-
-#ifdef __cplusplus
-}
-#endif
-
-// already included above
-// #include <stddef.h>
-// already included above
-// #include "rosidl_runtime_c/message_type_support_struct.h"
-// already included above
-// #include "rosidl_typesupport_interface/macros.h"
-// already included above
-// #include "ur_interfaces/msg/rosidl_typesupport_fastrtps_c__visibility_control.h"
-// already included above
-// #include "ur_interfaces/srv/detail/get_planning_scene__struct.h"
-// already included above
-// #include "fastcdr/Cdr.h"
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_serialize_ur_interfaces__srv__GetPlanningScene_Event(
-  const ur_interfaces__srv__GetPlanningScene_Event * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_deserialize_ur_interfaces__srv__GetPlanningScene_Event(
-  eprosima::fastcdr::Cdr &,
-  ur_interfaces__srv__GetPlanningScene_Event * ros_message);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t get_serialized_size_ur_interfaces__srv__GetPlanningScene_Event(
-  const void * untyped_ros_message,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t max_serialized_size_ur_interfaces__srv__GetPlanningScene_Event(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-bool cdr_serialize_key_ur_interfaces__srv__GetPlanningScene_Event(
-  const ur_interfaces__srv__GetPlanningScene_Event * ros_message,
-  eprosima::fastcdr::Cdr & cdr);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t get_serialized_size_key_ur_interfaces__srv__GetPlanningScene_Event(
-  const void * untyped_ros_message,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-size_t max_serialized_size_key_ur_interfaces__srv__GetPlanningScene_Event(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
-
-ROSIDL_TYPESUPPORT_FASTRTPS_C_PUBLIC_ur_interfaces
-const rosidl_message_type_support_t *
-ROSIDL_TYPESUPPORT_INTERFACE__MESSAGE_SYMBOL_NAME(rosidl_typesupport_fastrtps_c, ur_interfaces, srv, GetPlanningScene_Event)();
 
 #ifdef __cplusplus
 }

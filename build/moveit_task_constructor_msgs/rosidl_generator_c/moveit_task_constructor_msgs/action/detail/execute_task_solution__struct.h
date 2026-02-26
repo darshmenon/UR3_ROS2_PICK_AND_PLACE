@@ -2,9 +2,6 @@
 // with input from moveit_task_constructor_msgs:action/ExecuteTaskSolution.idl
 // generated code does not contain a copyright notice
 
-// IWYU pragma: private, include "moveit_task_constructor_msgs/action/execute_task_solution.h"
-
-
 #ifndef MOVEIT_TASK_CONSTRUCTOR_MSGS__ACTION__DETAIL__EXECUTE_TASK_SOLUTION__STRUCT_H_
 #define MOVEIT_TASK_CONSTRUCTOR_MSGS__ACTION__DETAIL__EXECUTE_TASK_SOLUTION__STRUCT_H_
 
@@ -40,6 +37,7 @@ typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_Goal__S
   size_t capacity;
 } moveit_task_constructor_msgs__action__ExecuteTaskSolution_Goal__Sequence;
 
+
 // Constants defined in the message
 
 // Include directives for member types
@@ -63,6 +61,7 @@ typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_Result_
   size_t capacity;
 } moveit_task_constructor_msgs__action__ExecuteTaskSolution_Result__Sequence;
 
+
 // Constants defined in the message
 
 /// Struct defined in action/ExecuteTaskSolution in the package moveit_task_constructor_msgs.
@@ -82,6 +81,7 @@ typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_Feedbac
   /// The number of allocated items in data
   size_t capacity;
 } moveit_task_constructor_msgs__action__ExecuteTaskSolution_Feedback__Sequence;
+
 
 // Constants defined in the message
 
@@ -108,6 +108,7 @@ typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoa
   size_t capacity;
 } moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Request__Sequence;
 
+
 // Constants defined in the message
 
 // Include directives for member types
@@ -131,41 +132,6 @@ typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoa
   size_t capacity;
 } moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Response__Sequence;
 
-// Constants defined in the message
-
-// Include directives for member types
-// Member 'info'
-#include "service_msgs/msg/detail/service_event_info__struct.h"
-
-// constants for array fields with an upper bound
-// request
-enum
-{
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event__request__MAX_SIZE = 1
-};
-// response
-enum
-{
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event__response__MAX_SIZE = 1
-};
-
-/// Struct defined in action/ExecuteTaskSolution in the package moveit_task_constructor_msgs.
-typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event
-{
-  service_msgs__msg__ServiceEventInfo info;
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Request__Sequence request;
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Response__Sequence response;
-} moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event;
-
-// Struct for a sequence of moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event.
-typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event__Sequence
-{
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event * data;
-  /// The number of valid items in data
-  size_t size;
-  /// The number of allocated items in data
-  size_t capacity;
-} moveit_task_constructor_msgs__action__ExecuteTaskSolution_SendGoal_Event__Sequence;
 
 // Constants defined in the message
 
@@ -189,6 +155,7 @@ typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResu
   /// The number of allocated items in data
   size_t capacity;
 } moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Request__Sequence;
+
 
 // Constants defined in the message
 
@@ -214,42 +181,6 @@ typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResu
   size_t capacity;
 } moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Response__Sequence;
 
-// Constants defined in the message
-
-// Include directives for member types
-// Member 'info'
-// already included above
-// #include "service_msgs/msg/detail/service_event_info__struct.h"
-
-// constants for array fields with an upper bound
-// request
-enum
-{
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event__request__MAX_SIZE = 1
-};
-// response
-enum
-{
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event__response__MAX_SIZE = 1
-};
-
-/// Struct defined in action/ExecuteTaskSolution in the package moveit_task_constructor_msgs.
-typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event
-{
-  service_msgs__msg__ServiceEventInfo info;
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Request__Sequence request;
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Response__Sequence response;
-} moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event;
-
-// Struct for a sequence of moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event.
-typedef struct moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event__Sequence
-{
-  moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event * data;
-  /// The number of valid items in data
-  size_t size;
-  /// The number of allocated items in data
-  size_t capacity;
-} moveit_task_constructor_msgs__action__ExecuteTaskSolution_GetResult_Event__Sequence;
 
 // Constants defined in the message
 

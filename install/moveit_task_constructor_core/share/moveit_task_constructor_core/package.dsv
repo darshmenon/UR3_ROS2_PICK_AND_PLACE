@@ -1,12 +1,5 @@
-source;share/moveit_task_constructor_core/hook/cmake_module_path.dsv
-source;share/moveit_task_constructor_core/hook/cmake_module_path.sh
-source;share/moveit_task_constructor_core/hook/cmake_prefix_path.dsv
-source;share/moveit_task_constructor_core/hook/cmake_prefix_path.sh
-source;share/moveit_task_constructor_core/hook/ld_library_path_lib.dsv
-source;share/moveit_task_constructor_core/hook/ld_library_path_lib.sh
-source;share/moveit_task_constructor_core/hook/pythonpath.dsv
-source;share/moveit_task_constructor_core/hook/pythonpath.sh
 source;share/moveit_task_constructor_core/local_setup.bash
 source;share/moveit_task_constructor_core/local_setup.dsv
+source;share/moveit_task_constructor_core/local_setup.ps1
 source;share/moveit_task_constructor_core/local_setup.sh
 source;share/moveit_task_constructor_core/local_setup.zsh

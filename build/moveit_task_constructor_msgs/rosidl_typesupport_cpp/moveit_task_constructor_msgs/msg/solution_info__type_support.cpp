@@ -4,7 +4,6 @@
 
 #include "cstddef"
 #include "rosidl_runtime_c/message_type_support_struct.h"
-#include "moveit_task_constructor_msgs/msg/detail/solution_info__functions.h"
 #include "moveit_task_constructor_msgs/msg/detail/solution_info__struct.hpp"
 #include "rosidl_typesupport_cpp/identifier.hpp"
 #include "rosidl_typesupport_cpp/message_type_support.hpp"
@@ -73,9 +72,6 @@ static const rosidl_message_type_support_t SolutionInfo_message_type_support_han
   ::rosidl_typesupport_cpp::typesupport_identifier,
   reinterpret_cast<const type_support_map_t *>(&_SolutionInfo_message_typesupport_map),
   ::rosidl_typesupport_cpp::get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__msg__SolutionInfo__get_type_hash,
-  &moveit_task_constructor_msgs__msg__SolutionInfo__get_type_description,
-  &moveit_task_constructor_msgs__msg__SolutionInfo__get_type_description_sources,
 };
 
 }  // namespace rosidl_typesupport_cpp

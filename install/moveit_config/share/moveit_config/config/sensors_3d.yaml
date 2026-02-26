@@ -1,11 +1,1 @@
-sensors:
-  - default_sensor
-default_sensor:
-  filtered_cloud_topic: filtered_cloud
-  max_range: 1.5
-  max_update_rate: 1.0
-  padding_offset: 0.2
-  padding_scale: 1.0
-  point_cloud_topic: /camera/depth/color/points
-  point_subsample: 1
-  sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+/home/asimov/UR3_ROS2_PICK_AND_PLACE/moveit_config/config/sensors_3d.yaml

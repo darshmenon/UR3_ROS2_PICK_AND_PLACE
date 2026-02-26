@@ -116,7 +116,7 @@ moveit_task_constructor_msgs__msg__StageStatistics__copy(
 }
 
 moveit_task_constructor_msgs__msg__StageStatistics *
-moveit_task_constructor_msgs__msg__StageStatistics__create(void)
+moveit_task_constructor_msgs__msg__StageStatistics__create()
 {
   rcutils_allocator_t allocator = rcutils_get_default_allocator();
   moveit_task_constructor_msgs__msg__StageStatistics * msg = (moveit_task_constructor_msgs__msg__StageStatistics *)allocator.allocate(sizeof(moveit_task_constructor_msgs__msg__StageStatistics), allocator.state);

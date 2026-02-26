@@ -2,10 +2,8 @@
 // with input from moveit_task_constructor_msgs:msg/SubTrajectory.idl
 // generated code does not contain a copyright notice
 #include "moveit_task_constructor_msgs/msg/detail/sub_trajectory__rosidl_typesupport_fastrtps_cpp.hpp"
-#include "moveit_task_constructor_msgs/msg/detail/sub_trajectory__functions.h"
 #include "moveit_task_constructor_msgs/msg/detail/sub_trajectory__struct.hpp"
 
-#include <cstddef>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -13,7 +11,6 @@
 #include "rosidl_typesupport_fastrtps_cpp/identifier.hpp"
 #include "rosidl_typesupport_fastrtps_cpp/message_type_support.h"
 #include "rosidl_typesupport_fastrtps_cpp/message_type_support_decl.hpp"
-#include "rosidl_typesupport_fastrtps_cpp/serialization_helpers.hpp"
 #include "rosidl_typesupport_fastrtps_cpp/wstring_conversion.hpp"
 #include "fastcdr/Cdr.h"
 
@@ -36,17 +33,6 @@ size_t get_serialized_size(
   size_t current_alignment);
 size_t
 max_serialized_size_SolutionInfo(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
-bool cdr_serialize_key(
-  const moveit_task_constructor_msgs::msg::SolutionInfo &,
-  eprosima::fastcdr::Cdr &);
-size_t get_serialized_size_key(
-  const moveit_task_constructor_msgs::msg::SolutionInfo &,
-  size_t current_alignment);
-size_t
-max_serialized_size_key_SolutionInfo(
   bool & full_bounded,
   bool & is_plain,
   size_t current_alignment);
@@ -74,17 +60,6 @@ max_serialized_size_TrajectoryExecutionInfo(
   bool & full_bounded,
   bool & is_plain,
   size_t current_alignment);
-bool cdr_serialize_key(
-  const moveit_task_constructor_msgs::msg::TrajectoryExecutionInfo &,
-  eprosima::fastcdr::Cdr &);
-size_t get_serialized_size_key(
-  const moveit_task_constructor_msgs::msg::TrajectoryExecutionInfo &,
-  size_t current_alignment);
-size_t
-max_serialized_size_key_TrajectoryExecutionInfo(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
 }  // namespace typesupport_fastrtps_cpp
 }  // namespace msg
 }  // namespace moveit_task_constructor_msgs
@@ -106,17 +81,6 @@ size_t get_serialized_size(
   size_t current_alignment);
 size_t
 max_serialized_size_RobotTrajectory(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
-bool cdr_serialize_key(
-  const moveit_msgs::msg::RobotTrajectory &,
-  eprosima::fastcdr::Cdr &);
-size_t get_serialized_size_key(
-  const moveit_msgs::msg::RobotTrajectory &,
-  size_t current_alignment);
-size_t
-max_serialized_size_key_RobotTrajectory(
   bool & full_bounded,
   bool & is_plain,
   size_t current_alignment);
@@ -144,17 +108,6 @@ max_serialized_size_PlanningScene(
   bool & full_bounded,
   bool & is_plain,
   size_t current_alignment);
-bool cdr_serialize_key(
-  const moveit_msgs::msg::PlanningScene &,
-  eprosima::fastcdr::Cdr &);
-size_t get_serialized_size_key(
-  const moveit_msgs::msg::PlanningScene &,
-  size_t current_alignment);
-size_t
-max_serialized_size_key_PlanningScene(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment);
 }  // namespace typesupport_fastrtps_cpp
 }  // namespace msg
 }  // namespace moveit_msgs
@@ -169,7 +122,6 @@ namespace msg
 namespace typesupport_fastrtps_cpp
 {
 
-
 bool
 ROSIDL_TYPESUPPORT_FASTRTPS_CPP_PUBLIC_moveit_task_constructor_msgs
 cdr_serialize(
@@ -180,22 +132,18 @@ cdr_serialize(
   moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize(
     ros_message.info,
     cdr);
-
   // Member: execution_info
   moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize(
     ros_message.execution_info,
     cdr);
-
   // Member: trajectory
   moveit_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize(
     ros_message.trajectory,
     cdr);
-
   // Member: scene_diff
   moveit_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize(
     ros_message.scene_diff,
     cdr);
-
   return true;
 }
 
@@ -224,7 +172,6 @@ cdr_deserialize(
   return true;
 }
 
-
 size_t
 ROSIDL_TYPESUPPORT_FASTRTPS_CPP_PUBLIC_moveit_task_constructor_msgs
 get_serialized_size(
@@ -239,28 +186,28 @@ get_serialized_size(
   (void)wchar_size;
 
   // Member: info
+
   current_alignment +=
     moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size(
     ros_message.info, current_alignment);
-
   // Member: execution_info
+
   current_alignment +=
     moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size(
     ros_message.execution_info, current_alignment);
-
   // Member: trajectory
+
   current_alignment +=
     moveit_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size(
     ros_message.trajectory, current_alignment);
-
   // Member: scene_diff
+
   current_alignment +=
     moveit_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size(
     ros_message.scene_diff, current_alignment);
 
   return current_alignment - initial_alignment;
 }
-
 
 size_t
 ROSIDL_TYPESUPPORT_FASTRTPS_CPP_PUBLIC_moveit_task_constructor_msgs
@@ -281,9 +228,12 @@ max_serialized_size_SubTrajectory(
   full_bounded = true;
   is_plain = true;
 
+
   // Member: info
   {
     size_t array_size = 1;
+
+
     last_member_size = 0;
     for (size_t index = 0; index < array_size; ++index) {
       bool inner_full_bounded;
@@ -297,9 +247,12 @@ max_serialized_size_SubTrajectory(
       is_plain &= inner_is_plain;
     }
   }
+
   // Member: execution_info
   {
     size_t array_size = 1;
+
+
     last_member_size = 0;
     for (size_t index = 0; index < array_size; ++index) {
       bool inner_full_bounded;
@@ -313,9 +266,12 @@ max_serialized_size_SubTrajectory(
       is_plain &= inner_is_plain;
     }
   }
+
   // Member: trajectory
   {
     size_t array_size = 1;
+
+
     last_member_size = 0;
     for (size_t index = 0; index < array_size; ++index) {
       bool inner_full_bounded;
@@ -329,9 +285,12 @@ max_serialized_size_SubTrajectory(
       is_plain &= inner_is_plain;
     }
   }
+
   // Member: scene_diff
   {
     size_t array_size = 1;
+
+
     last_member_size = 0;
     for (size_t index = 0; index < array_size; ++index) {
       bool inner_full_bounded;
@@ -361,175 +320,6 @@ max_serialized_size_SubTrajectory(
 
   return ret_val;
 }
-
-bool
-ROSIDL_TYPESUPPORT_FASTRTPS_CPP_PUBLIC_moveit_task_constructor_msgs
-cdr_serialize_key(
-  const moveit_task_constructor_msgs::msg::SubTrajectory & ros_message,
-  eprosima::fastcdr::Cdr & cdr)
-{
-  // Member: info
-  moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize_key(
-    ros_message.info,
-    cdr);
-
-  // Member: execution_info
-  moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize_key(
-    ros_message.execution_info,
-    cdr);
-
-  // Member: trajectory
-  moveit_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize_key(
-    ros_message.trajectory,
-    cdr);
-
-  // Member: scene_diff
-  moveit_msgs::msg::typesupport_fastrtps_cpp::cdr_serialize_key(
-    ros_message.scene_diff,
-    cdr);
-
-  return true;
-}
-
-size_t
-ROSIDL_TYPESUPPORT_FASTRTPS_CPP_PUBLIC_moveit_task_constructor_msgs
-get_serialized_size_key(
-  const moveit_task_constructor_msgs::msg::SubTrajectory & ros_message,
-  size_t current_alignment)
-{
-  size_t initial_alignment = current_alignment;
-
-  const size_t padding = 4;
-  const size_t wchar_size = 4;
-  (void)padding;
-  (void)wchar_size;
-
-  // Member: info
-  current_alignment +=
-    moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size_key(
-    ros_message.info, current_alignment);
-
-  // Member: execution_info
-  current_alignment +=
-    moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size_key(
-    ros_message.execution_info, current_alignment);
-
-  // Member: trajectory
-  current_alignment +=
-    moveit_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size_key(
-    ros_message.trajectory, current_alignment);
-
-  // Member: scene_diff
-  current_alignment +=
-    moveit_msgs::msg::typesupport_fastrtps_cpp::get_serialized_size_key(
-    ros_message.scene_diff, current_alignment);
-
-  return current_alignment - initial_alignment;
-}
-
-size_t
-ROSIDL_TYPESUPPORT_FASTRTPS_CPP_PUBLIC_moveit_task_constructor_msgs
-max_serialized_size_key_SubTrajectory(
-  bool & full_bounded,
-  bool & is_plain,
-  size_t current_alignment)
-{
-  size_t initial_alignment = current_alignment;
-
-  const size_t padding = 4;
-  const size_t wchar_size = 4;
-  size_t last_member_size = 0;
-  (void)last_member_size;
-  (void)padding;
-  (void)wchar_size;
-
-  full_bounded = true;
-  is_plain = true;
-
-  // Member: info
-  {
-    size_t array_size = 1;
-    last_member_size = 0;
-    for (size_t index = 0; index < array_size; ++index) {
-      bool inner_full_bounded;
-      bool inner_is_plain;
-      size_t inner_size =
-        moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::max_serialized_size_key_SolutionInfo(
-        inner_full_bounded, inner_is_plain, current_alignment);
-      last_member_size += inner_size;
-      current_alignment += inner_size;
-      full_bounded &= inner_full_bounded;
-      is_plain &= inner_is_plain;
-    }
-  }
-
-  // Member: execution_info
-  {
-    size_t array_size = 1;
-    last_member_size = 0;
-    for (size_t index = 0; index < array_size; ++index) {
-      bool inner_full_bounded;
-      bool inner_is_plain;
-      size_t inner_size =
-        moveit_task_constructor_msgs::msg::typesupport_fastrtps_cpp::max_serialized_size_key_TrajectoryExecutionInfo(
-        inner_full_bounded, inner_is_plain, current_alignment);
-      last_member_size += inner_size;
-      current_alignment += inner_size;
-      full_bounded &= inner_full_bounded;
-      is_plain &= inner_is_plain;
-    }
-  }
-
-  // Member: trajectory
-  {
-    size_t array_size = 1;
-    last_member_size = 0;
-    for (size_t index = 0; index < array_size; ++index) {
-      bool inner_full_bounded;
-      bool inner_is_plain;
-      size_t inner_size =
-        moveit_msgs::msg::typesupport_fastrtps_cpp::max_serialized_size_key_RobotTrajectory(
-        inner_full_bounded, inner_is_plain, current_alignment);
-      last_member_size += inner_size;
-      current_alignment += inner_size;
-      full_bounded &= inner_full_bounded;
-      is_plain &= inner_is_plain;
-    }
-  }
-
-  // Member: scene_diff
-  {
-    size_t array_size = 1;
-    last_member_size = 0;
-    for (size_t index = 0; index < array_size; ++index) {
-      bool inner_full_bounded;
-      bool inner_is_plain;
-      size_t inner_size =
-        moveit_msgs::msg::typesupport_fastrtps_cpp::max_serialized_size_key_PlanningScene(
-        inner_full_bounded, inner_is_plain, current_alignment);
-      last_member_size += inner_size;
-      current_alignment += inner_size;
-      full_bounded &= inner_full_bounded;
-      is_plain &= inner_is_plain;
-    }
-  }
-
-  size_t ret_val = current_alignment - initial_alignment;
-  if (is_plain) {
-    // All members are plain, and type is not empty.
-    // We still need to check that the in-memory alignment
-    // is the same as the CDR mandated alignment.
-    using DataType = moveit_task_constructor_msgs::msg::SubTrajectory;
-    is_plain =
-      (
-      offsetof(DataType, scene_diff) +
-      last_member_size
-      ) == ret_val;
-  }
-
-  return ret_val;
-}
-
 
 static bool _SubTrajectory__cdr_serialize(
   const void * untyped_ros_message,
@@ -580,17 +370,13 @@ static message_type_support_callbacks_t _SubTrajectory__callbacks = {
   _SubTrajectory__cdr_serialize,
   _SubTrajectory__cdr_deserialize,
   _SubTrajectory__get_serialized_size,
-  _SubTrajectory__max_serialized_size,
-  nullptr
+  _SubTrajectory__max_serialized_size
 };
 
 static rosidl_message_type_support_t _SubTrajectory__handle = {
   rosidl_typesupport_fastrtps_cpp::typesupport_identifier,
   &_SubTrajectory__callbacks,
   get_message_typesupport_handle_function,
-  &moveit_task_constructor_msgs__msg__SubTrajectory__get_type_hash,
-  &moveit_task_constructor_msgs__msg__SubTrajectory__get_type_description,
-  &moveit_task_constructor_msgs__msg__SubTrajectory__get_type_description_sources,
 };
 
 }  // namespace typesupport_fastrtps_cpp
