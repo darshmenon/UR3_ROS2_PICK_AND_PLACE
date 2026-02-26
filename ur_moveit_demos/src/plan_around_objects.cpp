@@ -229,7 +229,7 @@ int main(int argc, char * argv[])
   if (success)
   {
 	// Visualize the planned trajectory in RViz
-    draw_trajectory_tool_path(plan.trajectory);
+    draw_trajectory_tool_path(plan.trajectory_);
 
     // Trigger the visualization update
     moveit_visual_tools.trigger();
