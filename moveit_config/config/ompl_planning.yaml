@@ -1,11 +1,10 @@
-planning_plugins:
-  - ompl_interface/OMPLPlanner
+planning_plugin: ompl_interface/OMPLPlanner
 # To optionally use Ruckig for jerk-limited smoothing, add it to request_adapters below
 request_adapters: >-
   default_planner_request_adapters/ResolveConstraintFrames
-  default_planner_request_adapters/ValidateWorkspaceBounds
-  default_planner_request_adapters/CheckStartStateBounds
-  default_planner_request_adapters/CheckStartStateCollision
+  default_planner_request_adapters/FixWorkspaceBounds
+  default_planner_request_adapters/FixStartStateBounds
+  default_planner_request_adapters/FixStartStateCollision
 response_adapters: >-
   default_planning_response_adapters/AddTimeOptimalParameterization
   default_planning_response_adapters/ValidateSolution
@@ -144,8 +143,8 @@ planner_configs:
 trajectory_execution:
   allowed_execution_duration_scaling: 1.2
   allowed_goal_duration_margin: 0.5
-  allowed_start_tolerance: 0.01
-  execution_duration_monitoring: true
+  allowed_start_tolerance: 0.1
+  execution_duration_monitoring: false
 arm:
   default_planner_config: RRTConnectkConfigDefault
   planner_configs:

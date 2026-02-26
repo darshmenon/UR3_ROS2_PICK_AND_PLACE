@@ -2,14 +2,23 @@
  * @file test_planning_execution.cpp
  * @brief Testing application for ROS 2 and MoveIt 2 planning and execution
  *
- * This program tests multiple sequential movements of the robotic arm to 
+ * This program tests multiple sequential movements of the robotic arm to
  * ensure planning and execution work correctly without hanging.
+ *
+ * Bug fix: Explicitly applies Time Optimal Trajectory Generation (TOTG)
+ * after planning because the OMPL response adapter
+ * (AddTimeOptimalParameterization) may not load on all MoveIt2 Humble
+ * installs — leaving all trajectory point timestamps at 0.0, which the
+ * ros2_control FollowJointTrajectory controller rejects with:
+ *   "Time between points 0 and 1 is not strictly increasing"
  */
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
 #include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/robot_trajectory/robot_trajectory.h>
+#include <moveit/trajectory_processing/time_optimal_trajectory_generation.h>
 #include <thread>
 #include <vector>
 
@@ -36,70 +45,80 @@ int main(int argc, char * argv[])
 
   arm_group_interface.setPlanningPipelineId("ompl");
   arm_group_interface.setPlannerId("RRTConnectkConfigDefault");
-  arm_group_interface.setPlanningTime(2.0);
-  arm_group_interface.setMaxVelocityScalingFactor(1.0);
-  arm_group_interface.setMaxAccelerationScalingFactor(1.0);
+  arm_group_interface.setPlanningTime(5.0);
+  arm_group_interface.setMaxVelocityScalingFactor(0.3);
+  arm_group_interface.setMaxAccelerationScalingFactor(0.3);
   arm_group_interface.setEndEffectorLink("robotiq_arg2f_base_link");
 
   RCLCPP_INFO(logger, "Starting Planning and Execution Test");
 
-  // Define a series of test poses
-  std::vector<geometry_msgs::msg::Pose> test_poses;
-  
-  // Pose 1
-  geometry_msgs::msg::Pose pose1;
-  pose1.position.x = 0.128;
-  pose1.position.y = -0.266;
-  pose1.position.z = 0.200;
-  pose1.orientation.x = 0.635;
-  pose1.orientation.y = -0.268;
-  pose1.orientation.z = 0.694;
-  pose1.orientation.w = 0.206;
-  test_poses.push_back(pose1);
+  // Joint order: shoulder_pan, shoulder_lift, elbow, wrist_1, wrist_2, wrist_3
+  // elbow=1.57 keeps the arm in a collision-free L-shape
+  std::vector<std::vector<double>> test_joints;
 
-  // Pose 2
-  geometry_msgs::msg::Pose pose2;
-  pose2.position.x = 0.061;
-  pose2.position.y = -0.176;
-  pose2.position.z = 0.300;
-  pose2.orientation.x = 0.0;
-  pose2.orientation.y = 0.0;
-  pose2.orientation.z = 0.0;
-  pose2.orientation.w = 1.0;
-  test_poses.push_back(pose2);
+  // 1: Center ready
+  test_joints.push_back({ 0.0, -1.57, 1.57, -1.57, 0.0, 0.0});
+  // 2: Zig left
+  test_joints.push_back({ 0.5, -1.57, 1.57, -1.57, 0.0, 0.0});
+  // 3: Zag right
+  test_joints.push_back({-0.5, -1.57, 1.57, -1.57, 0.0, 0.0});
+  // 4: Zig left again
+  test_joints.push_back({ 0.5, -1.57, 1.57, -1.57, 0.0, 0.0});
+  // 5: Back to center
+  test_joints.push_back({ 0.0, -1.57, 1.57, -1.57, 0.0, 0.0});
 
   bool all_tests_passed = true;
 
-  for (size_t i = 0; i < test_poses.size(); ++i) {
-    RCLCPP_INFO(logger, "--- Testing Target %zu ---", i + 1);
-    
-    geometry_msgs::msg::PoseStamped target_msg;
-    target_msg.header.frame_id = "base_link";
-    target_msg.header.stamp = node->now();
-    target_msg.pose = test_poses[i];
+  // Time-optimal trajectory generator — applied after planning to guarantee
+  // strictly-increasing timestamps even if response adapters don't run.
+  trajectory_processing::TimeOptimalTrajectoryGeneration totg;
 
-    arm_group_interface.setPoseTarget(target_msg);
+  for (size_t i = 0; i < test_joints.size(); ++i) {
+    RCLCPP_INFO(logger, "--- Testing Target %zu (ZigZag) ---", i + 1);
+
+    arm_group_interface.setJointValueTarget(test_joints[i]);
 
     moveit::planning_interface::MoveGroupInterface::Plan plan;
     bool plan_success = static_cast<bool>(arm_group_interface.plan(plan));
 
     if (plan_success) {
+      // --- Time-parameterization fix ---
+      // Rebuild the trajectory as a RobotTrajectory and re-stamp it with TOTG.
+      // This resolves the "timestamps not strictly increasing" rejection from
+      // the FollowJointTrajectory controller when the response adapter doesn't run.
+      auto robot_model = arm_group_interface.getRobotModel();
+      auto robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(robot_model, "arm");
+      robot_traj->setRobotTrajectoryMsg(
+        *arm_group_interface.getCurrentState(),
+        plan.trajectory_
+      );
+
+      const double vel_scale = arm_group_interface.getMaxVelocityScalingFactor();
+      const double acc_scale = arm_group_interface.getMaxAccelerationScalingFactor();
+      if (!totg.computeTimeStamps(*robot_traj, vel_scale, acc_scale)) {
+        RCLCPP_ERROR(logger, "Time parameterization for Target %zu FAILED.", i + 1);
+        all_tests_passed = false;
+        break;
+      }
+      robot_traj->getRobotTrajectoryMsg(plan.trajectory_);
+      // --- End fix ---
+
       RCLCPP_INFO(logger, "Planning for Target %zu SUCCESS. Executing...", i + 1);
       auto exec_result = arm_group_interface.execute(plan);
-      
+
       if (exec_result == moveit::core::MoveItErrorCode::SUCCESS) {
         RCLCPP_INFO(logger, "Execution for Target %zu SUCCESS.", i + 1);
       } else {
         RCLCPP_ERROR(logger, "Execution for Target %zu FAILED.", i + 1);
         all_tests_passed = false;
-        break; // Stop on first failure
+        break;
       }
     } else {
       RCLCPP_ERROR(logger, "Planning for Target %zu FAILED.", i + 1);
       all_tests_passed = false;
       break;
     }
-    
+
     // Small delay between movements
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }

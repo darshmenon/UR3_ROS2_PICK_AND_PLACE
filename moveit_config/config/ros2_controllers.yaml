@@ -33,6 +33,9 @@ arm_controller:
       - position
       - velocity
     allow_nonzero_velocity_at_trajectory_end: true
+    constraints:
+      stopped_velocity_tolerance: 0.1
+      goal_time: 5.0
 gripper_controller:
   ros__parameters:
     joint: finger_joint
