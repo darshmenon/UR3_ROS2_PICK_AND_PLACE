@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_cmake/rosidl_cmake_export_typesupport_targets-extras.cmake

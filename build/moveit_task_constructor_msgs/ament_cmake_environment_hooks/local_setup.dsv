@@ -1,4 +1,0 @@
-source;share/moveit_task_constructor_msgs/environment/ament_prefix_path.sh
-source;share/moveit_task_constructor_msgs/environment/library_path.sh
-source;share/moveit_task_constructor_msgs/environment/path.sh
-source;share/moveit_task_constructor_msgs/environment/pythonpath.sh

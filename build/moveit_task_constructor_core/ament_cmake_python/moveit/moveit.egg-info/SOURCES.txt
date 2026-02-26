@@ -1,9 +1,0 @@
-setup.py
-moveit/__init__.py
-moveit.egg-info/PKG-INFO
-moveit.egg-info/SOURCES.txt
-moveit.egg-info/dependency_links.txt
-moveit.egg-info/top_level.txt
-moveit/task_constructor/__init__.py
-moveit/task_constructor/core.py
-moveit/task_constructor/stages.py

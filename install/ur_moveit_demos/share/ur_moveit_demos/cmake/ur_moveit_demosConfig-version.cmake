@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/ur_moveit_demos/ament_cmake_core/ur_moveit_demosConfig-version.cmake

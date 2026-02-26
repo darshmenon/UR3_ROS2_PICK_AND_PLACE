@@ -1,7 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo/include/metadata.h
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo/include/message_collection.h
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo/include/query_results.h
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo/include/database_connection.h
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo/lib/libwarehouse_ros_mongo.so
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/export_warehouse_ros_mongoExport.cmake
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/install/warehouse_ros_mongo/share/warehouse_ros_mongo/cmake/export_warehouse_ros_mongoExport-release.cmake

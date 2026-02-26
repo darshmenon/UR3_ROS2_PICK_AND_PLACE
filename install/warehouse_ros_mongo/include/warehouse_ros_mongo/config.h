@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/warehouse_ros_mongo/include/warehouse_ros_mongo/config.h

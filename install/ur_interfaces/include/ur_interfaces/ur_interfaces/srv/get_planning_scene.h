@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_generator_c/ur_interfaces/srv/get_planning_scene.h

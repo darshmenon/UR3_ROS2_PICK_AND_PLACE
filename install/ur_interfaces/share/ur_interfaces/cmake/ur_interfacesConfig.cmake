@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/ament_cmake_core/ur_interfacesConfig.cmake

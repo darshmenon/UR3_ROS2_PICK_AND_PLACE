@@ -1,7 +1,0 @@
-prefix=
-includedir=${prefix}/include/moveit/python
-
-Name: pybind11
-Description: Seamless operability between C++11 and Python
-Version: 2.13.0
-Cflags: -I${includedir}

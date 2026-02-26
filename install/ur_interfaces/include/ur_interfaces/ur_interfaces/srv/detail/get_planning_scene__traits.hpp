@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/build/ur_interfaces/rosidl_generator_cpp/ur_interfaces/srv/detail/get_planning_scene__traits.hpp

@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/src/warehouse_ros_mongo/test/warehouse_ros_mongo.launch.py

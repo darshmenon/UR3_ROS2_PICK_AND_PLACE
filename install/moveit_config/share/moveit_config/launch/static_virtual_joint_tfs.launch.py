@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/moveit_config/launch/static_virtual_joint_tfs.launch.py

@@ -1,8 +1,0 @@
-setup.py
-ur_interfaces/__init__.py
-ur_interfaces.egg-info/PKG-INFO
-ur_interfaces.egg-info/SOURCES.txt
-ur_interfaces.egg-info/dependency_links.txt
-ur_interfaces.egg-info/top_level.txt
-ur_interfaces/srv/__init__.py
-ur_interfaces/srv/_get_planning_scene.py

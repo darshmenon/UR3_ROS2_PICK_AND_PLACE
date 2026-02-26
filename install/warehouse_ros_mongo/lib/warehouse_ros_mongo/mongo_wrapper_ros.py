@@ -1,1 +1,0 @@
-/home/asimov/UR3_ROS2_PICK_AND_PLACE/src/warehouse_ros_mongo/warehouse_ros_mongo/mongo_wrapper_ros.py

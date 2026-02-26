@@ -1,4 +1,0 @@
-source;share/moveit_task_constructor_core/local_setup.bash
-source;share/moveit_task_constructor_core/local_setup.dsv
-source;share/moveit_task_constructor_core/local_setup.sh
-source;share/moveit_task_constructor_core/local_setup.zsh
