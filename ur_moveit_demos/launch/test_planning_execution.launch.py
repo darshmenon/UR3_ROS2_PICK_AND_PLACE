@@ -13,15 +13,15 @@ def generate_launch_description():
         .to_moveit_configs()
     )
 
+    moveit_dict = moveit_config.to_dict()
+    moveit_dict.update({"use_sim_time": True})
+
     # Test Execution Node
     test_planning_execution_node = Node(
         package="ur_moveit_demos",
         executable="test_planning_execution",
         output="screen",
-        parameters=[
-            moveit_config.to_dict(),
-            {"use_sim_time": True}
-        ],
+        parameters=[moveit_dict],
     )
 
     return LaunchDescription([test_planning_execution_node])
