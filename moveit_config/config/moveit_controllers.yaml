@@ -6,7 +6,6 @@ moveit_simple_controller_manager:
   controller_names:
     - arm_controller
     - gripper_controller
-    - arm_with_gripper_controller
 
   arm_controller:
     type: FollowJointTrajectory
