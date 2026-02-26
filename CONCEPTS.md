@@ -449,3 +449,47 @@ ros2 topic echo /display_planned_path --once
 ---
 
 *This document covers every concept encountered debugging the UR3 ROS 2 pick-and-place project. For the official references see the [MoveIt 2 docs](https://moveit.picknik.ai/) and [ros2_control docs](https://control.ros.org/).*
+
+## 12. Torque and Impedance Controllers
+
+In the `ros2_control` ecosystem, you can extend the robot's capabilities by adding specialized controllers beyond pure position control:
+
+### Torque Control (`forward_command_controller/ForwardCommandController`)
+A torque controller lets you bypass trajectory planning and send raw effort (torque) values directly to the joints. In ROS 2 Humble:
+- You use `forward_command_controller/ForwardCommandController` and configure it to use the `effort` interface.
+- It requires the hardware interface to support `effort` command interfaces.
+
+### Impedance Control
+Impedance controllers treat the robot like a mass-spring-damper system, allowing it to act compliantly when it hits obstacles rather than rigidly tracking a position and commanding infinite torque. 
+- While native impedance controllers often require custom C++ plugins, a baseline can be established using a `joint_trajectory_controller` mapped to `effort` command interfaces. MoveIt can then plan trajectories that are executed compliantly.
+
+## 13. MoveIt Cartesian Planning (Zig-Zag Motion)
+To move the end-effector through precise waypoints (like a zig-zag), we rely on MoveIt's Cartesian planning capabilities:
+- **`computeCartesianPath`**: Takes a vector of `geometry_msgs::msg::Pose` waypoints. It interpolates linearly between them in Cartesian space and uses Inverse Kinematics (IK) to calculate the corresponding joint positions.
+- **Orientation**: It's crucial to set the correct quaternion orientation for the end-effector (e.g., `x=1.0, w=0.0` for pointing straight down) in every waypoint to prevent the arm from twisting wildly between points.
+
+## 12. Torque and Impedance Controllers
+
+In the `ros2_control` ecosystem, you can extend the robot capability by adding specialized controllers beyond pure position control:
+
+### Torque Control (`forward_command_controller/ForwardCommandController`)
+A torque controller lets you bypass trajectory planning and send raw effort (torque) values directly to the joints. In ROS 2 Humble:
+- You use `forward_command_controller/ForwardCommandController` and configure it to use the `effort` interface.
+- It requires the hardware interface to support `effort` command interfaces.
+
+### Impedance Control
+Impedance controllers treat the robot like a mass-spring-damper system, allowing it to act compliantly when it hits obstacles rather than rigidly tracking a position and commanding infinite torque. 
+- While native impedance controllers often require custom C++ plugins, a baseline can be established using a `joint_trajectory_controller` mapped to `effort` command interfaces. MoveIt can then plan trajectories that are executed compliantly.
+
+## 13. MoveIt Cartesian Planning (Zig-Zag Motion)
+To move the end-effector through precise waypoints (like a zig-zag), we rely on MoveIt Cartesian planning capabilities via Inverse Kinematics (IK):
+- **Pilz Industrial Motion Planner**: We use the PILZ `LIN` (Linear) trajectory planner to draw strictly straight Cartesian lines between points. Unlike regular joint-space planners (which move joints from A to B in the most efficient joint configuration, resulting in curved end-effector paths), `LIN` forces the end-effector to travel in a straight line in 3D space.
+- **Starting Points (`PTP` vs `LIN`)**: Because a `LIN` motion requires a pre-existing Cartesian context (i.e., you can only draw a line if your start and end point are in the same general pose family), we must use a Point-to-Point (`PTP`) planner (like OMPL or Pilz `PTP`) to move to the very first point of our shape via standard joint-space planning. 
+- **Time Parameterization**: Planners generate a geometrical path (points in space) but often fail to add velocity/acceleration timestamps to the trajectory constraints. Without explicit Time Optimal Trajectory Generation (TOTG) applied to the trajectory, the `ros2_control` execution manager will instantly reject the plan.
+- **Simulation Delay**: When running Gazebo Harmonic simulations, physics and the `ros2_control` ecosystem need substantial time to initialize. For this project, a 60-second delay is strictly necessary before running custom MoveIt C++ nodes to ensure the `arm_controller` and clock synchronizer are fully spawned. Otherwise, controllers will time out waiting for the `joint_states` topic or action servers.
+
+## 14. Fixed End-Effector Motion (Null-Space)
+Moving other joints while strictly keeping the end-effector stationary requires the robot to be **kinematically redundant**.
+- The UR3 is a **6-DOF (Degrees of Freedom)** arm. To fix the 6 aspects of the end-effector pose (X, Y, Z, Roll, Pitch, Yaw), all 6 joints are mathematically constrained.
+- Unless the arm is in a singularity, there is no "null-space" in a 6-DOF arm to move the elbow while keeping the gripper perfectly still.
+- A **7-DOF** arm (like the Franka Emika Panda) has an extra degree of freedom, allowing for null-space motions where the elbow can move while the end-effector pose is completely constrained.

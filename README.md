@@ -125,6 +125,15 @@ python3 ~/UR3_ROS2_PICK_AND_PLACE/ur_system_tests/scripts/arm_gripper_loop_contr
 
 ---
 
+## ⚡ Custom Zig-Zag Motion Demo
+To run the custom Cartesian (LIN) zig-zag motion demo using the MoveIt 2 PILZ Industrial Motion Planner:
+```bash
+ros2 run ur_moveit_demos custom_zigzag_motion
+```
+*Note: Make sure the Gazebo simulation (`ur.gazebo.launch.py`) has been running for at least 60 seconds so all controllers are initialized before starting the node.*
+
+---
+
 ## 📝 MTC Demo Script
 
 To run the full MTC demo with the UR3 and Robotiq gripper, execute the following steps:
@@ -180,4 +189,5 @@ This script will:
 ## 🤝 Contributing
 
 Feel free to open pull requests or issues if you have improvements or bug reports.
+
 

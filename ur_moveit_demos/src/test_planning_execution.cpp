@@ -93,8 +93,9 @@ int main(int argc, char * argv[])
         plan.trajectory_
       );
 
-      const double vel_scale = arm_group_interface.getMaxVelocityScalingFactor();
-      const double acc_scale = arm_group_interface.getMaxAccelerationScalingFactor();
+      // Replace missing getters with the known 0.3 scale
+      const double vel_scale = 0.3;
+      const double acc_scale = 0.3;
       if (!totg.computeTimeStamps(*robot_traj, vel_scale, acc_scale)) {
         RCLCPP_ERROR(logger, "Time parameterization for Target %zu FAILED.", i + 1);
         all_tests_passed = false;
