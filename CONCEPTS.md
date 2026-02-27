@@ -17,6 +17,10 @@ A deep-dive into every concept you encountered while building and debugging this
 9. [Time Parameterization (The Zero-Timestamp Bug)](#9-time-parameterization--the-zero-timestamp-bug)
 10. [MoveIt Task Constructor (MTC)](#10-moveit-task-constructor-mtc)
 11. [Debugging Cheat-Sheet](#11-debugging-cheat-sheet)
+12. [Torque and Impedance Controllers](#12-torque-and-impedance-controllers)
+13. [MoveIt Cartesian Planning (Zig-Zag Motion)](#13-moveit-cartesian-planning-zig-zag-motion)
+14. [Fixed End-Effector Motion (Null-Space)](#14-fixed-end-effector-motion-null-space)
+15. [Gripper Mimic Joints and Why MTC Grasping Still Works](#15-gripper-mimic-joints-and-why-mtc-grasping-still-works)
 
 ---
 
@@ -487,6 +491,63 @@ To move the end-effector through precise waypoints (like a zig-zag), we rely on 
 - **Starting Points (`PTP` vs `LIN`)**: Because a `LIN` motion requires a pre-existing Cartesian context (i.e., you can only draw a line if your start and end point are in the same general pose family), we must use a Point-to-Point (`PTP`) planner (like OMPL or Pilz `PTP`) to move to the very first point of our shape via standard joint-space planning. 
 - **Time Parameterization**: Planners generate a geometrical path (points in space) but often fail to add velocity/acceleration timestamps to the trajectory constraints. Without explicit Time Optimal Trajectory Generation (TOTG) applied to the trajectory, the `ros2_control` execution manager will instantly reject the plan.
 - **Simulation Delay**: When running Gazebo Harmonic simulations, physics and the `ros2_control` ecosystem need substantial time to initialize. For this project, a 60-second delay is strictly necessary before running custom MoveIt C++ nodes to ensure the `arm_controller` and clock synchronizer are fully spawned. Otherwise, controllers will time out waiting for the `joint_states` topic or action servers.
+
+## 15. Gripper Mimic Joints and Why MTC Grasping Still Works
+
+### What Mimic Joints Are
+
+The Robotiq 2F-85 gripper has **one actuated joint** (`finger_joint`) controlled by `gripper_controller`, and **five passive joints** that should mirror it mechanically:
+
+| Joint | Multiplier | Range |
+|---|---|---|
+| `left_inner_knuckle_joint` | +1 | 0 → 0.8757 |
+| `left_inner_finger_joint` | -1 | 0 → -0.8757 |
+| `right_outer_knuckle_joint` | ±1 | 0 → 0.81 |
+| `right_inner_knuckle_joint` | +1 | 0 → 0.8757 |
+| `right_inner_finger_joint` | -1 | 0 → -0.8757 |
+
+The URDF `<mimic>` tag encodes this relationship:
+
+```xml
+<joint name="left_inner_knuckle_joint" type="revolute">
+  ...
+  <mimic joint="finger_joint" multiplier="1" offset="0"/>
+</joint>
+```
+
+### Who Reads Mimic Tags
+
+| Component | Reads `<mimic>`? | Effect |
+|---|---|---|
+| **`robot_state_publisher`** | **Yes** | Derives mimic joint TF transforms from `finger_joint` state → RViz shows correct visual |
+| **MoveIt planning** | **Yes** | Includes mimic joints in collision geometry when planning gripper poses |
+| **Ignition Gazebo physics** | **Yes** | Mimic constraints applied via URDF→SDF conversion on spawn |
+
+When the robot is spawned into Ignition Gz from `/robot_description` (via `ros_gz_sim`), the URDF-to-SDF converter translates `<mimic>` tags into native Ignition physics joint constraints. The old Gazebo Classic plugins (`libgazebo_mimic_joint_plugin.so`, `libroboticsgroup_gazebo_mimic_joint_plugin.so`) still present in the URDF are dead code — they never load in Ignition — but they are also not needed since Ignition handles it natively.
+
+### Why MTC Pick-and-Place Works
+
+MTC's `Pick` stage combines **real physics gripper closure** with a **software attachment**:
+
+```
+1. Plan + execute: finger_joint → closed   (GripperCommand action)
+   → mimic joints physically follow in Gazebo (fingers actually close)
+2. attachObject("object", "tool0")         ← planning scene weld
+   → object rigidly attached to end-effector for collision-aware planning
+3. Plan + execute: lift arm               (object follows in both Gazebo and MoveIt)
+```
+
+`attachObject()` is still the key step for **planning** — it tells MoveIt's collision checker to treat the object as part of the robot so the planner avoids collisions with it during lifting. Without it, MoveIt would try to plan around the object even while carrying it.
+
+### Practical Implications
+
+- **RViz visualization**: Correct — `robot_state_publisher` derives mimic positions from `finger_joint` state.
+- **MoveIt collision checking**: Correct — planner sees gripper in actual planned pose.
+- **Gazebo physics contact**: Works — mimic joints follow `finger_joint` via URDF→SDF spawn conversion.
+- **MTC grasping**: Works via both physical closure + `attachObject()` for planning.
+- **Old Gazebo Classic plugins in URDF**: Dead code, harmless, never load in Ignition.
+
+---
 
 ## 14. Fixed End-Effector Motion (Null-Space)
 Moving other joints while strictly keeping the end-effector stationary requires the robot to be **kinematically redundant**.
