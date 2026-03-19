@@ -1,6 +1,10 @@
 llm_planner_node:
   ros__parameters:
-    anthropic_api_key: ""  # Set via ANTHROPIC_API_KEY env var or override here
-    claude_model: "claude-opus-4-6"
+    # Local Ollama model — no API key needed.
+    # Install: curl -fsSL https://ollama.ai/install.sh | sh
+    # Start:   ollama serve
+    # Pull:    ollama pull llama3.2:3b
+    ollama_model: "llama3.2:3b"
+    ollama_base_url: "http://localhost:11434"
     auto_demo: false
     auto_demo_command: "pick up the red object and place it to the left of the robot"

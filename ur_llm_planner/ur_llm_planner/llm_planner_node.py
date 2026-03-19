@@ -2,7 +2,7 @@
 """
 LLM Planner Node — main ROS 2 entry point for the ur_llm_planner package.
 
-Accepts natural language robot commands, queries the Claude API to produce a
+Accepts natural language robot commands, queries a local Ollama LLM to produce a
 structured task plan, and executes that plan on the UR3 arm.
 
 Usage (topic):
@@ -25,7 +25,7 @@ from std_msgs.msg import String
 
 from ur_interfaces.msg import DetectedObjectArray
 
-from ur_llm_planner.claude_client import ClaudeClient
+from ur_llm_planner.ollama_client import OllamaClient
 from ur_llm_planner.motion_executor import MotionExecutor
 
 
@@ -49,8 +49,8 @@ class LLMPlannerNode(Node):
         /llm_planner/command (std_msgs/msg/String)
 
     Parameters:
-        anthropic_api_key  (str)  – Anthropic API key (falls back to env var).
-        claude_model       (str)  – Claude model identifier.
+        ollama_model       (str)  – Ollama model tag (e.g. llama3.2:3b).
+        ollama_base_url    (str)  – Ollama server URL.
         auto_demo          (bool) – Run demo command automatically after startup.
         auto_demo_command  (str)  – Natural language command for auto-demo.
     """
@@ -59,31 +59,30 @@ class LLMPlannerNode(Node):
         super().__init__("llm_planner_node")
 
         # ── Parameters ────────────────────────────────────────────────
-        self.declare_parameter("anthropic_api_key", "")
-        self.declare_parameter("claude_model", "claude-opus-4-6")
-        self.declare_parameter("auto_demo", False)
+        self.declare_parameter("ollama_model",    "llama3.2:3b")
+        self.declare_parameter("ollama_base_url", "http://localhost:11434")
+        self.declare_parameter("auto_demo",       False)
         self.declare_parameter(
             "auto_demo_command",
             "pick up the red object and place it to the left of the robot",
         )
 
-        api_key = self.get_parameter("anthropic_api_key").get_parameter_value().string_value
-        if not api_key:
-            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            self.get_logger().warn(
-                "No Anthropic API key found. Set the 'anthropic_api_key' parameter "
-                "or the ANTHROPIC_API_KEY environment variable."
-            )
-
-        model = self.get_parameter("claude_model").get_parameter_value().string_value
+        model    = self.get_parameter("ollama_model").get_parameter_value().string_value
+        base_url = self.get_parameter("ollama_base_url").get_parameter_value().string_value
         self._auto_demo = self.get_parameter("auto_demo").get_parameter_value().bool_value
         self._auto_demo_command = (
             self.get_parameter("auto_demo_command").get_parameter_value().string_value
         )
 
         # ── Sub-components ─────────────────────────────────────────────
-        self._claude = ClaudeClient(api_key=api_key, model=model)
+        self._llm = OllamaClient(model=model, base_url=base_url)
+        if not self._llm.is_available():
+            self.get_logger().warn(
+                f"Ollama not reachable at {base_url}. "
+                "Start it with: ollama serve   and pull a model: ollama pull llama3.2:3b"
+            )
+        else:
+            self.get_logger().info(f"Ollama available at {base_url}, model={model}")
         self._executor = MotionExecutor(self)
 
         # ── State ─────────────────────────────────────────────────────
@@ -206,9 +205,9 @@ class LLMPlannerNode(Node):
             f"with {len(detected_objects)} detected object(s)."
         )
 
-        # ── Step 1: Query Claude ───────────────────────────────────────
-        self.get_logger().info("Querying Claude API...")
-        plan = self._claude.plan_task(
+        # ── Step 1: Query LLM ─────────────────────────────────────────
+        self.get_logger().info("Querying Ollama LLM...")
+        plan = self._llm.plan_task(
             command=command,
             detected_objects=detected_objects,
             named_poses=NAMED_POSES,
@@ -217,15 +216,15 @@ class LLMPlannerNode(Node):
         explanation = plan.get("explanation", "(no explanation)")
         tasks = plan.get("tasks", [])
 
-        self.get_logger().info(f"Claude explanation: {explanation}")
+        self.get_logger().info(f"LLM explanation: {explanation}")
 
         if not tasks:
             self.get_logger().warn(
-                "Claude returned an empty task list — nothing to execute."
+                "LLM returned an empty task list — nothing to execute."
             )
             return
 
-        self.get_logger().info(f"Claude produced {len(tasks)} task(s):")
+        self.get_logger().info(f"LLM produced {len(tasks)} task(s):")
         for i, task in enumerate(tasks):
             self.get_logger().info(f"  [{i + 1}] {task}")
 
