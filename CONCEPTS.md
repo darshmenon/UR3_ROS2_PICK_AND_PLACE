@@ -22,7 +22,7 @@ A deep-dive into every concept you encountered while building and debugging this
 14. [Fixed End-Effector Motion (Null-Space)](#14-fixed-end-effector-motion-null-space)
 15. [Gripper Mimic Joints and Why MTC Grasping Still Works](#15-gripper-mimic-joints-and-why-mtc-grasping-still-works)
 16. [Vision-Based Object Detection and 3D Pose Estimation](#16-vision-based-object-detection-and-3d-pose-estimation)
-17. [LLM-Driven Task Planning with Claude](#17-llm-driven-task-planning-with-claude)
+17. [LLM-Driven Task Planning with Ollama](#17-llm-driven-task-planning-with-ollama)
 18. [Behavior Cloning and VLA Fine-Tuning](#18-behavior-cloning-and-vla-fine-tuning)
 
 ---
@@ -595,26 +595,26 @@ The key detail: publish with `PlanningScene.is_diff = True` so MoveIt **merges**
 
 ---
 
-## 17. LLM-Driven Task Planning with Claude
+## 17. LLM-Driven Task Planning with Ollama
 
 ### Why Use an LLM for Task Planning?
-Classical pick-and-place pipelines hardcode the task sequence. An LLM planner lets you say *"sort the blocks by color"* and have the robot figure out which blocks to pick, in what order, and where to put them — adapting to whatever objects the perception pipeline currently sees.
+Classical pick-and-place pipelines hardcode the task sequence. An LLM planner lets you say *"sort the blocks by color"* and have the robot figure out which blocks to pick, in what order, and where to put them — adapting to whatever objects the perception pipeline currently sees. In this project, we use **Ollama** to run models locally (like Llama 3.2 or Mistral) without needing a cloud API key.
 
 ### The Pipeline
 ```
 User command (string)
-  → Claude API (with scene context as JSON)
+  → Ollama LLM (running locally with scene context as JSON)
   → Structured task list (JSON)
   → MotionExecutor (ROS 2 action clients)
   → Robot motion
 ```
 
-Claude receives:
+Ollama receives:
 - The natural language command
 - A JSON list of currently detected objects with their 3D positions
 - The list of available named poses and action types
 
-Claude returns:
+Ollama returns:
 ```json
 {
   "explanation": "I will pick the red block at (0.30, 0.05) and place it in the left bin",

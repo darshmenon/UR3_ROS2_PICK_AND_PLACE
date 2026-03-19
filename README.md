@@ -49,8 +49,10 @@ sudo apt install ros-humble-rviz2 \
 ### 3. Install Python Dependencies
 ```bash
 pip3 install -r requirements.txt
-# anthropic is required for the LLM planner:
-export ANTHROPIC_API_KEY=your_key_here
+# Ollama is required for the LLM planner:
+# Install it from https://ollama.com
+# Then pull your preferred model:
+ollama pull llama3.2:3b
 ```
 
 ### 4. Build the Workspace
@@ -212,10 +214,13 @@ ros2 topic echo /detected_objects
 ```
 
 ### LLM Task Planning (`ur_llm_planner`)
-Natural language → robot motion. Send a plain English command and Claude figures out the pick-and-place sequence.
+Natural language → robot motion. Send a plain English command and a local Ollama model figures out the pick-and-place sequence. No API key or cloud dependency required.
 
 ```bash
-export ANTHROPIC_API_KEY=your_key_here
+# Ensure Ollama is running and model pulled:
+# ollama serve
+# ollama pull llama3.2:3b
+
 ros2 launch ur_llm_planner llm_planner.launch.py
 
 # Send a command:

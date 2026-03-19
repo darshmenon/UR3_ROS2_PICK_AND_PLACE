@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='darsh',
     maintainer_email='darshmenon02@gmail.com',
-    description='LLM-driven task planning for UR robot using Claude API',
+    description='LLM-driven task planning for UR robot using Ollama',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
