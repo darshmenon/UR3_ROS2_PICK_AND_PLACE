@@ -6,8 +6,8 @@
 #include <moveit/task_constructor/solvers/cartesian_path.h>
 #include <moveit/task_constructor/solvers/pipeline_planner.h>
 
-#include <moveit/planning_scene/planning_scene.hpp>
-#include <moveit/robot_trajectory/robot_trajectory.hpp>
+#include <moveit/planning_scene/planning_scene.h>
+#include <moveit/robot_trajectory/robot_trajectory.h>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist_stamped.hpp>
@@ -33,7 +33,8 @@ solvers::CartesianPathPtr create<solvers::CartesianPath>(const rclcpp::Node::Sha
 }
 template <>
 solvers::PipelinePlannerPtr create<solvers::PipelinePlanner>(const rclcpp::Node::SharedPtr& node) {
-	auto p = std::make_shared<solvers::PipelinePlanner>(node, "pilz_industrial_motion_planner", "LIN");
+	auto p = std::make_shared<solvers::PipelinePlanner>(node, "pilz_industrial_motion_planner");
+	p->setPlannerId("LIN");
 	p->setProperty("max_velocity_scaling_factor", 0.1);
 	p->setProperty("max_acceleration_scaling_factor", 0.1);
 	return p;

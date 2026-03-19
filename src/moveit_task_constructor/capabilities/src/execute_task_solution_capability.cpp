@@ -36,13 +36,13 @@
 
 #include "execute_task_solution_capability.h"
 
-#include <moveit/moveit_cpp/moveit_cpp.hpp>
-#include <moveit/plan_execution/plan_execution.hpp>
-#include <moveit/trajectory_processing/trajectory_tools.hpp>
-#include <moveit/kinematic_constraints/utils.hpp>
-#include <moveit/move_group/capability_names.hpp>
-#include <moveit/robot_state/conversions.hpp>
-#include <moveit/utils/message_checks.hpp>
+#include <moveit/moveit_cpp/moveit_cpp.h>
+#include <moveit/plan_execution/plan_execution.h>
+#include <moveit/trajectory_processing/trajectory_tools.h>
+#include <moveit/kinematic_constraints/utils.h>
+#include <moveit/move_group/capability_names.h>
+#include <moveit/robot_state/conversions.h>
+#include <moveit/utils/message_checks.h>
 #include <fmt/format.h>
 
 namespace {
@@ -144,16 +144,16 @@ bool ExecuteTaskSolutionCapability::constructMotionPlan(
 		state = scene->getCurrentState();
 	}
 
-	plan.plan_components.reserve(solution.sub_trajectory.size());
+	plan.plan_components_.reserve(solution.sub_trajectory.size());
 	for (size_t i = 0; i < solution.sub_trajectory.size(); ++i) {
 		const moveit_task_constructor_msgs::msg::SubTrajectory& sub_traj = solution.sub_trajectory[i];
 
-		plan.plan_components.emplace_back();
-		plan_execution::ExecutableTrajectory& exec_traj = plan.plan_components.back();
+		plan.plan_components_.emplace_back();
+		plan_execution::ExecutableTrajectory& exec_traj = plan.plan_components_.back();
 
 		// define individual variable for use in closure below
 		const std::string description = std::to_string(i + 1) + "/" + std::to_string(solution.sub_trajectory.size());
-		exec_traj.description = description;
+		exec_traj.description_ = description;
 
 		const moveit::core::JointModelGroup* group = nullptr;
 		{
@@ -170,8 +170,8 @@ bool ExecuteTaskSolutionCapability::constructMotionPlan(
 				RCLCPP_DEBUG(LOGGER, "Using JointModelGroup '%s' for execution", group->getName().c_str());
 			}
 		}
-		exec_traj.trajectory = std::make_shared<robot_trajectory::RobotTrajectory>(model, group);
-		exec_traj.trajectory->setRobotTrajectoryMsg(state, sub_traj.trajectory);
+		exec_traj.trajectory_ = std::make_shared<robot_trajectory::RobotTrajectory>(model, group);
+		exec_traj.trajectory_->setRobotTrajectoryMsg(state, sub_traj.trajectory);
 
 		// Check that sub trajectories that contain a valid trajectory have controllers configured.
 		if (!sub_traj.trajectory.joint_trajectory.points.empty() && sub_traj.execution_info.controller_names.empty()) {
@@ -180,10 +180,10 @@ bool ExecuteTaskSolutionCapability::constructMotionPlan(
 			            "trajectory execution. This might lead to unexpected controller selection.",
 			            sub_traj.info.stage_id, solution.task_id.c_str());
 		}
-		exec_traj.controller_name = sub_traj.execution_info.controller_names;
+		exec_traj.controller_names_ = sub_traj.execution_info.controller_names;
 
 		/* TODO add action feedback and markers */
-		exec_traj.effect_on_success =
+		exec_traj.effect_on_success_ =
 		    [this, &scene_diff = const_cast<::moveit_msgs::msg::PlanningScene&>(sub_traj.scene_diff), description,
 		     goal_handle, i, no = solution.sub_trajectory.size()](const plan_execution::ExecutableMotionPlan* /*plan*/) {
 			    // publish feedback

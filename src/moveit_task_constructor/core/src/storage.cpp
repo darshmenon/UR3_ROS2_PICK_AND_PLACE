@@ -38,9 +38,9 @@
 #include <moveit/task_constructor/stage_p.h>
 #include <moveit/task_constructor/storage.h>
 #include <moveit/task_constructor/introspection.h>
-#include <moveit/robot_trajectory/robot_trajectory.hpp>
-#include <moveit/robot_state/conversions.hpp>
-#include <moveit/planning_scene/planning_scene.hpp>
+#include <moveit/robot_trajectory/robot_trajectory.h>
+#include <moveit/robot_state/conversions.h>
+#include <moveit/planning_scene/planning_scene.h>
 #include <assert.h>
 
 namespace moveit {
@@ -240,7 +240,9 @@ void SubTrajectory::appendTo(moveit_task_constructor_msgs::msg::Solution& msg, I
 	if (trajectory())
 		trajectory()->getRobotTrajectoryMsg(t.trajectory);
 
-
+	if (this->end()->scene()->getParent() == this->start()->scene())
+		this->end()->scene()->getPlanningSceneDiffMsg(t.scene_diff);
+	else
 		this->end()->scene()->getPlanningSceneMsg(t.scene_diff);
 }
 

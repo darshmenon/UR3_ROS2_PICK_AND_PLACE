@@ -6,6 +6,14 @@
   direction: GZ_TO_ROS
   lazy: true
 
+# camera_info also bridged to the standard topic that perception nodes expect
+- ros_topic_name: "camera_head/camera_info"
+  gz_topic_name: "camera_head/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+  lazy: true
+
 # gz topic published by Sensors plugin
 - ros_topic_name: "camera_head/depth/color/points"
   gz_topic_name: "camera_head/points"

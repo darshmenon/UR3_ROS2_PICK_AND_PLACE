@@ -8,7 +8,7 @@
 #include <moveit/task_constructor/solvers/pipeline_planner.h>
 
 #include <rclcpp/rclcpp.hpp>
-#include <moveit/planning_scene_interface/planning_scene_interface.hpp>
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
 #include <gtest/gtest.h>
 
 using namespace moveit::task_constructor;
@@ -42,7 +42,8 @@ TEST(UR5, pick) {
 
 	auto node = rclcpp::Node::make_shared("ur5");
 	// planner used for connect
-	auto pipeline = std::make_shared<solvers::PipelinePlanner>(node, "ompl", "RRTConnectkConfigDefault");
+	auto pipeline = std::make_shared<solvers::PipelinePlanner>(node);
+	pipeline->setPlannerId("RRTConnectkConfigDefault");
 	// connect to pick
 	stages::Connect::GroupPlannerVector planners = { { "arm", pipeline }, { "gripper", pipeline } };
 	auto connect = std::make_unique<stages::Connect>("connect", planners);

@@ -14,7 +14,7 @@
 #include <moveit/task_constructor/stages/fix_collision_objects.h>
 
 #include <rclcpp/rclcpp.hpp>
-#include <moveit/planning_scene/planning_scene.hpp>
+#include <moveit/planning_scene/planning_scene.h>
 #include <gtest/gtest.h>
 
 using namespace moveit::task_constructor;
@@ -47,7 +47,8 @@ TEST(PA10, pick) {
 	t.setProperty("eef", std::string("la_tool_mount"));
 	t.setProperty("gripper", std::string("left_hand"));
 
-	auto pipeline = std::make_shared<solvers::PipelinePlanner>(node, "ompl", "RRTConnectkConfigDefault");
+	auto pipeline = std::make_shared<solvers::PipelinePlanner>(node);
+	pipeline->setPlannerId("RRTConnectkConfigDefault");
 	auto cartesian = std::make_shared<solvers::CartesianPath>();
 
 	Stage* initial_stage = nullptr;
