@@ -21,6 +21,9 @@ A deep-dive into every concept you encountered while building and debugging this
 13. [MoveIt Cartesian Planning (Zig-Zag Motion)](#13-moveit-cartesian-planning-zig-zag-motion)
 14. [Fixed End-Effector Motion (Null-Space)](#14-fixed-end-effector-motion-null-space)
 15. [Gripper Mimic Joints and Why MTC Grasping Still Works](#15-gripper-mimic-joints-and-why-mtc-grasping-still-works)
+16. [Vision-Based Object Detection and 3D Pose Estimation](#16-vision-based-object-detection-and-3d-pose-estimation)
+17. [LLM-Driven Task Planning with Claude](#17-llm-driven-task-planning-with-claude)
+18. [Behavior Cloning and VLA Fine-Tuning](#18-behavior-cloning-and-vla-fine-tuning)
 
 ---
 
@@ -554,3 +557,115 @@ Moving other joints while strictly keeping the end-effector stationary requires 
 - The UR3 is a **6-DOF (Degrees of Freedom)** arm. To fix the 6 aspects of the end-effector pose (X, Y, Z, Roll, Pitch, Yaw), all 6 joints are mathematically constrained.
 - Unless the arm is in a singularity, there is no "null-space" in a 6-DOF arm to move the elbow while keeping the gripper perfectly still.
 - A **7-DOF** arm (like the Franka Emika Panda) has an extra degree of freedom, allowing for null-space motions where the elbow can move while the end-effector pose is completely constrained.
+
+---
+
+## 16. Vision-Based Object Detection and 3D Pose Estimation
+
+### Color-Based Detection (HSV)
+The `ur_perception` package uses OpenCV HSV thresholding as the primary detection method. Why HSV instead of RGB?
+
+- **RGB** mixes color and brightness — the same "red" object looks completely different under bright vs dim lighting.
+- **HSV** (Hue, Saturation, Value) separates color (hue) from lighting (value). You can threshold hue ± a margin and ignore brightness variation.
+- Red wraps around the hue circle (0° and 360° are both red), so two separate threshold ranges are needed and OR'd together.
+
+The detection pipeline: BGR → HSV → threshold mask → morphological opening (remove noise) → close (fill holes) → find contours → fit bounding boxes.
+
+### Back-Projection to 3D
+A depth camera gives a 2D pixel `(u, v)` plus a depth value `d`. The 3D point in camera space is:
+
+```
+X = (u - cx) * d / fx
+Y = (v - cy) * d / fy
+Z = d
+```
+
+Where `fx, fy, cx, cy` are the camera intrinsics from the `CameraInfo` topic. A single pixel's depth is noisy, so we sample a 5×5 patch around the centroid and take the median — much more robust than a single measurement.
+
+### TF2 Transform to Robot Frame
+The camera is mounted off the robot (`camera_head_link`). The detected 3D point is in camera frame. To plan around it, MoveIt needs the position in `base_link` frame. TF2 tracks the transform chain `base_link → ... → camera_head_link` (published by `robot_state_publisher`) and lets you transform any stamped pose between frames in one call.
+
+### Publishing to MoveIt Planning Scene
+Detected objects are added to the MoveIt planning scene as `CollisionObject` with a CYLINDER primitive. This means:
+1. MoveIt path planning automatically avoids them
+2. MTC's `GenerateGraspPose` stage finds valid grasps around them
+3. When you pick an object, `attachObject()` welds it to the gripper in the scene
+
+The key detail: publish with `PlanningScene.is_diff = True` so MoveIt **merges** your objects with the existing scene instead of replacing it.
+
+---
+
+## 17. LLM-Driven Task Planning with Claude
+
+### Why Use an LLM for Task Planning?
+Classical pick-and-place pipelines hardcode the task sequence. An LLM planner lets you say *"sort the blocks by color"* and have the robot figure out which blocks to pick, in what order, and where to put them — adapting to whatever objects the perception pipeline currently sees.
+
+### The Pipeline
+```
+User command (string)
+  → Claude API (with scene context as JSON)
+  → Structured task list (JSON)
+  → MotionExecutor (ROS 2 action clients)
+  → Robot motion
+```
+
+Claude receives:
+- The natural language command
+- A JSON list of currently detected objects with their 3D positions
+- The list of available named poses and action types
+
+Claude returns:
+```json
+{
+  "explanation": "I will pick the red block at (0.30, 0.05) and place it in the left bin",
+  "tasks": [
+    {"action": "move_to_named_pose", "pose_name": "ready"},
+    {"action": "pick", "object_id": "red_0", "object_x": 0.30, "object_y": 0.05, "object_z": 0.04},
+    {"action": "place", "x": -0.15, "y": 0.25, "z": 0.10}
+  ]
+}
+```
+
+### Why Named Poses Need Explicit Joint Values
+MoveIt's C++ `MoveGroupInterface::setNamedTarget("home")` looks up joint values from the SRDF and sends them as `JointConstraint` objects in the action goal. The action server itself does NOT do this lookup — it only receives constraints. So Python code calling the action directly must embed the actual joint values. These are hardcoded from the SRDF in `motion_executor.py`.
+
+### Avoiding Deadlock in ROS 2 Callbacks
+`rclpy.spin_until_future_complete(node, future)` must not be called from inside a `rclpy.spin()` callback — the executor is already spinning and re-entering it causes a deadlock. The solution: when a command arrives on the subscription callback, spawn a `threading.Thread` to run the planning + execution. The main spin loop stays unblocked while the thread waits for action results.
+
+---
+
+## 18. Behavior Cloning and VLA Fine-Tuning
+
+### What is Behavior Cloning?
+Behavior Cloning (BC) is the simplest form of imitation learning: record expert demonstrations (state → action pairs), then train a neural network to predict the action from the state using supervised learning (MSE loss). No reward function needed.
+
+**State**: joint positions (6 arm joints) + gripper position + camera RGB image
+**Action**: next joint positions (same format) — BC treats manipulation as a regression problem
+
+### Data Collection
+`ur_data_collector/collector_node.py` records:
+- Joint states at ~5 Hz (synchronized with camera)
+- RGB image (424×240)
+- Depth image
+- Saves to HDF5 format (efficient random access, no ROS bag overhead)
+
+### BC Policy Architecture
+The `train_bc.py` script trains a small CNN + MLP policy:
+```
+RGB image (3×240×424)
+  → 3 conv layers (ReLU + MaxPool)
+  → flatten → 512-dim features
+  → concat with joint positions (6)
+  → MLP (256 → 256 → 7 outputs)
+  → predicted next joint positions
+```
+
+### Path to VLA Fine-Tuning
+A **Vision-Language-Action (VLA)** model (e.g., OpenVLA, RT-2) extends BC with a language conditioning: `(image, text_command) → action`. Fine-tuning one requires:
+
+1. Generate a dataset of `(image, language_annotation, action)` tuples from your Gazebo demos
+2. Convert to the HuggingFace Datasets format expected by the VLA trainer
+3. Fine-tune on a GPU (≥24GB VRAM for quantized fine-tuning)
+4. Deploy the inference node in ROS 2 — subscribe to camera + command topic, publish joint targets
+
+The `ur_data_collector` HDF5 format is designed to be easy to convert to these training formats. Each episode is a contiguous chunk of `(rgb_images, joint_positions, actions)` arrays.

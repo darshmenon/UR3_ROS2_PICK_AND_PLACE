@@ -7,7 +7,7 @@
 The blog dives into simulation setup, robotic control, MoveIt Task Constructor, and lessons learned—perfect if you're curious about the engineering side or want to replicate the project from scratch.
 
 
-This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using ROS 2 Jazzy and Gazebo Harmonic. It includes URDF models, ROS 2 control configuration, simulation launch files, and control scripts.
+This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble** and **Ignition Gazebo**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Claude API), and demonstration recording for behavior cloning.
 
 > ✅ **Note:** This setup uses **fixed mimic joint configuration** for the Robotiq gripper to support simulation in **newer Gazebo (Harmonic)**. Only the primary `finger_joint` receives commands—mimic joints automatically follow.
 
@@ -20,7 +20,7 @@ This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3
 
 ## 📦 Installation
 
-Make sure you have [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/index.html) and Gazebo Harmonic installed.
+Make sure you have [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) and Ignition Gazebo installed.
 
 ### 1. Clone the Repository
 ```bash
@@ -28,24 +28,33 @@ git clone https://github.com/darshmenon/UR3_ROS2_PICK_AND_PLACE.git
 cd UR3_ROS2_PICK_AND_PLACE
 ```
 
-### 2. Install Dependencies
+### 2. Install ROS Dependencies
 ```bash
-sudo apt install ros-jazzy-rviz2 \
-                 ros-jazzy-joint-state-publisher \
-                 ros-jazzy-robot-state-publisher \
-                 ros-jazzy-ros2-control \
-                 ros-jazzy-ros2-controllers \
-                 ros-jazzy-controller-manager \
-                 ros-jazzy-joint-trajectory-controller \
-                 ros-jazzy-position-controllers \
-                 ros-jazzy-gz-ros2-control \
-                 ros-jazzy-ros2controlcli \
-                 ros-jazzy-gz-sim
+sudo apt install ros-humble-rviz2 \
+                 ros-humble-joint-state-publisher \
+                 ros-humble-robot-state-publisher \
+                 ros-humble-ros2-control \
+                 ros-humble-ros2-controllers \
+                 ros-humble-controller-manager \
+                 ros-humble-joint-trajectory-controller \
+                 ros-humble-position-controllers \
+                 ros-humble-gz-ros2-control \
+                 ros-humble-ros2controlcli \
+                 ros-humble-moveit \
+                 ros-humble-cv-bridge \
+                 ros-humble-tf2-ros \
+                 ros-humble-tf2-geometry-msgs
 ```
 
-### 3. Build the Workspace
+### 3. Install Python Dependencies
 ```bash
-cd ~/your_ros2_ws  # Replace with your workspace path
+pip3 install -r requirements.txt
+# anthropic is required for the LLM planner:
+export ANTHROPIC_API_KEY=your_key_here
+```
+
+### 4. Build the Workspace
+```bash
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -185,6 +194,65 @@ This script will:
 ### loop
 ![alt text](images/looponline-video-cutter.com-ezgif.com-video-to-gif-converter.gif)
 
+
+---
+
+## 🤖 AI / ML Stack
+
+Three new packages extend the project with autonomous perception and planning:
+
+### Vision-Based Perception (`ur_perception`)
+Color + optional YOLO object detection from the onboard Intel D435 camera. Detects red/green/blue/yellow objects, estimates 3D pose via depth + TF2, and publishes them to the MoveIt planning scene automatically.
+
+```bash
+ros2 launch ur_perception perception.launch.py
+# Watch detections:
+ros2 topic echo /detected_objects
+# View annotated camera feed in RViz: /detection_image
+```
+
+### LLM Task Planning (`ur_llm_planner`)
+Natural language → robot motion. Send a plain English command and Claude figures out the pick-and-place sequence.
+
+```bash
+export ANTHROPIC_API_KEY=your_key_here
+ros2 launch ur_llm_planner llm_planner.launch.py
+
+# Send a command:
+ros2 topic pub --once /llm_planner/command std_msgs/msg/String \
+  "{data: 'pick up the red block and place it in the left bin'}"
+```
+
+### Demonstration Recording + Behavior Cloning (`ur_data_collector`)
+Record robot demonstrations to HDF5 files, then train a BC policy.
+
+```bash
+# Start recording
+ros2 launch ur_data_collector data_collector.launch.py
+ros2 service call /data_collector/start_recording std_srvs/srv/Trigger
+# ... run a demo ...
+ros2 service call /data_collector/stop_recording std_srvs/srv/Trigger
+
+# Train BC policy
+python3 ur_data_collector/scripts/train_bc.py \
+  --data_dir ~/ur3_demos \
+  --output_dir ~/bc_policy \
+  --epochs 50
+```
+
+### Full Demo (all-in-one)
+```bash
+# Launches Gazebo + MoveIt + perception automatically
+ros2 launch ur_gazebo full_demo.launch.py
+
+# With LLM planner enabled:
+ros2 launch ur_gazebo full_demo.launch.py use_llm_planner:=true
+
+# Use the new colored blocks world (default):
+ros2 launch ur_gazebo full_demo.launch.py world:=colored_blocks.world
+```
+
+---
 
 ## 🤝 Contributing
 

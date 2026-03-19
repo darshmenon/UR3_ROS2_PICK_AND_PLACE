@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ur_data_collector</name>
+  <version>0.0.0</version>
+  <description>Records robot demonstrations for behavior cloning and VLA fine-tuning</description>
+  <maintainer email="darshmenon02@gmail.com">darsh</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>trajectory_msgs</depend>
+  <depend>control_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>cv_bridge</depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

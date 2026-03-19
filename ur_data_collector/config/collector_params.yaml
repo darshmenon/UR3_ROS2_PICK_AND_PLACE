@@ -1,0 +1,7 @@
+data_collector_node:
+  ros__parameters:
+    output_dir: "~/ur3_demos"
+    image_height: 240
+    image_width: 424
+    record_depth: true
+    episode_name_prefix: "demo"

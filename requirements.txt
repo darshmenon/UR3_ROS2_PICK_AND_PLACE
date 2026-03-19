@@ -1,0 +1,18 @@
+# Core perception
+opencv-python>=4.5.0
+numpy>=1.21.0
+
+# YOLO (optional, for enhanced detection)
+ultralytics>=8.0.0
+
+# LLM planning
+anthropic>=0.25.0
+
+# Data collection & training
+h5py>=3.7.0
+torch>=2.0.0
+torchvision>=0.15.0
+matplotlib>=3.5.0
+
+# Install with: pip3 install -r requirements.txt
+# Note: opencv-python may conflict with ros-humble-cv-bridge. If so, skip it (cv_bridge provides OpenCV).

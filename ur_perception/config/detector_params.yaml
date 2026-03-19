@@ -1,0 +1,12 @@
+object_detector_node:
+  ros__parameters:
+    use_yolo: false
+    confidence_threshold: 0.5
+    publish_planning_scene: true
+    min_depth_m: 0.05
+    max_depth_m: 1.5
+    target_colors:
+      - red
+      - green
+      - blue
+      - yellow
