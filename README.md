@@ -146,7 +146,7 @@ To run the custom Cartesian (LIN) zig-zag motion demo using the MoveIt 2 PILZ In
 ```bash
 ros2 run ur_moveit_demos custom_zigzag_motion
 ```
-*Note: Make sure the Gazebo simulation (`ur.gazebo.launch.py`) has been running for at least 60 seconds so all controllers are initialized before starting the node.*
+*Note: Make sure the Gazebo simulation (`ur.gazebo.launch.py`) has been running for at least 45 seconds so all controllers are initialized before starting the node.*
 
 ---
 
