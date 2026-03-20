@@ -7,7 +7,7 @@
 The blog dives into simulation setup, robotic control, MoveIt Task Constructor, and lessons learned—perfect if you're curious about the engineering side or want to replicate the project from scratch.
 
 
-This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble** and **Ignition Gazebo**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Claude API), and demonstration recording for behavior cloning.
+This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble or Jazzy** and **Ignition Gazebo**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
 
 > ✅ **Note:** This setup uses **fixed mimic joint configuration** for the Robotiq gripper to support simulation in **newer Gazebo (Harmonic)**. Only the primary `finger_joint` receives commands—mimic joints automatically follow.
 
@@ -20,7 +20,7 @@ This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3
 
 ## 📦 Installation
 
-Make sure you have [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) and Ignition Gazebo installed.
+Make sure you have [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) or [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/index.html) and Ignition Gazebo installed.
 
 ### 1. Clone the Repository
 ```bash
@@ -30,20 +30,21 @@ cd UR3_ROS2_PICK_AND_PLACE
 
 ### 2. Install ROS Dependencies
 ```bash
-sudo apt install ros-humble-rviz2 \
-                 ros-humble-joint-state-publisher \
-                 ros-humble-robot-state-publisher \
-                 ros-humble-ros2-control \
-                 ros-humble-ros2-controllers \
-                 ros-humble-controller-manager \
-                 ros-humble-joint-trajectory-controller \
-                 ros-humble-position-controllers \
-                 ros-humble-gz-ros2-control \
-                 ros-humble-ros2controlcli \
-                 ros-humble-moveit \
-                 ros-humble-cv-bridge \
-                 ros-humble-tf2-ros \
-                 ros-humble-tf2-geometry-msgs
+# Replace $ROS_DISTRO with humble or jazzy
+sudo apt install ros-$ROS_DISTRO-rviz2 \
+                 ros-$ROS_DISTRO-joint-state-publisher \
+                 ros-$ROS_DISTRO-robot-state-publisher \
+                 ros-$ROS_DISTRO-ros2-control \
+                 ros-$ROS_DISTRO-ros2-controllers \
+                 ros-$ROS_DISTRO-controller-manager \
+                 ros-$ROS_DISTRO-joint-trajectory-controller \
+                 ros-$ROS_DISTRO-position-controllers \
+                 ros-$ROS_DISTRO-gz-ros2-control \
+                 ros-$ROS_DISTRO-ros2controlcli \
+                 ros-$ROS_DISTRO-moveit \
+                 ros-$ROS_DISTRO-cv-bridge \
+                 ros-$ROS_DISTRO-tf2-ros \
+                 ros-$ROS_DISTRO-tf2-geometry-msgs
 ```
 
 ### 3. Install Python Dependencies
