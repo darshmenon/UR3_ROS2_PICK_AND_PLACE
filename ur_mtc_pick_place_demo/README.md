@@ -1,13 +1,15 @@
-# MoveIt Task Constructor (MTC) & Warehouse_ROS_Mongo Installation Guide – ROS 2 Jazzy
+# MoveIt Task Constructor (MTC) & Warehouse_ROS_Mongo Installation Guide – ROS 2 Humble & Jazzy
 
-This guide walks you through installing the MoveIt Task Constructor (MTC) and `warehouse_ros_mongo` packages and applying necessary fixes for a successful setup on ROS 2 Jazzy.
+This guide walks you through installing the MoveIt Task Constructor (MTC) and `warehouse_ros_mongo` packages and applying necessary fixes for a successful setup on ROS 2 Humble or Jazzy.
+
+> **Note:** If you are using this repo's bundled `src/moveit_task_constructor/` source, it already has all patches applied and works for both Humble and Jazzy — you can skip the clone/patch steps below and go straight to `colcon build`.
 
 ---
 
 ## 🔧 Prerequisites
 
 Ensure you have:
-- ROS 2 Jazzy installed and sourced
+- ROS 2 Humble or Jazzy installed and sourced
 - A working colcon workspace, e.g. `~/ros2_ws`
 
 ---
@@ -85,9 +87,14 @@ source ~/.bashrc
 
 ```bash
 cd ~/ros2_ws/src
+# Use the branch matching your ROS 2 distro:
+#   ROS 2 Humble → -b humble
+#   ROS 2 Jazzy  → -b jazzy
 git clone https://github.com/moveit/moveit_task_constructor.git -b jazzy
 cd moveit_task_constructor
+# Jazzy pinned commit (tested):
 git reset --hard 9ced9fc10a15388224f0741e5a930a33f4ed6255
+# For Humble, use the humble branch HEAD or a known-good commit.
 ```
 
 ### 2. Install Dependencies
@@ -169,5 +176,5 @@ You have now successfully installed and patched:
 - MongoDB and `warehouse_ros_mongo`
 - MoveIt Task Constructor (MTC)
 
-You're ready to use MTC for pick-and-place and complex motion planning tasks in ROS 2 Jazzy!
+You're ready to use MTC for pick-and-place and complex motion planning tasks in ROS 2 Humble or Jazzy!
 

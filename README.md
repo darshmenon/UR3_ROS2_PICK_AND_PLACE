@@ -66,19 +66,23 @@ source install/setup.bash
 
 ## 🧩 MoveIt Task Constructor Setup
 
-To enable advanced pick-and-place planning with MoveIt 2, this project supports [MoveIt Task Constructor (MTC)](https://github.com/ros-planning/moveit_task_constructor).  
-Instead of duplicating the full setup process, we've included a detailed guide in a separate submodule:
+To enable advanced pick-and-place planning with MoveIt 2, this project supports [MoveIt Task Constructor (MTC)](https://github.com/ros-planning/moveit_task_constructor).
 
-📄 **Follow the MTC installation and patching guide here:**  
-[`ur_mtc_pick_place_demo/README.md`](ur_mtc_pick_place_demo/README.md)
+**This repo already includes a patched MTC source** in `src/moveit_task_constructor/` that works for both **ROS 2 Humble and Jazzy** — no extra cloning or patching needed. Just build normally:
+
+```bash
+colcon build --symlink-install
+```
+
+If you are setting up MTC in a **separate workspace**, follow the full guide:
+
+📄 [`ur_mtc_pick_place_demo/README.md`](ur_mtc_pick_place_demo/README.md)
 
 This includes:
-- Cloning the correct MTC branch and commit
+- Cloning the correct MTC branch (`humble` or `jazzy`)
 - Installing dependencies
 - Fixes for planning scene execution issues
 - Rebuild instructions
-
-Once complete, you'll be ready to run scripted and interactive pick-and-place pipelines using MTC!
 
 ---
 
