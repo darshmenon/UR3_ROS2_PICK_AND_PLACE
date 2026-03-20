@@ -2,16 +2,11 @@
 """
 Launch file for the ur_llm_planner LLMPlannerNode.
 
-The Anthropic API key is read from the ANTHROPIC_API_KEY environment variable
-at launch time if not set in config/planner_params.yaml.
-
 Usage:
     ros2 launch ur_llm_planner llm_planner.launch.py
     ros2 launch ur_llm_planner llm_planner.launch.py auto_demo:=true
-    ANTHROPIC_API_KEY=sk-... ros2 launch ur_llm_planner llm_planner.launch.py
+    ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=mistral:7b
 """
-
-import os
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
@@ -22,16 +17,10 @@ from launch.substitutions import PathJoinSubstitution
 
 
 def generate_launch_description():
-    # Resolve config file path
     config_file = PathJoinSubstitution(
         [FindPackageShare("ur_llm_planner"), "config", "planner_params.yaml"]
     )
 
-    # Pull the API key from the environment at launch time so users
-    # don't have to hard-code it in the YAML file.
-    api_key_from_env = os.environ.get("ANTHROPIC_API_KEY", "")
-
-    # Launch arguments
     auto_demo_arg = DeclareLaunchArgument(
         "auto_demo",
         default_value="false",
@@ -42,10 +31,15 @@ def generate_launch_description():
         default_value="pick up the red object and place it to the left of the robot",
         description="Natural language command to execute in auto-demo mode.",
     )
-    claude_model_arg = DeclareLaunchArgument(
-        "claude_model",
-        default_value="claude-opus-4-6",
-        description="Claude model identifier to use for task planning.",
+    ollama_model_arg = DeclareLaunchArgument(
+        "ollama_model",
+        default_value="llama3.2:3b",
+        description="Ollama model tag to use for task planning (e.g. llama3.2:3b, mistral:7b).",
+    )
+    ollama_base_url_arg = DeclareLaunchArgument(
+        "ollama_base_url",
+        default_value="http://localhost:11434",
+        description="Base URL of the local Ollama server.",
     )
 
     llm_planner_node = Node(
@@ -56,11 +50,10 @@ def generate_launch_description():
         parameters=[
             config_file,
             {
-                # Environment variable takes precedence over the YAML default ("")
-                "anthropic_api_key": api_key_from_env,
+                "ollama_model": LaunchConfiguration("ollama_model"),
+                "ollama_base_url": LaunchConfiguration("ollama_base_url"),
                 "auto_demo": LaunchConfiguration("auto_demo"),
                 "auto_demo_command": LaunchConfiguration("auto_demo_command"),
-                "claude_model": LaunchConfiguration("claude_model"),
             },
         ],
     )
@@ -69,7 +62,8 @@ def generate_launch_description():
         [
             auto_demo_arg,
             auto_demo_command_arg,
-            claude_model_arg,
+            ollama_model_arg,
+            ollama_base_url_arg,
             llm_planner_node,
         ]
     )
