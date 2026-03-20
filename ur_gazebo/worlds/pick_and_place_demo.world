@@ -1,24 +1,16 @@
 <?xml version="1.0" ?>
 <sdf version="1.7">
   <world name="default">
-    <physics name="bullet_featherstone_physics" type="bullet_featherstone">
-      <bullet>
-        <solver>
-          <type>btSequentialImpulseConstraintSolver</type>
-        </solver>
-        <featherstone>true</featherstone>
-      </bullet>
+    <physics name="dart_physics" type="dart">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1</real_time_factor>
-      <!-- Added realistic damping parameters for better simulation stability -->
-      <damping>0.1</damping>
       <gravity>0.0 0.0 -9.8</gravity>
     </physics>
     <!-- Plugin for simulating physics -->
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
     </plugin>
 
-    <!-- Plugin for handling user commands -->
+    <!-- Plugin for handling user commands -->  
     <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
     </plugin>
 

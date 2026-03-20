@@ -2,17 +2,9 @@
 <sdf version="1.7">
   <world name="default">
 
-    <!-- Physics: Bullet Featherstone (same as pick_and_place_demo.world) -->
-    <physics name="bullet_featherstone_physics" type="bullet_featherstone">
-      <bullet>
-        <solver>
-          <type>btSequentialImpulseConstraintSolver</type>
-        </solver>
-        <featherstone>true</featherstone>
-      </bullet>
+    <physics name="dart_physics" type="dart">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1</real_time_factor>
-      <damping>0.1</damping>
       <gravity>0.0 0.0 -9.8</gravity>
     </physics>
 

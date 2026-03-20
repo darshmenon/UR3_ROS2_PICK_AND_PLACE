@@ -169,11 +169,6 @@
     <always_on>1</always_on>
     <update_rate>10</update_rate>
     <gz_frame_id>camera_head_link</gz_frame_id>
-    <output>
-      <image>true</image>
-      <depth_image>true</depth_image>
-      <point_cloud>true</point_cloud>
-    </output>
     <visualize>true</visualize>
   </sensor>
 </gazebo>
