@@ -1,28 +1,27 @@
-# gz topic published by Sensors plugin
+# Ignition Gazebo sensor topics use the full world/model/link path.
+# World="default" (colored_blocks.world), Model="ur" (spawn -name), Link=base_link (URDF lump)
+
 - ros_topic_name: "camera_head/depth/camera_info"
-  gz_topic_name: "camera_head/camera_info"
+  gz_topic_name: "/world/default/model/ur/link/base_link/sensor/camera_head/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
   lazy: true
 
-# camera_info also bridged to the standard topic that perception nodes expect
 - ros_topic_name: "camera_head/camera_info"
-  gz_topic_name: "camera_head/camera_info"
+  gz_topic_name: "/world/default/model/ur/link/base_link/sensor/camera_head/camera_info"
   ros_type_name: "sensor_msgs/msg/CameraInfo"
   gz_type_name: "gz.msgs.CameraInfo"
   direction: GZ_TO_ROS
   lazy: true
 
-# gz topic published by Sensors plugin
 - ros_topic_name: "camera_head/depth/color/points"
-  gz_topic_name: "camera_head/points"
+  gz_topic_name: "/world/default/model/ur/link/base_link/sensor/camera_head/points"
   ros_type_name: "sensor_msgs/msg/PointCloud2"
   gz_type_name: "gz.msgs.PointCloudPacked"
   direction: GZ_TO_ROS
   lazy: true
 
-# # ✅ Correct clock bridging
 - ros_topic_name: "/clock"
   gz_topic_name: "/clock"
   ros_type_name: "rosgraph_msgs/msg/Clock"

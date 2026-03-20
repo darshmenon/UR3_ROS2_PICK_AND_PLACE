@@ -218,16 +218,18 @@ def generate_launch_description():
 
 
     # Start Gazebo ROS Bridge
+    # Ignition sensor topics use the full world/model/link path
+    _gz_cam = '/world/default/model/ur/link/base_link/sensor/camera_head'
     start_gazebo_ros_image_bridge_cmd = Node(
         package='ros_gz_image',
         executable='image_bridge',
         arguments=[
-            '/camera_head/depth_image',
-            '/camera_head/image',
+            f'{_gz_cam}/depth_image',
+            f'{_gz_cam}/image',
         ],
         remappings=[
-            ('/camera_head/depth_image', '/camera_head/depth/image_rect_raw'),
-            ('/camera_head/image', '/camera_head/color/image_raw'),
+            (f'{_gz_cam}/depth_image', '/camera_head/depth/image_rect_raw'),
+            (f'{_gz_cam}/image',       '/camera_head/color/image_raw'),
         ],
     )
 
