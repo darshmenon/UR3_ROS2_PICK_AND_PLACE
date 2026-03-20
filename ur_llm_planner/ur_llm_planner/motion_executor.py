@@ -6,16 +6,14 @@ Bridges structured task dicts (produced by ClaudeClient) with actual
 ROS 2 action clients that command the robot arm and gripper.
 """
 
-import math
-import time
+import threading
 
-import rclpy
 from rclpy.action import ActionClient
 from rclpy.node import Node
 
 from action_msgs.msg import GoalStatus
 from control_msgs.action import GripperCommand
-from geometry_msgs.msg import PoseStamped, Quaternion
+from geometry_msgs.msg import PoseStamped
 from moveit_msgs.action import MoveGroup as MoveGroupAction
 from moveit_msgs.msg import (
     BoundingVolume,
@@ -25,10 +23,8 @@ from moveit_msgs.msg import (
     MoveItErrorCodes,
     OrientationConstraint,
     PositionConstraint,
-    RobotState,
 )
 from shape_msgs.msg import SolidPrimitive
-from std_msgs.msg import Header
 
 # Gripper position constants (metres, used by GripperActionController)
 GRIPPER_OPEN = 0.0    # fully open
@@ -490,6 +486,16 @@ class MotionExecutor:
         pose.pose.orientation.w = 0.0
         return pose
 
+    def _wait_for_future(self, future, timeout: float) -> bool:
+        """Wait for a ROS 2 future from a background thread without touching the executor.
+
+        Uses threading.Event so the main rclpy.spin() loop keeps running undisturbed.
+        The done-callback fires inside the main executor and sets the event.
+        """
+        event = threading.Event()
+        future.add_done_callback(lambda _: event.set())
+        return event.wait(timeout=timeout)
+
     def _send_move_group_goal(
         self,
         goal: MoveGroupAction.Goal,
@@ -501,11 +507,7 @@ class MotionExecutor:
             return False
 
         send_goal_future = self._move_group_client.send_goal_async(goal)
-        rclpy.spin_until_future_complete(
-            self._node, send_goal_future, timeout_sec=timeout
-        )
-
-        if not send_goal_future.done():
+        if not self._wait_for_future(send_goal_future, timeout):
             self._logger.error("send_goal timed out waiting for goal acceptance.")
             return False
 
@@ -515,11 +517,7 @@ class MotionExecutor:
             return False
 
         result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(
-            self._node, result_future, timeout_sec=timeout
-        )
-
-        if not result_future.done():
+        if not self._wait_for_future(result_future, timeout):
             self._logger.error("MoveGroup result timed out.")
             return False
 
@@ -551,11 +549,7 @@ class MotionExecutor:
         goal.command.max_effort = max_effort
 
         send_goal_future = self._gripper_client.send_goal_async(goal)
-        rclpy.spin_until_future_complete(
-            self._node, send_goal_future, timeout_sec=timeout
-        )
-
-        if not send_goal_future.done():
+        if not self._wait_for_future(send_goal_future, timeout):
             self._logger.error("Gripper send_goal timed out.")
             return False
 
@@ -565,11 +559,7 @@ class MotionExecutor:
             return False
 
         result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(
-            self._node, result_future, timeout_sec=timeout
-        )
-
-        if not result_future.done():
+        if not self._wait_for_future(result_future, timeout):
             self._logger.error("Gripper result timed out.")
             return False
 
