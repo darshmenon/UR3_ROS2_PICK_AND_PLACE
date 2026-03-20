@@ -33,7 +33,7 @@ def generate_launch_description():
     )
     ollama_model_arg = DeclareLaunchArgument(
         "ollama_model",
-        default_value="llama3.2:3b",
+        default_value="llama2:latest",
         description="Ollama model tag to use for task planning (e.g. llama3.2:3b, mistral:7b).",
     )
     ollama_base_url_arg = DeclareLaunchArgument(

@@ -52,8 +52,8 @@ sudo apt install ros-$ROS_DISTRO-rviz2 \
 pip3 install -r requirements.txt
 # Ollama is required for the LLM planner:
 # Install it from https://ollama.com
-# Then pull your preferred model:
-ollama pull llama3.2:3b
+# Then pull your preferred model (default is llama2:latest):
+ollama pull llama2:latest
 ```
 
 ### 4. Build the Workspace
@@ -201,6 +201,8 @@ This script will:
 ### loop
 ![alt text](images/looponline-video-cutter.com-ezgif.com-video-to-gif-converter.gif)
 
+### colour_pick
+![alt text](colour_pick.png)
 
 ---
 
@@ -224,9 +226,12 @@ Natural language → robot motion. Send a plain English command and a local Olla
 ```bash
 # Ensure Ollama is running and model pulled:
 # ollama serve
-# ollama pull llama3.2:3b
+# ollama pull llama2:latest   (default)
+# Or use a different model:  ollama pull llama3.2:3b
 
 ros2 launch ur_llm_planner llm_planner.launch.py
+# Override model:
+# ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
 
 # Send a command:
 ros2 topic pub --once /llm_planner/command std_msgs/msg/String \

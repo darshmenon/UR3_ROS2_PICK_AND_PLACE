@@ -72,7 +72,7 @@ class OllamaClient:
         self,
         model: str = "llama3.2:3b",
         base_url: str = "http://localhost:11434",
-        timeout: float = 60.0,
+        timeout: float = 120.0,
     ):
         self._model = model
         self._url = f"{base_url.rstrip('/')}/api/chat"
@@ -116,7 +116,7 @@ class OllamaClient:
             "format": "json",      # Ollama forces JSON output mode
             "options": {
                 "temperature": 0.1,   # low temperature → deterministic structured output
-                "num_predict": 512,
+                "num_predict": 256,
             },
         }
 

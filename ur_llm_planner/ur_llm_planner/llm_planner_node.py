@@ -59,7 +59,7 @@ class LLMPlannerNode(Node):
         super().__init__("llm_planner_node")
 
         # ── Parameters ────────────────────────────────────────────────
-        self.declare_parameter("ollama_model",    "llama3.2:3b")
+        self.declare_parameter("ollama_model",    "llama2:latest")
         self.declare_parameter("ollama_base_url", "http://localhost:11434")
         self.declare_parameter("auto_demo",       False)
         self.declare_parameter(
