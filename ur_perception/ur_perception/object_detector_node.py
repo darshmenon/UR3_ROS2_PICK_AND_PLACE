@@ -65,12 +65,12 @@ _SENSOR_QOS = QoSProfile(
     depth=1,
 )
 
-# QoS for CameraInfo (reliable, transient local so we catch latched messages)
+# QoS for CameraInfo — must be VOLATILE to match ros_gz_bridge publisher
 _CAM_INFO_QOS = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,
     history=QoSHistoryPolicy.KEEP_LAST,
     depth=1,
-    durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+    durability=QoSDurabilityPolicy.VOLATILE,
 )
 
 
