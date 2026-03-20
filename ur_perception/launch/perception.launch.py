@@ -41,7 +41,7 @@ def generate_launch_description() -> LaunchDescription:
     # ------------------------------------------------------------------ #
     object_detector_node = Node(
         package='ur_perception',
-        executable='object_detector_node.py',
+        executable='object_detector_node',
         name='object_detector_node',
         output='screen',
         parameters=[

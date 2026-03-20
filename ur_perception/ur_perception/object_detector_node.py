@@ -242,7 +242,7 @@ class ObjectDetectorNode(Node):
 
             self._depth_estimator = DepthPoseEstimator(
                 fx=fx, fy=fy, cx=cx, cy=cy,
-                depth_scale=0.001,   # RealSense D435 depth is in millimetres
+                depth_scale=1.0,   # Ignition Gazebo depth camera publishes float32 metres
                 patch_radius=5,
             )
             self.get_logger().info(
