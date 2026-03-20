@@ -72,7 +72,7 @@ class MotionExecutor:
     - Moving the arm to named poses (via MoveGroup)
     - Moving the arm to Cartesian poses (via MoveGroup)
     - Opening / closing the gripper (via GripperCommand)
-    - Executing a sequential list of task dicts produced by ClaudeClient
+    - Executing a sequential list of task dicts produced by OllamaClient
     """
 
     def __init__(self, node: Node):

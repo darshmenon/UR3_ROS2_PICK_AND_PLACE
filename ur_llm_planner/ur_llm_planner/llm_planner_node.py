@@ -29,8 +29,8 @@ from ur_llm_planner.ollama_client import OllamaClient
 from ur_llm_planner.motion_executor import MotionExecutor
 
 
-# Named poses available on this robot
-NAMED_POSES = ["home", "ready", "open", "closed", "half_closed"]
+# Named arm poses available for move_to_named_pose action
+NAMED_POSES = ["home", "ready"]
 
 # QoS profile for sensor data (best-effort, keep last 1)
 SENSOR_QOS = QoSProfile(
