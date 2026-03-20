@@ -14,24 +14,11 @@ from launch.actions import (
     TimerAction,
 )
 from launch.event_handlers import OnProcessStart
-from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable
 from launch_ros.actions import Node
-from launch_ros.descriptions import ParameterValue
-from launch_ros.substitutions import FindPackageShare
-import os
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import (
-    Command,
-    FindExecutable,
-    LaunchConfiguration,
-    PathJoinSubstitution,
-)
-from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
+from launch_ros.substitutions import FindPackageShare
 from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
@@ -81,7 +68,6 @@ def generate_launch_description():
     controller_yaml = PathJoinSubstitution([pkg_share_moveit, 'config', 'ros2_controllers.yaml'])
     use_sim_time = LaunchConfiguration('use_sim_time')
     robot_name = LaunchConfiguration('robot_name')
-    use_robot_state_pub = LaunchConfiguration('use_robot_state_pub')
 
     # Declare launch arguments
     declared_arguments = [
@@ -186,8 +172,8 @@ def generate_launch_description():
     # )
 
     
-    controllers = ["joint_state_broadcaster", "arm_controller", "gripper_controller", "forward_command_controller_effort", "impedance_controller"]
-    delays = [35.0, 40.0, 45.0, 50.0, 55.0]
+    controllers = ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
+    delays = [35.0, 40.0, 45.0]
 
 
 

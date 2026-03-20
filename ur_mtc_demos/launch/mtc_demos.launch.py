@@ -27,7 +27,7 @@ def generate_launch_description():
         LaunchDescription: A complete launch description for the MTC demo system
     """
     # Constants for paths to different files and folders
-    package_name_moveit_config = 'ur_moveit_config'
+    package_name_moveit_config = 'moveit_config'
 
     # Launch configuration variables
     use_sim_time = LaunchConfiguration('use_sim_time')
@@ -39,7 +39,7 @@ def generate_launch_description():
     # Declare the launch arguments
     declare_robot_name_cmd = DeclareLaunchArgument(
         name='robot_name',
-        default_value='ur_280',
+        default_value='ur',
         description='Name of the robot to use')
 
     declare_use_sim_time_cmd = DeclareLaunchArgument(
@@ -63,7 +63,7 @@ def generate_launch_description():
         pkg_share_moveit_config = pkg_share_moveit_config_temp.find(package_name_moveit_config)
 
         # Construct file paths using robot name string
-        config_path = os.path.join(pkg_share_moveit_config, 'config', robot_name_str)
+        config_path = os.path.join(pkg_share_moveit_config, 'config')
 
         # Define all config file paths
         initial_positions_file_path = os.path.join(config_path, 'initial_positions.yaml')
@@ -81,7 +81,7 @@ def generate_launch_description():
             .joint_limits(file_path=joint_limits_file_path)
             .robot_description_kinematics(file_path=kinematics_file_path)
             .planning_pipelines(
-                pipelines=["ompl", "pilz_industrial_motion_planner", "stomp"],
+                pipelines=["ompl", "pilz_industrial_motion_planner"],
                 default_planning_pipeline="ompl"
             )
             .planning_scene_monitor(
