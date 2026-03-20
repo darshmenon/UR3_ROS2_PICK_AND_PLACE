@@ -44,7 +44,7 @@ def generate_launch_description():
 
     llm_planner_node = Node(
         package="ur_llm_planner",
-        executable="llm_planner_node.py",
+        executable="llm_planner_node",
         name="llm_planner_node",
         output="screen",
         parameters=[
