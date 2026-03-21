@@ -88,7 +88,23 @@
 
 ---
 
-### 12. Stray Character in Gripper URDF (cosmetic XML bug)
+### 13. IK Solver (KDL) Finding Behind-the-Back Solutions (INVALID_MOTION_PLAN)
+**File:** `ur_llm_planner/ur_llm_planner/motion_executor.py`
+**Error:** `MoveGroup returned error code -2 (INVALID_MOTION_PLAN)` when going to pre-grasp or returning to home from grasp position
+**Root cause:** KDL IK defaulted to zero-config seed, finding solutions with `shoulder_pan=3.953` (226°) — the arm reaching "behind" itself. Pilz PTP's straight-line path from this configuration to home passed through self-colliding intermediate states.
+**Fix:** Seed the IK request with the current joint state (`robot_state.joint_state`) and override `shoulder_pan` to `atan2(target_y, target_x)` so KDL converges to the "front-side" IK solution.
+
+---
+
+### 14. IK Normalization: Python Banker's Rounding Leaves Wrist 2π Away (INVALID_MOTION_PLAN)
+**File:** `ur_llm_planner/ur_llm_planner/motion_executor.py`
+**Error:** `MoveGroup returned error code -2 (INVALID_MOTION_PLAN)` during place — wrist joints changed by ~180°, causing mid-path collision
+**Root cause:** KDL can return 2π-equivalent joint values (e.g., wrist_2=4.712 vs -1.571). The normalization used `round(diff/2π)` but Python's banker's rounding returns `round(0.5)=0` instead of 1, leaving the value one full revolution away from the current state.
+**Fix:** Use `math.floor(diff/(2π) + 0.5)` for round-half-up behaviour. Also added `_ARM_JOINT_LIMITS` and a post-normalization clamp to ensure `elbow_joint` stays within `[-π, π]`.
+
+---
+
+### 15. Stray Character in Gripper URDF (cosmetic XML bug)
 **File:** `robotiq_2f_85_gripper_visualization/urdf/robotiq_arg2f_85_model_macro.xacro`
 **Error:** Stray `f` character on line 109: `<origin xyz="0 0 0" rpy="0 0 0" />f` inside `inner_finger_pad` visual element
 **Root cause:** Typo — stray character left in file; XML parsers tolerate it as a text node but it is invalid XML.

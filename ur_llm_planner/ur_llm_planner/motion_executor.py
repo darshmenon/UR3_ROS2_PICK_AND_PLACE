@@ -26,6 +26,7 @@ from moveit_msgs.msg import (
     RobotState,
 )
 from moveit_msgs.srv import GetPositionIK
+from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
 
 # Gripper position constants (metres, used by GripperActionController)
@@ -42,6 +43,15 @@ _ARM_JOINTS = [
     "wrist_1_joint",
     "wrist_2_joint",
     "wrist_3_joint",
+]
+# UR3 URDF joint limits [lower, upper] in radians
+_ARM_JOINT_LIMITS = [
+    (-6.2832, 6.2832),   # shoulder_pan_joint  ±2π
+    (-6.2832, 6.2832),   # shoulder_lift_joint ±2π
+    (-3.1416, 3.1416),   # elbow_joint         ±π  ← narrower!
+    (-6.2832, 6.2832),   # wrist_1_joint       ±2π
+    (-6.2832, 6.2832),   # wrist_2_joint       ±2π
+    (-6.2832, 6.2832),   # wrist_3_joint       ±2π
 ]
 _NAMED_ARM_POSES: dict[str, list[float]] = {
     # [pan, lift, elbow, w1, w2, w3]
@@ -96,6 +106,14 @@ class MotionExecutor:
         )
 
         self._ik_client = node.create_client(GetPositionIK, "/compute_ik")
+
+        self._latest_joint_state: JointState | None = None
+        node.create_subscription(
+            JointState, "/joint_states", self._joint_state_cb, 10
+        )
+
+    def _joint_state_cb(self, msg: JointState) -> None:
+        self._latest_joint_state = msg
 
     # ------------------------------------------------------------------
     # Public API
@@ -211,7 +229,7 @@ class MotionExecutor:
         self._logger.info("[MotionExecutor] open_gripper")
         return self._send_gripper_goal(GRIPPER_OPEN, 10.0, timeout)
 
-    def close_gripper(self, timeout: float = 10.0) -> bool:
+    def close_gripper(self, timeout: float = 20.0) -> bool:
         """Close the gripper fully."""
         self._logger.info("[MotionExecutor] close_gripper")
         return self._send_gripper_goal(GRIPPER_CLOSED, 10.0, timeout)
@@ -244,6 +262,9 @@ class MotionExecutor:
             self._logger.error("[MotionExecutor] IK failed — cannot reach target pose.")
             return False
 
+        self._logger.info(
+            f"[MotionExecutor] IK solution: {[f'{v:.3f}' for v in joint_values]}"
+        )
         # Use Pilz PTP with the IK solution (avoids TOTG)
         return self._move_to_joint_values(group, joint_values, timeout)
 
@@ -258,6 +279,28 @@ class MotionExecutor:
         req.ik_request.pose_stamped = pose
         req.ik_request.timeout.sec = int(timeout)
         req.ik_request.avoid_collisions = True
+        # Build a seed state: start from current joints but override
+        # shoulder_pan to point toward the target (x, y) so KDL converges to
+        # the "correct side" of the workspace instead of a behind-the-back
+        # solution that makes subsequent Pilz PTP paths collision-prone.
+        seed_js = JointState()
+        if self._latest_joint_state is not None:
+            seed_js = JointState(
+                name=list(self._latest_joint_state.name),
+                position=list(self._latest_joint_state.position),
+            )
+        # Override shoulder_pan to point toward (target_x, target_y)
+        import math
+        target_pan = math.atan2(
+            pose.pose.position.y, pose.pose.position.x
+        )
+        if "shoulder_pan_joint" in seed_js.name:
+            idx = seed_js.name.index("shoulder_pan_joint")
+            seed_js.position[idx] = target_pan
+        else:
+            seed_js.name = list(_ARM_JOINTS)
+            seed_js.position = [target_pan] + list(_NAMED_ARM_POSES["home"][1:])
+        req.ik_request.robot_state.joint_state = seed_js
 
         future = self._ik_client.call_async(req)
         if not self._wait_for_future(future, timeout + 1.0):
@@ -273,14 +316,38 @@ class MotionExecutor:
 
         joint_state = resp.solution.joint_state
         group_joints = _ARM_JOINTS if group in ("arm", "arm_with_gripper") else []
+
+        # Get a reference (home or current) so we can canonicalize joint values.
+        # KDL can return 2π-equivalent solutions; we pick the one closest to the
+        # reference to avoid large sweeping motions that trigger path collisions.
+        ref = list(_NAMED_ARM_POSES.get("home", [0.0] * 6))
+        if self._latest_joint_state is not None:
+            js = self._latest_joint_state
+            for i, jname in enumerate(_ARM_JOINTS):
+                if jname in js.name:
+                    ref[i] = js.position[js.name.index(jname)]
+
+        import math
         values = []
-        for jname in group_joints:
-            if jname in joint_state.name:
-                idx = joint_state.name.index(jname)
-                values.append(joint_state.position[idx])
-            else:
+        for i, jname in enumerate(group_joints):
+            if jname not in joint_state.name:
                 self._logger.error(f"Joint {jname} not in IK solution.")
                 return None
+            raw = joint_state.position[joint_state.name.index(jname)]
+            # Normalise to the 2π-branch closest to the reference value,
+            # then verify it is within the joint's URDF limits.
+            # Pick the 2π-branch of raw closest to ref[i].
+            # Use math.floor(x+0.5) for round-half-up (avoids Python banker's rounding
+            # at x=0.5 which can leave the value 2π away from the reference).
+            diff = raw - ref[i]
+            n = math.floor(diff / (2 * math.pi) + 0.5)
+            raw -= n * 2 * math.pi
+            lo, hi = _ARM_JOINT_LIMITS[i]
+            if raw < lo:
+                raw += 2 * math.pi
+            elif raw > hi:
+                raw -= 2 * math.pi
+            values.append(raw)
         return values
 
     def _move_to_joint_values(
