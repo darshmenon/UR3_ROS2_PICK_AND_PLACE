@@ -141,6 +141,28 @@ python3 ~/UR3_ROS2_PICK_AND_PLACE/ur_system_tests/scripts/arm_gripper_loop_contr
 
 ---
 
+## 🖥️ Standalone Robot Control GUI
+
+A tkinter-based GUI for arm teleoperation and live camera feed:
+
+```bash
+source install/setup.bash
+python3 ur_llm_planner/scripts/robot_gui.py
+```
+
+Features:
+- **Live camera feed** from the onboard Intel D435 (color stream)
+- **Preset pose buttons** — Home, Ready
+- **Gripper control** — Open, Half, Close
+- **Per-joint sliders** (6 joints) — auto-sync to robot state on startup
+- **Send Joints** — executes slider positions via Pilz PTP
+- **Sync from Robot** — snaps sliders to current joint positions
+- Status bar shows live feedback
+
+> Requires the full simulation (`ur.gazebo.launch.py`) to be running first.
+
+---
+
 ## ⚡ Custom Zig-Zag Motion Demo
 To run the custom Cartesian (LIN) zig-zag motion demo using the MoveIt 2 PILZ Industrial Motion Planner:
 ```bash
