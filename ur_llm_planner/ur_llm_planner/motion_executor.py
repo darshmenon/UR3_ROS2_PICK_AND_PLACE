@@ -23,7 +23,9 @@ from moveit_msgs.msg import (
     MoveItErrorCodes,
     OrientationConstraint,
     PositionConstraint,
+    RobotState,
 )
+from moveit_msgs.srv import GetPositionIK
 from shape_msgs.msg import SolidPrimitive
 
 # Gripper position constants (metres, used by GripperActionController)
@@ -92,6 +94,8 @@ class MotionExecutor:
             GripperCommand,
             "/gripper_controller/gripper_cmd",
         )
+
+        self._ik_client = node.create_client(GetPositionIK, "/compute_ik")
 
     # ------------------------------------------------------------------
     # Public API
@@ -181,8 +185,11 @@ class MotionExecutor:
         req.group_name = group_name
         req.num_planning_attempts = 5
         req.allowed_planning_time = min(timeout * 0.7, 10.0)
-        req.max_velocity_scaling_factor = 0.5
-        req.max_acceleration_scaling_factor = 0.5
+        req.max_velocity_scaling_factor = 0.3
+        req.max_acceleration_scaling_factor = 0.3
+        # Use Pilz PTP — generates its own timestamps, avoids TOTG zero-duration bug
+        req.pipeline_id = "pilz_industrial_motion_planner"
+        req.planner_id = "PTP"
 
         constraints = Constraints()
         constraints.name = pose_name  # label only
@@ -220,15 +227,10 @@ class MotionExecutor:
         timeout: float = 30.0,
     ) -> bool:
         """
-        Plan and execute a Cartesian end-effector pose goal.
+        Plan and execute a Cartesian end-effector pose goal via IK → Pilz PTP.
 
-        Args:
-            pose:    Target PoseStamped (frame_id should be "base_link").
-            group:   MoveIt planning group name.
-            timeout: Action timeout in seconds.
-
-        Returns:
-            True on success, False on failure.
+        Uses /compute_ik to get joint angles, then Pilz PTP for time-stamped
+        execution (avoids TOTG zero-duration bug with OMPL in Humble).
         """
         self._logger.info(
             f"[MotionExecutor] move_to_pose: group={group} "
@@ -236,54 +238,74 @@ class MotionExecutor:
             f"{pose.pose.position.z:.3f})"
         )
 
-        if not self._move_group_client.server_is_ready():
-            self._logger.warn("MoveGroup server not ready — skipping move_to_pose.")
+        joint_values = self._compute_ik(pose, group, timeout=5.0)
+        if joint_values is None:
+            self._logger.error("[MotionExecutor] IK failed — cannot reach target pose.")
             return False
 
+        # Use Pilz PTP with the IK solution (avoids TOTG)
+        return self._move_to_joint_values(group, joint_values, timeout)
+
+    def _compute_ik(self, pose: PoseStamped, group: str, timeout: float = 5.0):
+        """Call /compute_ik and return joint values list, or None on failure."""
+        if not self._ik_client.wait_for_service(timeout_sec=timeout):
+            self._logger.error("/compute_ik service not available.")
+            return None
+
+        req = GetPositionIK.Request()
+        req.ik_request.group_name = group
+        req.ik_request.pose_stamped = pose
+        req.ik_request.timeout.sec = int(timeout)
+        req.ik_request.avoid_collisions = True
+
+        future = self._ik_client.call_async(req)
+        if not self._wait_for_future(future, timeout + 1.0):
+            self._logger.error("/compute_ik call timed out.")
+            return None
+
+        resp = future.result()
+        if resp.error_code.val != MoveItErrorCodes.SUCCESS:
+            self._logger.error(
+                f"/compute_ik failed with error code {resp.error_code.val}"
+            )
+            return None
+
+        joint_state = resp.solution.joint_state
+        group_joints = _ARM_JOINTS if group in ("arm", "arm_with_gripper") else []
+        values = []
+        for jname in group_joints:
+            if jname in joint_state.name:
+                idx = joint_state.name.index(jname)
+                values.append(joint_state.position[idx])
+            else:
+                self._logger.error(f"Joint {jname} not in IK solution.")
+                return None
+        return values
+
+    def _move_to_joint_values(
+        self, group: str, joint_values: list, timeout: float = 30.0
+    ) -> bool:
+        """Move a group to explicit joint values using Pilz PTP."""
         goal = MoveGroupAction.Goal()
         req: MotionPlanRequest = goal.request
-
         req.group_name = group
-        req.num_planning_attempts = 5
+        req.num_planning_attempts = 3
         req.allowed_planning_time = min(timeout * 0.7, 10.0)
-        req.max_velocity_scaling_factor = 0.4
-        req.max_acceleration_scaling_factor = 0.4
-
-        # Build position constraint
-        pos_constraint = PositionConstraint()
-        pos_constraint.header = pose.header
-        pos_constraint.link_name = "tool0"
-        pos_constraint.weight = 1.0
-
-        tolerance_sphere = SolidPrimitive()
-        tolerance_sphere.type = SolidPrimitive.SPHERE
-        tolerance_sphere.dimensions = [0.005]  # 5 mm tolerance
-
-        bv = BoundingVolume()
-        bv.primitives.append(tolerance_sphere)
-
-        from geometry_msgs.msg import Pose as GmsgPose
-        target_pose = GmsgPose()
-        target_pose.position = pose.pose.position
-        target_pose.orientation.w = 1.0  # centred at target
-        bv.primitive_poses.append(target_pose)
-        pos_constraint.constraint_region = bv
-
-        # Build orientation constraint (keep end-effector pointing down)
-        ori_constraint = OrientationConstraint()
-        ori_constraint.header = pose.header
-        ori_constraint.link_name = "tool0"
-        ori_constraint.orientation = pose.pose.orientation
-        ori_constraint.absolute_x_axis_tolerance = 0.3
-        ori_constraint.absolute_y_axis_tolerance = 0.3
-        ori_constraint.absolute_z_axis_tolerance = 0.3
-        ori_constraint.weight = 1.0
+        req.max_velocity_scaling_factor = 0.3
+        req.max_acceleration_scaling_factor = 0.3
+        req.pipeline_id = "pilz_industrial_motion_planner"
+        req.planner_id = "PTP"
 
         constraints = Constraints()
-        constraints.position_constraints.append(pos_constraint)
-        constraints.orientation_constraints.append(ori_constraint)
+        for name, value in zip(_ARM_JOINTS, joint_values):
+            jc = JointConstraint()
+            jc.joint_name = name
+            jc.position = value
+            jc.tolerance_above = _JOINT_TOLERANCE
+            jc.tolerance_below = _JOINT_TOLERANCE
+            jc.weight = 1.0
+            constraints.joint_constraints.append(jc)
         req.goal_constraints.append(constraints)
-
         return self._send_move_group_goal(goal, timeout)
 
     def execute_task_list(self, tasks: list[dict]) -> bool:
