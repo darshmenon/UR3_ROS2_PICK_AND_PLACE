@@ -14,7 +14,7 @@ A deep-dive into every concept you encountered while building and debugging this
 6. [Planning Pipelines & Adapters](#6-planning-pipelines--adapters)
 7. [SRDF — Semantic Robot Description Format](#7-srdf--semantic-robot-description-format)
 8. [Trajectory Execution & Controllers](#8-trajectory-execution--controllers)
-9. [Time Parameterization (The Zero-Timestamp Bug)](#9-time-parameterization--the-zero-timestamp-bug)
+9. [Time Parameterization — TOTG Failure and the IPTP + Pilz Fix](#9-time-parameterization--totg-failure-and-the-iptp--pilz-fix)
 10. [MoveIt Task Constructor (MTC)](#10-moveit-task-constructor-mtc)
 11. [Debugging Cheat-Sheet](#11-debugging-cheat-sheet)
 12. [Torque and Impedance Controllers](#12-torque-and-impedance-controllers)
@@ -24,6 +24,11 @@ A deep-dive into every concept you encountered while building and debugging this
 16. [Vision-Based Object Detection and 3D Pose Estimation](#16-vision-based-object-detection-and-3d-pose-estimation)
 17. [LLM-Driven Task Planning with Ollama](#17-llm-driven-task-planning-with-ollama)
 18. [Behavior Cloning and VLA Fine-Tuning](#18-behavior-cloning-and-vla-fine-tuning)
+19. [IK Service — Cartesian Poses to Joint Values](#19-ik-service--cartesian-poses-to-joint-values)
+20. [Pilz Industrial Motion Planner — PTP vs LIN](#20-pilz-industrial-motion-planner--ptp-vs-lin)
+21. [SRDF Collision Matrix — Gripper Self-Collision Entries](#21-srdf-collision-matrix--gripper-self-collision-entries)
+22. [Gripper Stall Detection — ABORTED Means Success](#22-gripper-stall-detection--aborted-means-success)
+23. [Headless Testing and RViz Crashes](#23-headless-testing-and-rviz-crashes)
 
 ---
 
@@ -221,9 +226,11 @@ response_adapters: >-
 
 | Adapter | What it does |
 |---------|-------------|
-| `AddTimeOptimalParameterization` | Stamps each waypoint with a time using TOTG |
+| `AddTimeParameterization` | Stamps each waypoint with a time using IPTP (Iterative Parabolic) |
 | `ValidateSolution` | Double-checks the final trajectory for collisions |
 | `DisplayMotionPath` | Publishes the trajectory to RViz for visualization |
+
+> **Note**: The adapter was originally `AddTimeOptimalParameterization` (TOTG). It was replaced with `AddTimeParameterization` (IPTP) because TOTG silently produces all-zero timestamps in MoveIt 2 Humble when the path has near-duplicate waypoints or missing joint limits. See §9.
 
 ### Bug 8: `planning_plugins` vs `planning_plugin`
 The move_group parameter name is the **singular** `planning_plugin` (a string), not `planning_plugins` (a list). Using the wrong key silently falls back to no planner, causing all planning to fail with no useful error message.
@@ -316,57 +323,66 @@ If the robot's current joint positions differ from the trajectory's first point 
 
 ---
 
-## 9. Time Parameterization — The Zero-Timestamp Bug
+## 9. Time Parameterization — TOTG Failure and the IPTP + Pilz Fix
 
-This was the final execution bug in this project. Understanding it fully:
+### The Problem: Zero Timestamps
 
-### Root Cause
-OMPL's raw output is a **geometric path** — a sequence of joint configurations with **no time information**. Before the trajectory can be sent to a controller it must be **time-parameterized**: each waypoint needs a `time_from_start` value.
+OMPL's raw output is a **geometric path** — joint configurations with **no time information**. Before a trajectory reaches a `ros2_control` controller it must be **time-parameterized**: each waypoint needs a `time_from_start`.
 
-MoveIt is supposed to do this automatically via the `AddTimeOptimalParameterization` response adapter. But if the response adapter plugin fails to load (missing library, wrong plugin name format, Humble-specific quirks), all timestamps stay at `0.0`.
+MoveIt's response adapter chain is supposed to do this automatically. In Humble, the original adapter was `AddTimeOptimalParameterization` (TOTG). It silently produces all-zero timestamps in two cases:
 
-### The Error
+1. **Near-duplicate waypoints** — TOTG's underlying algorithm returns failure without logging anything at the default log level.
+2. **Missing joint limits** — TOTG reads velocity/acceleration limits from the RobotModel. If any joint has zero limits, TOTG silently fails. IPTP handles this more gracefully.
+
+When timestamps are all zero the controller rejects the goal immediately:
+
 ```
 [arm_controller]: Time between points 0 and 1 is not strictly increasing,
                   it is 0.000000 and 0.000000 respectively
-```
-The `ros2_control` FollowJointTrajectory controller validates that timestamps strictly increase before accepting a goal. All-zero timestamps → immediate rejection → execution fails.
-
-### The Fix (Applied in this project)
-Instead of relying on the response adapter, we apply **Time Optimal Trajectory Generation (TOTG)** explicitly in C++ immediately after `plan()` succeeds:
-
-```cpp
-#include <moveit/robot_trajectory/robot_trajectory.h>
-#include <moveit/trajectory_processing/time_optimal_trajectory_generation.h>
-
-// After plan() succeeds:
-trajectory_processing::TimeOptimalTrajectoryGeneration totg;
-
-auto robot_traj = std::make_shared<robot_trajectory::RobotTrajectory>(
-    arm_group_interface.getRobotModel(), "arm");
-
-robot_traj->setRobotTrajectoryMsg(
-    *arm_group_interface.getCurrentState(),
-    plan.trajectory_);
-
-totg.computeTimeStamps(*robot_traj, vel_scale, acc_scale);
-
-// Write stamped trajectory back into the plan
-robot_traj->getRobotTrajectoryMsg(plan.trajectory_);
-
-// Now safe to execute
-arm_group_interface.execute(plan);
+CONTROL_FAILED (-4)
 ```
 
-### TOTG Algorithm
-TOTG (Time Optimal Trajectory Generation) treats the path as a 1D problem along path-length and finds the fastest feasible timing that respects per-joint velocity and acceleration limits. It's deterministic and extremely fast (microseconds).
+### Fix Part 1: Switch OMPL Pipeline to IPTP
+
+Replace `AddTimeOptimalParameterization` with `AddTimeParameterization` (IPTP — Iterative Parabolic Time Parameterization) in `ompl_planning.yaml`:
+
+```yaml
+response_adapters: >-
+  default_planning_response_adapters/AddTimeParameterization
+  default_planning_response_adapters/ValidateSolution
+  default_planning_response_adapters/DisplayMotionPath
+```
+
+IPTP uses trapezoidal velocity profiles rather than time-optimal bang-bang arcs. It's less optimal but never silently fails — it always produces non-zero timestamps as long as there are at least 2 distinct waypoints.
+
+### Fix Part 2: Use Pilz PTP for All Moves (Bypasses the Problem Entirely)
+
+For this project, **all arm motions now go through the Pilz Industrial Motion Planner with `PTP` (Point-to-Point)** rather than OMPL. Pilz generates its own timestamps internally — it never calls TOTG or IPTP at all, so the zero-timestamp problem cannot occur.
+
+```python
+req.pipeline_id = "pilz_industrial_motion_planner"
+req.planner_id = "PTP"
+req.max_velocity_scaling_factor = 0.3
+req.max_acceleration_scaling_factor = 0.3
+```
+
+Pilz PTP computes a straight-line motion in **joint space** with a trapezoidal velocity profile. It's deterministic, fast, and reliable.
+
+### Comparison: OMPL vs Pilz vs Cartesian
+
+| Method | Path Type | Time Stamping | Use When |
+|--------|-----------|---------------|----------|
+| OMPL + IPTP | Joint-space, sampled | IPTP (trapezoidal) | Obstacle avoidance needed |
+| Pilz PTP | Joint-space, straight-line | Built-in trapezoidal | Fast, reliable joint moves |
+| Pilz LIN | Cartesian straight-line | Built-in trapezoidal | End-effector must travel in a straight line |
+| IK + Pilz PTP | Joint-space to IK solution | Built-in trapezoidal | Cartesian target, no LIN needed |
 
 ### Why Velocity/Acceleration Scaling Matters
-```cpp
-arm_group_interface.setMaxVelocityScalingFactor(0.3);     // 30% of joint limits
-arm_group_interface.setMaxAccelerationScalingFactor(0.3);  // 30% of joint limits
+```python
+req.max_velocity_scaling_factor = 0.3      # 30% of joint limits
+req.max_acceleration_scaling_factor = 0.3  # 30% of joint limits
 ```
-At 100% scaling on a simulated robot, the trajectory completes near-instantly in physics time, making it hard for Gazebo to track. 30% gives the controller room to actually follow the trajectory.
+At 100% scaling, the trajectory completes near-instantly in physics time. Gazebo's controller can't track it and the action returns `ABORTED`. 30% gives the controller enough time to follow.
 
 ---
 
@@ -475,26 +491,6 @@ To move the end-effector through precise waypoints (like a zig-zag), we rely on 
 - **`computeCartesianPath`**: Takes a vector of `geometry_msgs::msg::Pose` waypoints. It interpolates linearly between them in Cartesian space and uses Inverse Kinematics (IK) to calculate the corresponding joint positions.
 - **Orientation**: It's crucial to set the correct quaternion orientation for the end-effector (e.g., `x=1.0, w=0.0` for pointing straight down) in every waypoint to prevent the arm from twisting wildly between points.
 
-## 12. Torque and Impedance Controllers
-
-In the `ros2_control` ecosystem, you can extend the robot capability by adding specialized controllers beyond pure position control:
-
-### Torque Control (`forward_command_controller/ForwardCommandController`)
-A torque controller lets you bypass trajectory planning and send raw effort (torque) values directly to the joints. In ROS 2 Humble:
-- You use `forward_command_controller/ForwardCommandController` and configure it to use the `effort` interface.
-- It requires the hardware interface to support `effort` command interfaces.
-
-### Impedance Control
-Impedance controllers treat the robot like a mass-spring-damper system, allowing it to act compliantly when it hits obstacles rather than rigidly tracking a position and commanding infinite torque. 
-- While native impedance controllers often require custom C++ plugins, a baseline can be established using a `joint_trajectory_controller` mapped to `effort` command interfaces. MoveIt can then plan trajectories that are executed compliantly.
-
-## 13. MoveIt Cartesian Planning (Zig-Zag Motion)
-To move the end-effector through precise waypoints (like a zig-zag), we rely on MoveIt Cartesian planning capabilities via Inverse Kinematics (IK):
-- **Pilz Industrial Motion Planner**: We use the PILZ `LIN` (Linear) trajectory planner to draw strictly straight Cartesian lines between points. Unlike regular joint-space planners (which move joints from A to B in the most efficient joint configuration, resulting in curved end-effector paths), `LIN` forces the end-effector to travel in a straight line in 3D space.
-- **Starting Points (`PTP` vs `LIN`)**: Because a `LIN` motion requires a pre-existing Cartesian context (i.e., you can only draw a line if your start and end point are in the same general pose family), we must use a Point-to-Point (`PTP`) planner (like OMPL or Pilz `PTP`) to move to the very first point of our shape via standard joint-space planning. 
-- **Time Parameterization**: Planners generate a geometrical path (points in space) but often fail to add velocity/acceleration timestamps to the trajectory constraints. Without explicit Time Optimal Trajectory Generation (TOTG) applied to the trajectory, the `ros2_control` execution manager will instantly reject the plan.
-- **Simulation Delay**: When running Gazebo Harmonic simulations, physics and the `ros2_control` ecosystem need substantial time to initialize. For this project, a 60-second delay is strictly necessary before running custom MoveIt C++ nodes to ensure the `arm_controller` and clock synchronizer are fully spawned. Otherwise, controllers will time out waiting for the `joint_states` topic or action servers.
-
 ## 15. Gripper Mimic Joints and Why MTC Grasping Still Works
 
 ### What Mimic Joints Are
@@ -557,6 +553,210 @@ Moving other joints while strictly keeping the end-effector stationary requires 
 - The UR3 is a **6-DOF (Degrees of Freedom)** arm. To fix the 6 aspects of the end-effector pose (X, Y, Z, Roll, Pitch, Yaw), all 6 joints are mathematically constrained.
 - Unless the arm is in a singularity, there is no "null-space" in a 6-DOF arm to move the elbow while keeping the gripper perfectly still.
 - A **7-DOF** arm (like the Franka Emika Panda) has an extra degree of freedom, allowing for null-space motions where the elbow can move while the end-effector pose is completely constrained.
+
+---
+
+## 19. IK Service — Cartesian Poses to Joint Values
+
+### Why Not `computeCartesianPath`?
+
+MoveIt's `computeCartesianPath` generates a dense set of waypoints along a straight Cartesian line. After planning, those waypoints still need time-stamping via a response adapter (TOTG/IPTP). In Humble this chain is unreliable for short or trivial paths.
+
+A cleaner approach: use the **IK service** to convert a single Cartesian pose directly into joint values, then plan a Pilz PTP motion to those joint values. This sidesteps the adapter chain entirely.
+
+### The `/compute_ik` Service
+
+MoveIt exposes `moveit_msgs/srv/GetPositionIK` at `/compute_ik`:
+
+```python
+from moveit_msgs.srv import GetPositionIK
+
+req = GetPositionIK.Request()
+req.ik_request.group_name = "arm"
+req.ik_request.pose_stamped = target_pose      # PoseStamped in base_link frame
+req.ik_request.avoid_collisions = True
+req.ik_request.timeout.sec = 5
+
+# Optionally seed with current joint state for nearest solution:
+req.ik_request.robot_state.joint_state = current_joint_state
+```
+
+### Seeding the IK Solver
+
+KDL (the IK solver used here) is a **local** solver — it walks from the seed configuration toward the solution. Without a good seed, it can return a valid but highly-wrapped solution (e.g., `shoulder_lift = -6.03 rad` instead of `-1.57 rad`). Such solutions make Pilz PTP plan a huge joint-space motion even though the end-effector barely moves.
+
+The fix: seed the IK request with the current joint state **and** override `shoulder_pan` to point roughly at the target:
+
+```python
+seed.shoulder_pan_joint = math.atan2(target_y, target_x)
+```
+
+This steers KDL toward the most natural arm configuration.
+
+### Normalizing Wrist Joints
+
+After IK returns a solution, wrist joints (`wrist_1`, `wrist_2`, `wrist_3`) may be ±2π away from the nearest equivalent angle. Normalize them to `[-π, π]` before sending to Pilz PTP to prevent unnecessary full rotations:
+
+```python
+import math
+value = ((value + math.pi) % (2 * math.pi)) - math.pi
+```
+
+---
+
+## 20. Pilz Industrial Motion Planner — PTP vs LIN
+
+### What Pilz Is
+
+Pilz is a **deterministic** motion planner (unlike OMPL which is sampling-based). It ships with MoveIt 2 and provides two key trajectory types:
+
+| Type | Motion | When to Use |
+|------|--------|-------------|
+| **PTP** | Straight-line in joint space | Going to a named pose or IK solution |
+| **LIN** | Straight-line in Cartesian space | Precise Cartesian approach/retract |
+| **CIRC** | Circular arc in Cartesian space | Arcs and circles |
+
+### Why We Use PTP for Everything
+
+Pilz LIN requires that the entire path between start and goal be reachable in Cartesian space (no singularities, no joint limit violations along the line). For the UR3, LIN from a home-like configuration to a pre-grasp pose often violates elbow joint velocity limits (`elbow_joint velocity 13.96 > limit 3.14`).
+
+PTP makes no Cartesian guarantees — it just moves each joint from A to B in a synchronized trapezoidal profile. This is almost always feasible as long as the goal configuration itself is valid.
+
+### Pilz Self-Collision Checking
+
+Unlike OMPL (which can sometimes miss self-collisions due to sparse sampling), Pilz checks the **entire straight-line path** in joint space for collisions. This means you get `INVALID_MOTION_PLAN (-2)` if any point along the straight joint-space path is in self-collision.
+
+This is why we need comprehensive `<disable_collisions>` entries in the SRDF for arm links vs gripper links — the gripper geometry is always "nearby" the wrist, and Pilz will flag false collisions if those pairs aren't disabled.
+
+---
+
+## 21. SRDF Collision Matrix — Gripper Self-Collision Entries
+
+### The Problem
+
+When the gripper is mounted on the wrist, many arm links are geometrically close to gripper links. MoveIt's collision checker considers all non-adjacent link pairs by default. This causes `INVALID_MOTION_PLAN` errors because Pilz detects apparent self-collision on the planned path.
+
+### Required Disable Entries
+
+Every arm link that is geometrically near the gripper needs a `<disable_collisions>` entry with every gripper link:
+
+```xml
+<!-- Each of these arm links needs entries for ALL 11 gripper links -->
+<!-- Gripper links: robotiq_arg2f_base_link, left/right outer_knuckle,
+     left/right outer_finger, left/right inner_knuckle,
+     left/right inner_finger, left/right inner_finger_pad -->
+
+<disable_collisions link1="forearm_link"   link2="left_inner_finger"  reason="Never"/>
+<disable_collisions link1="upper_arm_link" link2="right_inner_knuckle" reason="Never"/>
+<!-- ... etc for all combinations -->
+```
+
+**Arm links that need gripper entries**: `base_link`, `shoulder_link`, `upper_arm_link`, `forearm_link`, `wrist_1_link`, `wrist_2_link`, `wrist_3_link`.
+
+### Debugging Self-Collision Errors
+
+When Pilz returns `INVALID_MOTION_PLAN (-2)`, it's almost always a missing disable entry. To find which pair:
+
+```bash
+# Enable collision debug logging in move_group:
+ros2 run moveit_ros_move_group move_group \
+  --ros-args --log-level collision_detection:=debug
+```
+
+Or check the Allowed Collision Matrix from a running system:
+
+```python
+from moveit_msgs.srv import GetPlanningScene
+from moveit_msgs.msg import PlanningSceneComponents
+# request ACM, then inspect entry_names / entry_values
+```
+
+---
+
+## 22. Gripper Stall Detection — ABORTED Means Success
+
+### GripperActionController Behavior
+
+The `position_controllers/GripperActionController` sends a `GripperCommand` goal with a target position and max effort. When the gripper is closing on an object:
+
+1. The finger tries to reach `position = 0.8` (fully closed)
+2. The object blocks the finger before it reaches 0.8
+3. The joint velocity drops to zero while position error remains
+4. The controller interprets this as a **stall** and returns `ABORT`
+
+```
+[gripper_controller]: Goal was aborted because the gripper stalled
+```
+
+**This is normal and expected behavior when grasping an object.** The gripper did close — it just stopped at the object's surface instead of the commanded position.
+
+### Handling It in Code
+
+Treat any non-`TIMED_OUT` result from the gripper action as success:
+
+```python
+status = result_handle.status
+if status == GoalStatus.STATUS_SUCCEEDED or status == GoalStatus.STATUS_ABORTED:
+    return True   # ABORTED = stalled on object = successful grasp
+return status != GoalStatus.STATUS_EXECUTING  # timeout = real failure
+```
+
+### Stall vs Failure
+
+| Outcome | Status | Meaning |
+|---------|--------|---------|
+| Gripper reached target | `SUCCEEDED` | No object, or very thin object |
+| Gripper stalled | `ABORTED` | Object grasped — this is the normal pick result |
+| Gripper timed out | `TIMED_OUT` | Real failure (controller not responding) |
+
+---
+
+## 23. Headless Testing and RViz Crashes
+
+### RViz SIGSEGV in Humble
+
+RViz2 with the MoveIt MotionPlanning plugin crashes (exit code -11, SIGSEGV) in MoveIt 2 Humble if `planning_pipelines` configuration is not passed to the RViz node. The fix:
+
+```python
+rviz_node = Node(
+    package="rviz2", executable="rviz2",
+    parameters=[
+        moveit_config.robot_description,
+        moveit_config.robot_description_semantic,
+        moveit_config.robot_description_kinematics,
+        moveit_config.planning_pipelines,   # ← required, prevents SIGSEGV
+        {"use_sim_time": True}
+    ],
+)
+```
+
+### Running Headlessly
+
+Add a `use_rviz` launch argument to skip RViz entirely during testing:
+
+```python
+DeclareLaunchArgument("use_rviz", default_value="true"),
+
+Node(..., condition=IfCondition(LaunchConfiguration("use_rviz")))
+```
+
+Then launch with:
+
+```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py use_rviz:=false
+```
+
+This is important for running in environments without a display, and makes startup faster (RViz adds ~5s to startup time).
+
+### TF Time Jump After Process Restart
+
+When `move_group` is killed and restarted, the TF buffer sometimes detects a time jump:
+
+```
+Detected jump back in time. Clearing TF buffer.
+```
+
+If a test runs immediately after this, MoveIt trajectory execution fails with `TIMED_OUT` because TF transforms are unavailable for several seconds after the buffer clears. Wait ~10 seconds after any `move_group` restart before running tests.
 
 ---
 

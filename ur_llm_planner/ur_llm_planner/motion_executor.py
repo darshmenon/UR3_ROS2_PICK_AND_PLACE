@@ -6,6 +6,7 @@ Bridges structured task dicts (produced by ClaudeClient) with actual
 ROS 2 action clients that command the robot arm and gripper.
 """
 
+import math
 import threading
 
 from rclpy.action import ActionClient
@@ -290,7 +291,6 @@ class MotionExecutor:
                 position=list(self._latest_joint_state.position),
             )
         # Override shoulder_pan to point toward (target_x, target_y)
-        import math
         target_pan = math.atan2(
             pose.pose.position.y, pose.pose.position.x
         )
@@ -327,7 +327,6 @@ class MotionExecutor:
                 if jname in js.name:
                     ref[i] = js.position[js.name.index(jname)]
 
-        import math
         values = []
         for i, jname in enumerate(group_joints):
             if jname not in joint_state.name:
