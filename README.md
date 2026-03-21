@@ -204,6 +204,8 @@ This script will:
 ### colour_pick
 ![alt text](colour_pick.png)
 
+### cam_view
+![alt text](cam_view.png)
 ---
 
 ## 🤖 AI / ML Stack
