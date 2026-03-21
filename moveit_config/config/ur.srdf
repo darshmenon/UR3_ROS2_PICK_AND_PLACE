@@ -173,6 +173,18 @@
     <disable_collisions link1="wrist_1_link" link2="wrist_2_link" reason="Adjacent"/>
     <disable_collisions link1="wrist_1_link" link2="wrist_3_link" reason="Never"/>
     <disable_collisions link1="wrist_2_link" link2="wrist_3_link" reason="Adjacent"/>
+    <!-- upper_arm_link vs gripper links — these pairs show false self-collision in some configs -->
+    <disable_collisions link1="upper_arm_link" link2="left_inner_finger" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="left_inner_finger_pad" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="left_inner_knuckle" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="left_outer_finger" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="left_outer_knuckle" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="right_inner_finger" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="right_inner_finger_pad" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="right_inner_knuckle" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="right_outer_finger" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="right_outer_knuckle" reason="Never"/>
+    <disable_collisions link1="upper_arm_link" link2="robotiq_arg2f_base_link" reason="Never"/>
 
 
 </robot>

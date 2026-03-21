@@ -190,6 +190,7 @@ class MotionExecutor:
         # Use Pilz PTP — generates its own timestamps, avoids TOTG zero-duration bug
         req.pipeline_id = "pilz_industrial_motion_planner"
         req.planner_id = "PTP"
+        req.allowed_planning_time = min(timeout * 0.9, 15.0)
 
         constraints = Constraints()
         constraints.name = pose_name  # label only
