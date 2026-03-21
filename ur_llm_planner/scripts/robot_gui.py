@@ -35,6 +35,7 @@ class RobotGUI:
         self._lock = threading.Lock()
         self._latest_photo = None       # ImageTk.PhotoImage (must stay alive)
         self._joint_positions = [0.0] * 6
+        self._sliders_synced = False    # auto-sync once on first joint state
 
         node.create_subscription(
             RosImage, "/camera_head/color/image_raw", self._image_cb, 10
@@ -158,6 +159,10 @@ class RobotGUI:
             if jname in msg.name:
                 idx = msg.name.index(jname)
                 self._joint_positions[i] = msg.position[idx]
+        # Auto-sync sliders once on first received joint state
+        if not self._sliders_synced and any(p != 0.0 for p in self._joint_positions):
+            self._sliders_synced = True
+            self._root.after(0, self._sync_sliders)
 
     # ------------------------------------------------------------------
     # Periodic GUI update (tkinter thread)
