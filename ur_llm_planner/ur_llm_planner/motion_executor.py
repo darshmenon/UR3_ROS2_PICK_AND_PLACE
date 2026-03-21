@@ -280,26 +280,41 @@ class MotionExecutor:
         req.ik_request.pose_stamped = pose
         req.ik_request.timeout.sec = int(timeout)
         req.ik_request.avoid_collisions = True
-        # Build a seed state: start from current joints but override
-        # shoulder_pan to point toward the target (x, y) so KDL converges to
-        # the "correct side" of the workspace instead of a behind-the-back
-        # solution that makes subsequent Pilz PTP paths collision-prone.
+        # Build an IK seed.
+        # When the arm is at home (elbow≈0, arm straight up) KDL cannot reliably
+        # converge to a natural downward-grasp configuration — it drifts to a
+        # wrapped "behind-the-back" solution (shoulder_pan ≈ -π + target) that
+        # Pilz PTP then flags as INVALID_MOTION_PLAN because the path sweeps
+        # through a colliding region.
+        # Fix: use a fixed "natural downward grasp" seed whenever the current
+        # elbow is near 0 (home-like), otherwise seed from current state.
+        # Natural seed: pan→target, lift≈-2.2, elbow≈2.2, w1≈-1.6, w2≈-π/2, w3≈0
+        _NATURAL_GRASP_SEED = [-99.0, -2.2, 2.2, -1.6, -1.571, 0.0]  # pan filled below
+        target_pan = math.atan2(
+            pose.pose.position.y, pose.pose.position.x
+        )
         seed_js = JointState()
-        if self._latest_joint_state is not None:
+        current_elbow = 0.0
+        if self._latest_joint_state is not None and \
+                "elbow_joint" in self._latest_joint_state.name:
+            ei = self._latest_joint_state.name.index("elbow_joint")
+            current_elbow = self._latest_joint_state.position[ei]
+
+        if abs(current_elbow) < 0.3:
+            # Arm near home — use natural downward-grasp seed
+            seed_positions = list(_NATURAL_GRASP_SEED)
+            seed_positions[0] = target_pan
+            seed_js.name = list(_ARM_JOINTS)
+            seed_js.position = seed_positions
+        else:
+            # Already in a pick-like pose — seed from current state + override pan
             seed_js = JointState(
                 name=list(self._latest_joint_state.name),
                 position=list(self._latest_joint_state.position),
             )
-        # Override shoulder_pan to point toward (target_x, target_y)
-        target_pan = math.atan2(
-            pose.pose.position.y, pose.pose.position.x
-        )
-        if "shoulder_pan_joint" in seed_js.name:
-            idx = seed_js.name.index("shoulder_pan_joint")
-            seed_js.position[idx] = target_pan
-        else:
-            seed_js.name = list(_ARM_JOINTS)
-            seed_js.position = [target_pan] + list(_NAMED_ARM_POSES["home"][1:])
+            if "shoulder_pan_joint" in seed_js.name:
+                idx = seed_js.name.index("shoulder_pan_joint")
+                seed_js.position[idx] = target_pan
         req.ik_request.robot_state.joint_state = seed_js
 
         future = self._ik_client.call_async(req)
