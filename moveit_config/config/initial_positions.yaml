@@ -8,3 +8,11 @@ initial_positions:
   wrist_1_joint: 1.8251
   wrist_2_joint: 0
   wrist_3_joint: 1.2844
+  # Gripper mimic joints — explicit 0.0 so Ignition Gazebo initialises each
+  # joint individually instead of relying on a shared finger_joint reference.
+  left_outer_knuckle_joint: 0.0
+  right_outer_knuckle_joint: 0.0
+  left_inner_knuckle_joint: 0.0
+  right_inner_knuckle_joint: 0.0
+  left_inner_finger_joint: 0.0
+  right_inner_finger_joint: 0.0

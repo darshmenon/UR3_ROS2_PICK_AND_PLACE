@@ -112,12 +112,49 @@
 
 ---
 
+---
+
+### 16. KDL IK Wraps Shoulder Joint for Negative-Y Targets (INVALID_MOTION_PLAN)
+**File:** `ur_llm_planner/ur_llm_planner/motion_executor.py`
+**Error:** `MoveGroup returned error code -2` when moving to green block (y < 0) from home pose
+**Root cause:** KDL is a local solver. When the arm is at home with `elbow ≈ 0`, it finds a valid but degenerate solution: `shoulder_pan = -2.93 rad` (going the long way around) instead of `-0.17 rad`. Pilz PTP's straight-line path from that wrapped configuration collides or exceeds limits.
+**Fix:** Detect `elbow < 0.3 rad` (arm at/near home) and inject a natural downward-grasp seed `[-99, -2.2, 2.2, -1.6, -1.571, 0]` with `shoulder_pan = atan2(target_y, target_x)`. KDL then converges to the correct "front-side" solution.
+
+---
+
+### 17. Gripper Mimic Joints: Right Side Stuck at Limits, Left Partially Closes
+**File:** `moveit_config/config/ur.ros2_control.xacro`, `moveit_config/config/initial_positions.yaml`
+**Error:** At sim startup, right outer/inner knuckle joints initialise at their maximum positions (stuck fully closed); left outer knuckle joint (`left_outer_knuckle_joint`) was missing from the `ros2_control` block entirely. Closing the gripper only partially moved one side.
+**Root cause:** All mimic joints shared the key `${initial_positions['finger_joint']}`. Ignition Gazebo's SDF converter evaluated them as a single symbolic reference and initialised right-side joints at their URDF `upper` limits. Additionally, `left_outer_knuckle_joint` had no `<joint>` entry at all, so it had no state interface and Ignition never received an initial value for it.
+**Fix:**
+1. Added per-joint keys to `initial_positions.yaml` (`left_outer_knuckle_joint: 0.0`, `right_outer_knuckle_joint: 0.0`, etc.)
+2. Updated every mimic joint in `ur.ros2_control.xacro` to reference its own key (e.g., `${initial_positions['right_outer_knuckle_joint']}`)
+3. Added the missing `left_outer_knuckle_joint` entry to the xacro
+
+---
+
+## Known Remaining Issues
+
+| # | Issue | File | Status |
+|---|-------|------|--------|
+| R1 | OMPL `CONTROL_FAILED` — `response_adapters` plugin system does not exist in MoveIt2 Humble (added in Iron). OMPL trajectories have no post-planning time parameterisation → timestamps=0 → `JointTrajectoryController` rejects them. **Workaround:** use Pilz PTP for all motion. | `moveit_config/config/ompl_planning.yaml` | Expected / won't fix on Humble |
+| R2 | RViz2 MotionPlanningDisplay can segfault on startup with certain pipeline configs. **Workaround:** `use_rviz:=false` or pass full `planning_pipelines` param. | `ur_gazebo/launch/ur.gazebo.launch.py` | Mitigated |
+| R3 | `stomp_moveit/StompPlanner` not installed for Humble (only Iron+). Logs a non-fatal error at startup. | `moveit_config/config/stomp_planning.yaml` | Not fixable on Humble |
+| R4 | `occupancy_map_monitor/PointCloudOctomapUpdater` plugin not installed. Non-fatal log error at startup. No depth camera octomap needed for current demos. | `moveit_config/config/sensors_3d.yaml` | Accepted |
+| R5 | Gripper mimic joints: despite the `initial_value` fix, Ignition Gazebo may still not perfectly enforce mimic physics constraints for the 4-bar linkage (depends on Ignition version). The URDF approximation uses mimic tags rather than the actual mechanical linkage. | `robotiq_2f_85_gripper_visualization/urdf/` | Cosmetic — grasping works |
+| R6 | Standalone `ros2_control_node` in launch file crashes on startup (harmless — Gazebo provides its own controller_manager). | `ur_gazebo/launch/ur.gazebo.launch.py` | Harmless |
+
+---
+
 ## Testing Scripts
 
 | Script | Purpose |
 |--------|---------|
 | `testing/test_pick.py` | Full pick-and-place test without LLM — hardcoded blue block position |
 | `testing/test_steps.py` | Step-by-step test: runs each motion action individually to isolate failures |
+| `testing/test_planners.py` | Tests all planner+executor combinations: Pilz PTP, Pilz LIN, OMPL, gripper |
+| `testing/teleop.py` | Keyboard teleoperation — joint mode and Cartesian mode, gripper keys |
+| `testing/camera_view.py` | Live camera feed from Gazebo with optional HSV block detection overlay |
 
 ### Usage
 ```bash
@@ -132,4 +169,14 @@ python3 testing/test_steps.py 5   # move to pre-grasp
 # Full pick test:
 python3 testing/test_pick.py
 python3 testing/test_pick.py 0.30 0.05 0.08  # custom position
+
+# Test all planners:
+python3 testing/test_planners.py
+
+# Keyboard teleoperation:
+python3 testing/teleop.py
+
+# Live camera view (add --detect for HSV block detection overlay):
+python3 testing/camera_view.py
+python3 testing/camera_view.py --detect
 ```

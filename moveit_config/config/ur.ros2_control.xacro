@@ -85,22 +85,36 @@
                 </state_interface>
             </joint>
 
-            <!-- Mimic joints (no command interfaces, initial value same as finger_joint) -->
-            <!-- right_outer_knuckle_joint -->
-            <joint name="right_outer_knuckle_joint">
+            <!-- Mimic joints (no command interfaces, each with explicit initial_value key
+                 so Ignition Gazebo initialises every joint individually rather than
+                 sharing the finger_joint reference which caused right-side joints to
+                 start at their limit positions). -->
+            <!-- left_outer_knuckle_joint (was missing — added) -->
+            <joint name="left_outer_knuckle_joint">
                 <state_interface name="position">
-                    <param name="initial_value">${initial_positions['finger_joint']}</param>
+                    <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
                 <state_interface name="effort">
-                    <param name="effort_limit">100.0</param> <!-- Increased effort for knuckle strength -->
+                    <param name="effort_limit">100.0</param>
+                </state_interface>
+            </joint>
+
+            <!-- right_outer_knuckle_joint -->
+            <joint name="right_outer_knuckle_joint">
+                <state_interface name="position">
+                    <param name="initial_value">${initial_positions['right_outer_knuckle_joint']}</param>
+                </state_interface>
+                <state_interface name="velocity"/>
+                <state_interface name="effort">
+                    <param name="effort_limit">100.0</param>
                 </state_interface>
             </joint>
 
             <!-- right_inner_knuckle_joint -->
             <joint name="right_inner_knuckle_joint">
                 <state_interface name="position">
-                    <param name="initial_value">${initial_positions['finger_joint']}</param>
+                    <param name="initial_value">${initial_positions['right_inner_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
                 <state_interface name="effort">
@@ -111,7 +125,7 @@
             <!-- left_inner_knuckle_joint -->
             <joint name="left_inner_knuckle_joint">
                 <state_interface name="position">
-                    <param name="initial_value">${initial_positions['finger_joint']}</param>
+                    <param name="initial_value">${initial_positions['left_inner_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
                 <state_interface name="effort">
@@ -122,7 +136,7 @@
             <!-- right_inner_finger_joint -->
             <joint name="right_inner_finger_joint">
                 <state_interface name="position">
-                    <param name="initial_value">${initial_positions['finger_joint']}</param>
+                    <param name="initial_value">${initial_positions['right_inner_finger_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
                 <state_interface name="effort">
@@ -133,7 +147,7 @@
             <!-- left_inner_finger_joint -->
             <joint name="left_inner_finger_joint">
                 <state_interface name="position">
-                    <param name="initial_value">${initial_positions['finger_joint']}</param>
+                    <param name="initial_value">${initial_positions['left_inner_finger_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
                 <state_interface name="effort">
