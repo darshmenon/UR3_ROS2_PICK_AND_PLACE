@@ -185,6 +185,30 @@
     <disable_collisions link1="upper_arm_link" link2="right_outer_finger" reason="Never"/>
     <disable_collisions link1="upper_arm_link" link2="right_outer_knuckle" reason="Never"/>
     <disable_collisions link1="upper_arm_link" link2="robotiq_arg2f_base_link" reason="Never"/>
+    <!-- forearm_link vs gripper — needed when gripper is open during arm motion -->
+    <disable_collisions link1="forearm_link" link2="left_inner_finger" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="left_inner_finger_pad" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="left_inner_knuckle" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="left_outer_finger" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="left_outer_knuckle" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="right_inner_finger" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="right_inner_finger_pad" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="right_inner_knuckle" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="right_outer_finger" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="right_outer_knuckle" reason="Never"/>
+    <disable_collisions link1="forearm_link" link2="robotiq_arg2f_base_link" reason="Never"/>
+    <!-- shoulder_link vs gripper -->
+    <disable_collisions link1="shoulder_link" link2="left_inner_finger" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="left_inner_finger_pad" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="left_inner_knuckle" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="left_outer_finger" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="left_outer_knuckle" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="right_inner_finger" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="right_inner_finger_pad" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="right_inner_knuckle" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="right_outer_finger" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="right_outer_knuckle" reason="Never"/>
+    <disable_collisions link1="shoulder_link" link2="robotiq_arg2f_base_link" reason="Never"/>
 
 
 </robot>

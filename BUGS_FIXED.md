@@ -80,6 +80,22 @@
 
 ---
 
+### 11. Self-Collision: forearm_link / shoulder_link vs Gripper (INVALID_MOTION_PLAN in step 7)
+**File:** `moveit_config/config/ur.srdf`
+**Error:** `MoveGroup returned error code -2 (INVALID_MOTION_PLAN)` when moving to pre-grasp with gripper OPEN
+**Root cause:** When the gripper fingers are open, their collision geometry extends outward and triggers false collision detection against `forearm_link` and `shoulder_link` during planning. The SRDF only had `upper_arm_link` covered (Bug #3) but not these two arm links.
+**Fix:** Added 11 `<disable_collisions reason="Never">` entries each for `forearm_link` and `shoulder_link` vs all gripper finger/knuckle/base links (total 22 new entries).
+
+---
+
+### 12. Stray Character in Gripper URDF (cosmetic XML bug)
+**File:** `robotiq_2f_85_gripper_visualization/urdf/robotiq_arg2f_85_model_macro.xacro`
+**Error:** Stray `f` character on line 109: `<origin xyz="0 0 0" rpy="0 0 0" />f` inside `inner_finger_pad` visual element
+**Root cause:** Typo — stray character left in file; XML parsers tolerate it as a text node but it is invalid XML.
+**Fix:** Removed the stray `f` character.
+
+---
+
 ## Testing Scripts
 
 | Script | Purpose |

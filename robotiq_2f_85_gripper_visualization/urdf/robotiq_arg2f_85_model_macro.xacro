@@ -106,7 +106,7 @@
   <xacro:macro name="inner_finger_pad" params="prefix fingerprefix">
     <link name="${prefix}${fingerprefix}_inner_finger_pad">
       <visual>
-        <origin xyz="0 0 0" rpy="0 0 0" />f
+        <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
           <box size="0.022 0.00635 0.0375"/>
         </geometry>
