@@ -9,10 +9,12 @@ from launch import LaunchDescription
 from launch.actions import (
     AppendEnvironmentVariable,
     DeclareLaunchArgument,
+    GroupAction,
     IncludeLaunchDescription,
     RegisterEventHandler,
     TimerAction,
 )
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable
@@ -32,7 +34,7 @@ def generate_launch_description():
 
     # Default values
     default_robot_name = 'ur'
-    default_world_file = 'pick_and_place_demo.world'
+    default_world_file = 'colored_blocks.world'
     gazebo_models_path = 'models'
     gazebo_worlds_path = 'worlds'
     ros_gz_bridge_config_file_path = 'config/ros_gz_bridge.yaml'
@@ -80,6 +82,7 @@ def generate_launch_description():
         DeclareLaunchArgument("safety_pos_margin", default_value="0.15", description="Safety controller position margin"),
         DeclareLaunchArgument("safety_k_position", default_value="20", description="Safety controller k-position factor"),
         DeclareLaunchArgument("tf_prefix", default_value='""', description="Prefix for joint names"),
+        DeclareLaunchArgument("use_rviz", default_value="true", description="Launch RViz2"),
     ]
 
     # Create launch description
@@ -262,8 +265,10 @@ def generate_launch_description():
             moveit_config.robot_description,
             moveit_config.robot_description_semantic,
             moveit_config.robot_description_kinematics,
+            moveit_config.planning_pipelines,
             {"use_sim_time": use_sim_time}
         ],
+        condition=IfCondition(LaunchConfiguration("use_rviz")),
     )
     # config_dict = moveit_config.to_dict()
     # config_dict.update(use_sim_time)
