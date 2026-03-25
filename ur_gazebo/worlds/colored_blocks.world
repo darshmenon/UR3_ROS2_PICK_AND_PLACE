@@ -39,80 +39,73 @@
          Colored blocks (inline SDF models - no Fuel dependency)
          ================================================================ -->
 
-    <!-- Red block: 5x5x8 cm at (0.30, 0.05, 0.04) -->
-    <!-- Green block: 5x5x8 cm at (0.30, -0.05, 0.04) -->
+    <!-- Green cylinder: radius 2.5cm, height 15cm — pose z = 0.075 (half-height) -->
     <model name="green_block">
       <static>false</static>
-      <pose>0.30 -0.05 0.04 0 0 0</pose>
+      <pose>0.30 -0.05 0.075 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.05 0.05 0.08</size></box>
+            <cylinder><radius>0.025</radius><length>0.15</length></cylinder>
           </geometry>
           <surface>
             <friction>
-              <ode>
-                <mu>0.8</mu>
-                <mu2>0.8</mu2>
-              </ode>
+              <ode><mu>0.8</mu><mu2>0.8</mu2></ode>
             </friction>
           </surface>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.05 0.05 0.08</size></box>
+            <cylinder><radius>0.025</radius><length>0.15</length></cylinder>
           </geometry>
           <material>
-            <ambient>0 1 0 1</ambient>
-            <diffuse>0 1 0 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
+            <ambient>0 0.8 0 1</ambient>
+            <diffuse>0 0.8 0 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
           </material>
         </visual>
         <inertial>
           <mass>0.1</mass>
           <inertia>
-            <ixx>0.0001</ixx><ixy>0</ixy><ixz>0</ixz>
-            <iyy>0.0001</iyy><iyz>0</iyz>
-            <izz>0.0001</izz>
+            <ixx>0.0002</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.0002</iyy><iyz>0</iyz>
+            <izz>0.00003</izz>
           </inertia>
         </inertial>
       </link>
     </model>
 
-    <!-- Blue block: 5x5x8 cm at (0.25, 0.10, 0.04) -->
+    <!-- Blue cylinder: radius 2.5cm, height 15cm -->
     <model name="blue_block">
       <static>false</static>
-      <pose>0.25 0.10 0.04 0 0 0</pose>
+      <pose>0.25 0.10 0.075 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
-            <box><size>0.05 0.05 0.08</size></box>
+            <cylinder><radius>0.025</radius><length>0.15</length></cylinder>
           </geometry>
           <surface>
             <friction>
-              <ode>
-                <mu>0.8</mu>
-                <mu2>0.8</mu2>
-              </ode>
+              <ode><mu>0.8</mu><mu2>0.8</mu2></ode>
             </friction>
           </surface>
         </collision>
         <visual name="visual">
           <geometry>
-            <box><size>0.05 0.05 0.08</size></box>
+            <cylinder><radius>0.025</radius><length>0.15</length></cylinder>
           </geometry>
           <material>
             <ambient>0 0 1 1</ambient>
             <diffuse>0 0 1 1</diffuse>
-            <specular>0.1 0.1 0.1 1</specular>
+            <specular>0.2 0.2 0.2 1</specular>
           </material>
         </visual>
         <inertial>
           <mass>0.1</mass>
           <inertia>
-            <ixx>0.0001</ixx><ixy>0</ixy><ixz>0</ixz>
-            <iyy>0.0001</iyy><iyz>0</iyz>
-            <izz>0.0001</izz>
+            <ixx>0.0002</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.0002</iyy><iyz>0</iyz>
+            <izz>0.00003</izz>
           </inertia>
         </inertial>
       </link>

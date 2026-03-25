@@ -631,7 +631,7 @@
   <joint name="camera_head_joint" type="fixed">
     <parent link="torso_link"/>
     <child link="camera_head_link"/>
-    <origin rpy="0.0 0.4363323129985824 1.5707963267948966" xyz="0 0.01 0.70"/>
+    <origin rpy="0.0 1.2217304763960306 1.5707963267948966" xyz="0 0.01 0.70"/>
   </joint>
   <link name="camera_head_link">
     <visual>
