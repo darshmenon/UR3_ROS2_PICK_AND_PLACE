@@ -88,17 +88,9 @@
             <!-- Mimic joints (no command interfaces, each with explicit initial_value key
                  so Ignition Gazebo initialises every joint individually rather than
                  sharing the finger_joint reference which caused right-side joints to
-                 start at their limit positions). -->
-            <!-- left_outer_knuckle_joint (was missing — added) -->
-            <joint name="left_outer_knuckle_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-                <state_interface name="effort">
-                    <param name="effort_limit">100.0</param>
-                </state_interface>
-            </joint>
+                 start at their limit positions).
+                 Note: left_outer_knuckle is driven directly by finger_joint — there
+                 is no separate left_outer_knuckle_joint in the URDF. -->
 
             <!-- right_outer_knuckle_joint -->
             <joint name="right_outer_knuckle_joint">

@@ -104,6 +104,38 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: false
       Value: true
+    - Class: moveit_rviz_plugin/PlanningScene
+      Collision Visible: true
+      Enabled: true
+      Move Group Namespace: ""
+      Name: PlanningScene
+      Planning Scene Topic:
+        Depth: 2
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /monitored_planning_scene
+      Robot Description: robot_description
+      Scene Alpha: 0.9
+      Scene Color: 36; 145; 235
+      Scene Robot:
+        Links:
+          All Links Enabled: false
+        Visual Visible: false
+      Show Robot Visual: false
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: DetectedObjects
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /detected_objects_markers
+      Value: true
     - Class: rviz_default_plugins/Camera
       Enabled: true
       Image Rendering: background and overlay
