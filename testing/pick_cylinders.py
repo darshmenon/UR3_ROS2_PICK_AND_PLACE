@@ -105,7 +105,7 @@ class CylinderPickNode(Node):
         # Import here so this script is usable even if the package isn't installed
         import sys, os
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-        from ur_llm_planner.ur_llm_planner.motion_executor import MotionExecutor
+        from ur_llm_planner.motion_executor import MotionExecutor
 
         self._tasks = tasks
         self._executor_obj = MotionExecutor(self)
@@ -208,12 +208,14 @@ def main():
     rclpy.init()
     node = CylinderPickNode(tasks)
 
-    # Spin until execution thread signals done
-    while not node._done.is_set():
-        rclpy.spin_once(node, timeout_sec=0.1)
+    # spin in daemon thread so action callbacks fire reliably
+    spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+    spin_thread.start()
 
+    node._done.wait()
     success = node._result
     rclpy.shutdown()
+    spin_thread.join(timeout=2.0)
     sys.exit(0 if success else 1)
 
 

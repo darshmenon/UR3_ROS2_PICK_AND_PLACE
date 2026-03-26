@@ -141,6 +141,29 @@ python3 ~/UR3_ROS2_PICK_AND_PLACE/ur_system_tests/scripts/arm_gripper_loop_contr
 
 ---
 
+## 🤖 Sequential Hierarchical Pick-and-Place
+
+Picks both cylinders (blue → bin_left, green → bin_right) using a 10-step hierarchical plan:
+`INIT → PRE_GRASP → DESCEND → GRASP → LIFT → TRANSPORT → LOWER → RELEASE → RETREAT → RETURN`
+
+```bash
+source install/setup.bash
+
+# Pick both cylinders (default)
+python3 testing/pick_cylinders.py
+
+# Only one cylinder
+python3 testing/pick_cylinders.py --blue
+python3 testing/pick_cylinders.py --green
+
+# Print plan without executing
+python3 testing/pick_cylinders.py --dry
+```
+
+> Requires the full simulation (`ur.gazebo.launch.py`) to be running first.
+
+---
+
 ## 🖥️ Standalone Robot Control GUI
 
 A tkinter-based GUI for arm teleoperation and live camera feed:
