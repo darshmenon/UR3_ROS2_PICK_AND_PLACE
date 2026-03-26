@@ -4,7 +4,7 @@
 Related Blog Post: For behind-the-scenes details and the full development journey, check out the companion Medium article:
 [How I'm Building an Autonomous Pick-and-Place System with ROS 2 Jazzy and Gazebo Harmonic](https://medium.com/@darshmenon02/how-i-am-building-an-autonomous-pick-and-place-system-with-ros-2-jazzy-and-gazebo-harmonic-6474cbcc8dc7)
 
-This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble** and **Ignition Gazebo**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
+This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble / Jazzy** and **Ignition Gazebo**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
 
 > **Note:** Mimic joints use state_interface only — Ignition Gazebo enforces URDF `<mimic>` tags natively. Only `finger_joint` receives commands; all five knuckle/finger joints follow automatically.
 
@@ -20,7 +20,7 @@ This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3
 
 ## Installation
 
-Make sure you have [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) and Ignition Gazebo installed.
+Make sure you have [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) or [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/index.html) and Ignition Gazebo installed.
 
 ### 1. Clone the Repository
 
@@ -32,24 +32,27 @@ cd UR3_ROS2_PICK_AND_PLACE
 ### 2. Install ROS Dependencies
 
 ```bash
+# Replace $ROS_DISTRO with humble or jazzy
+export ROS_DISTRO=humble  # or jazzy
+
 sudo apt install \
-  ros-humble-rviz2 \
-  ros-humble-joint-state-publisher \
-  ros-humble-robot-state-publisher \
-  ros-humble-ros2-control \
-  ros-humble-ros2-controllers \
-  ros-humble-controller-manager \
-  ros-humble-joint-trajectory-controller \
-  ros-humble-position-controllers \
-  ros-humble-gz-ros2-control \
-  ros-humble-ros2controlcli \
-  ros-humble-moveit \
-  ros-humble-moveit-ros-perception \
-  ros-humble-simple-grasping \
-  ros-humble-cv-bridge \
-  ros-humble-tf2-ros \
-  ros-humble-tf2-geometry-msgs \
-  ros-humble-pcl-ros \
+  ros-$ROS_DISTRO-rviz2 \
+  ros-$ROS_DISTRO-joint-state-publisher \
+  ros-$ROS_DISTRO-robot-state-publisher \
+  ros-$ROS_DISTRO-ros2-control \
+  ros-$ROS_DISTRO-ros2-controllers \
+  ros-$ROS_DISTRO-controller-manager \
+  ros-$ROS_DISTRO-joint-trajectory-controller \
+  ros-$ROS_DISTRO-position-controllers \
+  ros-$ROS_DISTRO-gz-ros2-control \
+  ros-$ROS_DISTRO-ros2controlcli \
+  ros-$ROS_DISTRO-moveit \
+  ros-$ROS_DISTRO-moveit-ros-perception \
+  ros-$ROS_DISTRO-simple-grasping \
+  ros-$ROS_DISTRO-cv-bridge \
+  ros-$ROS_DISTRO-tf2-ros \
+  ros-$ROS_DISTRO-tf2-geometry-msgs \
+  ros-$ROS_DISTRO-pcl-ros \
   python3-pip
 ```
 
@@ -183,7 +186,7 @@ Estimates grasp poses from the Intel D435 point cloud. Two backends:
 
 | Backend | Method | Dependency |
 |---|---|---|
-| simple_grasping (primary) | PCL RANSAC → `moveit_msgs/Grasp[]` | `ros-humble-simple-grasping` |
+| simple_grasping (primary) | PCL RANSAC → `moveit_msgs/Grasp[]` | `ros-$ROS_DISTRO-simple-grasping` |
 | numpy centroid (fallback) | Colour HSV filter + centroid + height | built-in, no extra deps |
 
 ```bash
