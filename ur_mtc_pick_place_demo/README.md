@@ -123,7 +123,17 @@ source ~/.bashrc
 
 ## 🔧 Fix Known Issues
 
-### ♻️ Fix 1: Planning Scene Diff
+> **Compatibility Summary:**
+> | Fix | Humble | Jazzy |
+> |-----|--------|-------|
+> | Fix 1: Planning Scene Diff | Required | Required |
+> | Fix 2: Cartesian Path Jump Threshold | Required | Required |
+> | Fix 3: PipelinePlanner API | Required | Not needed (Jazzy MTC accepts map) |
+> | Fix 4: create_service QoS API | Required | Not needed (Jazzy rclcpp accepts QoS) |
+>
+> All fixes are already applied in this repo's source — no manual changes needed.
+
+### ♻️ Fix 1: Planning Scene Diff *(Humble & Jazzy)*
 
 **File:** `core/src/storage.cpp`
 
@@ -142,7 +152,7 @@ this->end()->scene()->getPlanningSceneDiffMsg(t.scene_diff);
 
 ---
 
-### 📏 Fix 2: Cartesian Path Jump Threshold
+### 📏 Fix 2: Cartesian Path Jump Threshold *(Humble & Jazzy)*
 
 **File:** `core/src/solvers/cartesian_path.cpp`
 
@@ -170,9 +180,9 @@ source install/setup.bash
 
 ---
 
-### Fix 3: PipelinePlanner API (Humble)
+### Fix 3: PipelinePlanner API *(Humble only — Jazzy MTC accepts map constructor)*
 
-The bundled MTC source uses the older `PipelinePlanner` constructor (takes a pipeline name string, not a map).
+The bundled MTC source uses the older `PipelinePlanner` constructor (takes a pipeline name string, not a map). On Jazzy, the newer map-based API works fine.
 
 **File:** `ur_mtc_pick_place_demo/src/mtc_node.cpp`
 
@@ -195,9 +205,9 @@ auto ompl_planner_arm = std::make_shared<mtc::solvers::PipelinePlanner>(
 
 ---
 
-### Fix 4: create_service QoS API (Humble)
+### Fix 4: create_service QoS API *(Humble only — Jazzy rclcpp accepts rclcpp::QoS directly)*
 
-In Humble, `create_service` does not accept `rclcpp::QoS` directly — use `.get_rmw_qos_profile()`.
+In Humble, `create_service` does not accept `rclcpp::QoS` directly — use `.get_rmw_qos_profile()`. On Jazzy this is not needed.
 
 **File:** `ur_mtc_pick_place_demo/src/get_planning_scene_server.cpp`
 
