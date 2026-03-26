@@ -27,7 +27,7 @@
     <include>
       <uri>model://red_cylinder</uri>
       <name>red_cylinder</name>
-      <pose>0.22 0.12 0.175 0 0 0</pose>
+      <pose>0.22 0.12 0.20 0 0 0</pose>
     </include>
 
     <!-- YCB objects for richer scene -->

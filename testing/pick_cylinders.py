@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-pick_cylinders.py — sequential hierarchical pick-and-place for both cylinders.
+pick_cylinders.py — sequential hierarchical pick-and-place for cylinders.
 
 Hierarchy
 ─────────
   Task 1: PICK BLUE  → place in bin_left
   Task 2: PICK GREEN → place in bin_right
+  Task 3: PICK RED   → place in bin_left  (pick_and_place_demo.world)
 
 Each task is broken into phases:
   INIT      → home + open gripper
@@ -19,13 +20,23 @@ Each task is broken into phases:
   RETREAT   → lift away from bin
   RETURN    → back to home
 
+Grasp algorithm (centroid-based IK)
+────────────────────────────────────
+  1. Known cylinder centre (x,y) from world file
+  2. Grasp z = ~30% of cylinder height (good friction contact point)
+  3. Pre-grasp z = grasp_z + PREGRASP_HEIGHT_OFFSET (hover approach)
+  4. IK solved via KDL from natural downward-grasp seed
+  5. Pilz PTP executes collision-free joint trajectory
+
 Usage
 ─────
   source install/setup.bash
-  python3 testing/pick_cylinders.py          # both cylinders
-  python3 testing/pick_cylinders.py --blue   # only blue block
-  python3 testing/pick_cylinders.py --green  # only green block
-  python3 testing/pick_cylinders.py --dry    # print plan, don't execute
+  python3 testing/pick_cylinders.py           # blue + green (colored_blocks.world)
+  python3 testing/pick_cylinders.py --red     # red cylinder (pick_and_place_demo.world)
+  python3 testing/pick_cylinders.py --blue    # only blue block
+  python3 testing/pick_cylinders.py --green   # only green block
+  python3 testing/pick_cylinders.py --all     # all three
+  python3 testing/pick_cylinders.py --dry     # print plan, don't execute
 """
 
 import argparse
@@ -39,8 +50,9 @@ from rclpy.node import Node
 # World positions  (from colored_blocks.world)
 # Cylinders: radius=0.025 m, height=0.15 m, centre_z=0.075 m
 # Grasp z: tool reaches ~2/3 up the cylinder
-BLUE_BLOCK  = dict(x=0.25,  y=0.10,  z=0.06)   # grasp at lower-1/3 of 15cm cylinder
-GREEN_BLOCK = dict(x=0.30,  y=-0.05, z=0.06)
+BLUE_BLOCK   = dict(x=0.25,  y=0.10,  z=0.06)   # grasp at lower-1/3 of 15cm cylinder
+GREEN_BLOCK  = dict(x=0.30,  y=-0.05, z=0.06)
+RED_CYLINDER = dict(x=0.22,  y=0.12,  z=0.12)   # 40cm cylinder, grasp at 30% height
 
 # Bins: flat trays at z≈0.005 m; place the cylinder so its bottom clears the tray
 BIN_LEFT  = dict(x=-0.15, y=0.25,  z=0.06)   # tool height when releasing
@@ -51,7 +63,7 @@ CARRY_Z = 0.22
 
 # ── Task plan ────────────────────────────────────────────────────────────────
 
-def build_plan(blue: bool = True, green: bool = True) -> list[dict]:
+def build_plan(blue: bool = True, green: bool = True, red: bool = False) -> list[dict]:
     """Return the flat ordered task list for the requested cylinders."""
     tasks: list[dict] = []
 
@@ -93,6 +105,11 @@ def build_plan(blue: bool = True, green: bool = True) -> list[dict]:
                        "optional": True})
     if green:
         pick_cylinder("green_block", GREEN_BLOCK, BIN_RIGHT)
+        tasks.append({"action": "move_to_named_pose", "pose_name": "home",
+                       "phase": "RETURN", "desc": "Return to home between tasks",
+                       "optional": True})
+    if red:
+        pick_cylinder("red_cylinder", RED_CYLINDER, BIN_LEFT)
     tasks.append({"action": "move_to_named_pose", "pose_name": "home",
                    "phase": "DONE", "desc": "Final home", "optional": True})
     return tasks
@@ -195,15 +212,19 @@ def _print_plan(tasks: list[dict]) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--blue",  action="store_true", help="Only pick blue block")
-    ap.add_argument("--green", action="store_true", help="Only pick green block")
+    ap.add_argument("--blue",  action="store_true", help="Pick blue block")
+    ap.add_argument("--green", action="store_true", help="Pick green block")
+    ap.add_argument("--red",   action="store_true", help="Pick red cylinder (pick_and_place_demo.world)")
+    ap.add_argument("--all",   action="store_true", help="Pick all three")
     ap.add_argument("--dry",   action="store_true", help="Print plan without executing")
     args = ap.parse_args()
 
-    blue  = (not args.green) or args.blue   # default: both
-    green = (not args.blue)  or args.green
+    any_flag = args.blue or args.green or args.red or args.all
+    blue  = args.all or args.blue  or not any_flag   # default: blue+green
+    green = args.all or args.green or not any_flag
+    red   = args.all or args.red
 
-    tasks = build_plan(blue=blue, green=green)
+    tasks = build_plan(blue=blue, green=green, red=red)
 
     if args.dry:
         _print_plan(tasks)
