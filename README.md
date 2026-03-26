@@ -103,6 +103,25 @@ ros2 launch ur_description view_ur.launch.py ur_type:=ur3
 ros2 launch robotiq_2finger_grippers robotiq_2f_85_gripper_visualization/launch/test_2f_85_model.launch.py
 ```
 
+### Launch Live Point Cloud Viewer (Gazebo + RViz)
+Launches the simulation and opens RViz showing the live RGB point cloud from the onboard Intel D435 camera:
+```bash
+bash ur_mtc_pick_place_demo/scripts/pointcloud.sh
+```
+Or launch just the RViz viewer (if simulation is already running):
+```bash
+source install/setup.bash
+ros2 launch ur_gazebo point_cloud_viewer.launch.py
+```
+The point cloud is published on `/camera_head/depth/color/points` with `frame_id: camera_head_depth_optical_frame`.
+
+To save a snapshot of the point cloud to a PLY file:
+```bash
+source install/setup.bash
+python3 testing/point_cloud_viewer.py --save
+# Saved to /tmp/pointcloud_<timestamp>.ply
+```
+
 ---
 
 ## 🤖 Move the Arm from CLI

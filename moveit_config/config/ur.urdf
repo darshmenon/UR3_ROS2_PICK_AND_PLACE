@@ -331,8 +331,6 @@
   <link name="left_inner_finger_pad">
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
-      f
-        
       <geometry>
         <box size="0.022 0.00635 0.0375"/>
       </geometry>
@@ -441,8 +439,6 @@
   <link name="right_inner_finger_pad">
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
-      f
-        
       <geometry>
         <box size="0.022 0.00635 0.0375"/>
       </geometry>
@@ -631,7 +627,7 @@
   <joint name="camera_head_joint" type="fixed">
     <parent link="torso_link"/>
     <child link="camera_head_link"/>
-    <origin rpy="0.0 0.4363323129985824 1.5707963267948966" xyz="0 0.01 0.50"/>
+    <origin rpy="0.0 0.4363323129985824 1.5707963267948966" xyz="0 0.01 0.70"/>
   </joint>
   <link name="camera_head_link">
     <visual>
@@ -718,12 +714,10 @@
       </camera>
       <always_on>1</always_on>
       <update_rate>10</update_rate>
+      <!-- Use depth optical frame: Ignition outputs point cloud in Z-forward optical
+         convention, so the frame_id must match the optical frame (not camera_head_link
+         which has a different orientation from the mounting joint RPY). -->
       <gz_frame_id>camera_head_depth_optical_frame</gz_frame_id>
-      <output>
-        <image>true</image>
-        <depth_image>true</depth_image>
-        <point_cloud>true</point_cloud>
-      </output>
       <visualize>true</visualize>
     </sensor>
   </gazebo>
@@ -809,36 +803,50 @@
         <!-- Increased effort for finger strength -->
       </state_interface>
     </joint>
-    <!-- Mimic joints: state_interface only for MoveIt (MoveIt reads state but does not
-         command mimic joints — they are driven by gz_ros2_control via ur.ros2_control.xacro
-         which has the mimic/multiplier command_interface params for Gazebo). -->
+    <!-- Mimic joints — state_interface ONLY (no command_interface).
+                 Ignition Gazebo enforces the URDF <mimic> tags natively at the physics
+                 level when the robot is spawned from /robot_description. Adding a
+                 command_interface here fights physics and causes asymmetric finger motion.
+                 Per-joint initial_value keys prevent right-side joints from starting at limits. -->
+    <!-- left_outer_knuckle_joint (was missing — added) -->
+    <joint name="left_outer_knuckle_joint">
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+    <!-- right_outer_knuckle_joint -->
     <joint name="right_outer_knuckle_joint">
       <state_interface name="position">
-        <param name="initial_value">0</param>
+        <param name="initial_value">0.0</param>
       </state_interface>
       <state_interface name="velocity"/>
     </joint>
+    <!-- right_inner_knuckle_joint -->
     <joint name="right_inner_knuckle_joint">
       <state_interface name="position">
-        <param name="initial_value">0</param>
+        <param name="initial_value">0.0</param>
       </state_interface>
       <state_interface name="velocity"/>
     </joint>
+    <!-- left_inner_knuckle_joint -->
     <joint name="left_inner_knuckle_joint">
       <state_interface name="position">
-        <param name="initial_value">0</param>
+        <param name="initial_value">0.0</param>
       </state_interface>
       <state_interface name="velocity"/>
     </joint>
+    <!-- right_inner_finger_joint -->
     <joint name="right_inner_finger_joint">
       <state_interface name="position">
-        <param name="initial_value">0</param>
+        <param name="initial_value">0.0</param>
       </state_interface>
       <state_interface name="velocity"/>
     </joint>
+    <!-- left_inner_finger_joint -->
     <joint name="left_inner_finger_joint">
       <state_interface name="position">
-        <param name="initial_value">0</param>
+        <param name="initial_value">0.0</param>
       </state_interface>
       <state_interface name="velocity"/>
     </joint>
