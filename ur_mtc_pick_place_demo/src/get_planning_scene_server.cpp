@@ -357,7 +357,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
     service = this->create_service<ur_interfaces::srv::GetPlanningScene>(
       "get_planning_scene_ur",
      std::bind(&GetPlanningSceneServer::handleService, this, std::placeholders::_1, std::placeholders::_2),
-      qos
+      qos.get_rmw_qos_profile()
     );
 
     RCLCPP_INFO(this->get_logger(), "Get planning scene service created and ready to serve requests.");

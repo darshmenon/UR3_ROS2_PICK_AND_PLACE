@@ -465,12 +465,9 @@ mtc::Task MTCTaskNode::createTask()
   // Create planners for different types of motion
   // Pipeline planner for complex movements
   // OMPL planner
-  std::unordered_map<std::string, std::string> ompl_map_arm = {
-    {"ompl", arm_group_name + "[RRTConnectkConfigDefault]"}
-  };
   auto ompl_planner_arm = std::make_shared<mtc::solvers::PipelinePlanner>(
     this->shared_from_this(),
-    ompl_map_arm);
+    "ompl");
   RCLCPP_INFO(this->get_logger(), "OMPL planner created for the arm group");
 
   // JointInterpolation is a basic planner that is used for simple motions

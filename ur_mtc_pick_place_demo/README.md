@@ -170,6 +170,59 @@ source install/setup.bash
 
 ---
 
+### Fix 3: PipelinePlanner API (Humble)
+
+The bundled MTC source uses the older `PipelinePlanner` constructor (takes a pipeline name string, not a map).
+
+**File:** `ur_mtc_pick_place_demo/src/mtc_node.cpp`
+
+Replace:
+```cpp
+std::unordered_map<std::string, std::string> ompl_map_arm = {
+  {"ompl", arm_group_name + "[RRTConnectkConfigDefault]"}
+};
+auto ompl_planner_arm = std::make_shared<mtc::solvers::PipelinePlanner>(
+  this->shared_from_this(),
+  ompl_map_arm);
+```
+
+With:
+```cpp
+auto ompl_planner_arm = std::make_shared<mtc::solvers::PipelinePlanner>(
+  this->shared_from_this(),
+  "ompl");
+```
+
+---
+
+### Fix 4: create_service QoS API (Humble)
+
+In Humble, `create_service` does not accept `rclcpp::QoS` directly — use `.get_rmw_qos_profile()`.
+
+**File:** `ur_mtc_pick_place_demo/src/get_planning_scene_server.cpp`
+
+Replace:
+```cpp
+service = this->create_service<ur_interfaces::srv::GetPlanningScene>(
+  "get_planning_scene_ur",
+  std::bind(...),
+  qos
+);
+```
+
+With:
+```cpp
+service = this->create_service<ur_interfaces::srv::GetPlanningScene>(
+  "get_planning_scene_ur",
+  std::bind(...),
+  qos.get_rmw_qos_profile()
+);
+```
+
+> **Note:** These fixes are already applied in this repo — no manual changes needed.
+
+---
+
 ## 🎉 Success!
 
 You have now successfully installed and patched:
