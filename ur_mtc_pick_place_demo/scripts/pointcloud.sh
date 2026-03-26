@@ -11,7 +11,7 @@ cleanup() {
 trap 'cleanup' SIGINT SIGTERM
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WS_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+WS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$WS_ROOT/install/setup.bash"
 
