@@ -14,5 +14,8 @@ torch>=2.0.0
 torchvision>=0.15.0
 matplotlib>=3.5.0
 
+# SmolVLA (Vision-Language-Action model, requires Python >= 3.11)
+# python3.11 -m pip install "git+https://github.com/huggingface/lerobot.git#egg=lerobot[smolvla]"
+
 # Install with: pip3 install -r requirements.txt
 # Note: opencv-python may conflict with ros-humble-cv-bridge. If so, skip it (cv_bridge provides OpenCV).
