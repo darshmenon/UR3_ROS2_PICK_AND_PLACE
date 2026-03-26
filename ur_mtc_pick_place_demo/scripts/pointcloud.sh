@@ -15,6 +15,8 @@ WS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$WS_ROOT/install/setup.bash"
 
+export DISPLAY="${DISPLAY:-:1}"
+
 echo "Launching Gazebo simulation..."
 ros2 launch ur_gazebo ur.gazebo.launch.py \
     world_file:=pick_and_place_demo.world \
@@ -31,6 +33,6 @@ gz service -s /gui/move_to/pose \
     --req "pose: {position: {x: 1.36, y: -0.58, z: 0.95} orientation: {x: -0.26, y: 0.1, z: 0.89, w: 0.35}}" &
 
 echo "Launching live point cloud viewer in RViz..."
-DISPLAY=:0 ros2 launch ur_gazebo point_cloud_viewer.launch.py
+ros2 launch ur_gazebo point_cloud_viewer.launch.py
 
 wait

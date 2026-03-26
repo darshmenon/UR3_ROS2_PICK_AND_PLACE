@@ -14,13 +14,15 @@ WS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$WS_ROOT/install/setup.bash"
 
+export DISPLAY="${DISPLAY:-:1}"
+
 echo "Launching Gazebo simulation..."
 ros2 launch ur_gazebo ur.gazebo.launch.py \
     world_file:=pick_and_place_demo.world \
     use_rviz:=false \
     use_move_group:=false &
 
-sleep 25
+sleep 40
 
 echo "Adjusting Gazebo GUI camera..."
 gz service -s /gui/move_to/pose \
@@ -39,7 +41,7 @@ sleep 15
 echo "Launching planning scene server..."
 ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py &
 
-sleep 25
+sleep 40
 
 echo "Launching Pick and Place demo..."
 ros2 launch ur_mtc_pick_place_demo pick_place_demo.launch.py
