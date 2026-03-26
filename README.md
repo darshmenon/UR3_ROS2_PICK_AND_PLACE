@@ -304,6 +304,43 @@ python3 ur_data_collector/scripts/train_bc.py \
   --epochs 50
 ```
 
+### SmolVLA Vision-Language-Action Policy (`ur_smolvla`)
+
+[SmolVLA](https://huggingface.co/lerobot/smolvla_base) is a compact VLA model from HuggingFace that takes a camera image + joint states and predicts robot actions directly from a natural-language task description. This replaces hardcoded waypoints with a learned policy.
+
+**Install lerobot (requires Python >= 3.11):**
+
+```bash
+python3.11 -m pip install "git+https://github.com/huggingface/lerobot.git#egg=lerobot[smolvla]"
+```
+
+**Run inference against the base model:**
+
+```bash
+# Terminal 1 — start simulation
+ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Terminal 2 — run SmolVLA inference
+ros2 launch ur_smolvla smolvla_inference.launch.py \
+  task:="pick the red block and place it in the bin"
+```
+
+**Run with a fine-tuned checkpoint:**
+
+```bash
+ros2 launch ur_smolvla smolvla_inference.launch.py \
+  checkpoint:=/path/to/your/checkpoint \
+  task:="pick the red block"
+```
+
+The inference node subscribes to `/camera_head/color/image_raw` + `/joint_states` and publishes `JointTrajectory` commands to `/arm_controller/joint_trajectory` at 10 Hz. The camera is a simulated Intel D435 mounted at 0.50 m height with a 25° downward tilt, giving a clear view of the workspace.
+
+**Workflow to fine-tune SmolVLA on your own pick-and-place demos:**
+
+1. Record demonstrations with `ur_data_collector` (saves HDF5 episodes)
+2. Convert to LeRobot dataset format and fine-tune SmolVLA
+3. Point `checkpoint:=` at your fine-tuned model and run inference
+
 ### Full Demo (all-in-one)
 
 ```bash
