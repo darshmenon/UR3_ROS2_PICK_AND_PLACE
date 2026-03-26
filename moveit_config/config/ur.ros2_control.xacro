@@ -85,72 +85,54 @@
                 </state_interface>
             </joint>
 
-            <!-- Mimic joints (no command interfaces, each with explicit initial_value key
-                 so Ignition Gazebo initialises every joint individually rather than
-                 sharing the finger_joint reference which caused right-side joints to
-                 start at their limit positions).
-                 Note: left_outer_knuckle is driven directly by finger_joint — there
-                 is no separate left_outer_knuckle_joint in the URDF. -->
+            <!-- Mimic joints — state_interface ONLY (no command_interface).
+                 Ignition Gazebo enforces the URDF <mimic> tags natively at the physics
+                 level when the robot is spawned from /robot_description. Adding a
+                 command_interface here fights physics and causes asymmetric finger motion.
+                 Per-joint initial_value keys prevent right-side joints from starting at limits. -->
 
-            <!-- Mimic joints: each needs a position command_interface with mimic/multiplier
-                 params so gz_ros2_control emulates the URDF <mimic> constraints in software.
-                 Without this, Ignition Gazebo drops <mimic> tags (they don't exist in SDF)
-                 and only finger_joint moves — all other joints stay frozen. -->
+            <!-- left_outer_knuckle_joint (was missing — added) -->
+            <joint name="left_outer_knuckle_joint">
+                <state_interface name="position">
+                    <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
+                </state_interface>
+                <state_interface name="velocity"/>
+            </joint>
 
-            <!-- right_outer_knuckle_joint  (multiplier +1) -->
+            <!-- right_outer_knuckle_joint -->
             <joint name="right_outer_knuckle_joint">
-                <command_interface name="position">
-                    <param name="mimic">finger_joint</param>
-                    <param name="multiplier">1</param>
-                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['right_outer_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
 
-            <!-- right_inner_knuckle_joint  (multiplier +1) -->
+            <!-- right_inner_knuckle_joint -->
             <joint name="right_inner_knuckle_joint">
-                <command_interface name="position">
-                    <param name="mimic">finger_joint</param>
-                    <param name="multiplier">1</param>
-                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['right_inner_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
 
-            <!-- left_inner_knuckle_joint  (multiplier +1) -->
+            <!-- left_inner_knuckle_joint -->
             <joint name="left_inner_knuckle_joint">
-                <command_interface name="position">
-                    <param name="mimic">finger_joint</param>
-                    <param name="multiplier">1</param>
-                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['left_inner_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
 
-            <!-- right_inner_finger_joint  (multiplier -1) -->
+            <!-- right_inner_finger_joint -->
             <joint name="right_inner_finger_joint">
-                <command_interface name="position">
-                    <param name="mimic">finger_joint</param>
-                    <param name="multiplier">-1</param>
-                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['right_inner_finger_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
             </joint>
 
-            <!-- left_inner_finger_joint  (multiplier -1) -->
+            <!-- left_inner_finger_joint -->
             <joint name="left_inner_finger_joint">
-                <command_interface name="position">
-                    <param name="mimic">finger_joint</param>
-                    <param name="multiplier">-1</param>
-                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['left_inner_finger_joint']}</param>
                 </state_interface>
