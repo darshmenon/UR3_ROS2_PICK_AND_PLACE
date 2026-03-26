@@ -42,6 +42,7 @@ def generate_launch_description():
         name="point_cloud_rviz",
         arguments=["-d", LaunchConfiguration("rviz_config")],
         output="screen",
+        additional_env={"DISPLAY": os.environ.get("DISPLAY", ":0")},
     )
 
     return LaunchDescription([

@@ -104,24 +104,6 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: false
       Value: true
-    - Class: rviz_default_plugins/Camera
-      Enabled: true
-      Image Rendering: background and overlay
-      Name: Camera (color)
-      Overlay Alpha: 0.5
-      Topic:
-        Depth: 5
-        Durability Policy: Volatile
-        History Policy: Keep Last
-        Reliability Policy: Best Effort
-        Value: /camera_head/color/image_raw
-      Value: true
-      Visibility:
-        Grid: true
-        PointCloud2: true
-        RobotModel: true
-        TF: false
-      Zoom Factor: 1
   Enabled: true
   Global Options:
     Background Color: 25; 25; 25

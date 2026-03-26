@@ -31,6 +31,6 @@ gz service -s /gui/move_to/pose \
     --req "pose: {position: {x: 1.36, y: -0.58, z: 0.95} orientation: {x: -0.26, y: 0.1, z: 0.89, w: 0.35}}" &
 
 echo "Launching live point cloud viewer in RViz..."
-ros2 launch ur_gazebo point_cloud_viewer.launch.py
+DISPLAY=:0 ros2 launch ur_gazebo point_cloud_viewer.launch.py
 
 wait
