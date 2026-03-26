@@ -39,8 +39,8 @@ from rclpy.node import Node
 # World positions  (from colored_blocks.world)
 # Cylinders: radius=0.025 m, height=0.15 m, centre_z=0.075 m
 # Grasp z: tool reaches ~2/3 up the cylinder
-BLUE_BLOCK  = dict(x=0.25,  y=0.10,  z=0.10)   # grasp height above base
-GREEN_BLOCK = dict(x=0.30,  y=-0.05, z=0.10)
+BLUE_BLOCK  = dict(x=0.25,  y=0.10,  z=0.06)   # grasp at lower-1/3 of 15cm cylinder
+GREEN_BLOCK = dict(x=0.30,  y=-0.05, z=0.06)
 
 # Bins: flat trays at z≈0.005 m; place the cylinder so its bottom clears the tray
 BIN_LEFT  = dict(x=-0.15, y=0.25,  z=0.06)   # tool height when releasing
@@ -57,7 +57,7 @@ def build_plan(blue: bool = True, green: bool = True) -> list[dict]:
 
     def init():
         tasks.append({"action": "move_to_named_pose", "pose_name": "home",
-                       "phase": "INIT", "desc": "Return to home"})
+                       "phase": "INIT", "desc": "Return to home", "optional": True})
         tasks.append({"action": "open_gripper",
                        "phase": "INIT", "desc": "Open gripper"})
 
@@ -89,11 +89,12 @@ def build_plan(blue: bool = True, green: bool = True) -> list[dict]:
     if blue:
         pick_cylinder("blue_block", BLUE_BLOCK, BIN_LEFT)
         tasks.append({"action": "move_to_named_pose", "pose_name": "home",
-                       "phase": "RETURN", "desc": "Return to home between tasks"})
+                       "phase": "RETURN", "desc": "Return to home between tasks",
+                       "optional": True})
     if green:
         pick_cylinder("green_block", GREEN_BLOCK, BIN_RIGHT)
     tasks.append({"action": "move_to_named_pose", "pose_name": "home",
-                   "phase": "DONE", "desc": "Final home"})
+                   "phase": "DONE", "desc": "Final home", "optional": True})
     return tasks
 
 
@@ -154,9 +155,12 @@ class CylinderPickNode(Node):
             print(f"  → {status}")
 
             if not ok:
-                self.get_logger().error(f"Step {i+1} failed ({phase}) — aborting.")
-                success = False
-                break
+                if task.get("optional", False):
+                    print(f"  → ⚠️  optional step failed — continuing")
+                else:
+                    self.get_logger().error(f"Step {i+1} failed ({phase}) — aborting.")
+                    success = False
+                    break
 
         if success:
             print(f"\n{'═'*60}")
