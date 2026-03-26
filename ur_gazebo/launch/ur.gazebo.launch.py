@@ -83,6 +83,7 @@ def generate_launch_description():
         DeclareLaunchArgument("safety_k_position", default_value="20", description="Safety controller k-position factor"),
         DeclareLaunchArgument("tf_prefix", default_value='""', description="Prefix for joint names"),
         DeclareLaunchArgument("use_rviz", default_value="true", description="Launch RViz2"),
+        DeclareLaunchArgument("use_move_group", default_value="true", description="Launch move_group node"),
     ]
 
     # Create launch description
@@ -291,6 +292,7 @@ def generate_launch_description():
         executable="move_group",
         output="screen",
         parameters=[moveit_config.to_dict(), {"use_sim_time": use_sim_time}],
+        condition=IfCondition(LaunchConfiguration("use_move_group")),
     )
 
     ld.add_action(set_env_vars_resources)

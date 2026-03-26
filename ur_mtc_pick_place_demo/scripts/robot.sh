@@ -17,7 +17,8 @@ source "$WS_ROOT/install/setup.bash"
 echo "Launching Gazebo simulation..."
 ros2 launch ur_gazebo ur.gazebo.launch.py \
     world_file:=pick_and_place_demo.world \
-    use_rviz:=false &
+    use_rviz:=false \
+    use_move_group:=false &
 
 sleep 25
 
