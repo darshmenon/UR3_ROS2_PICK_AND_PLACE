@@ -334,17 +334,20 @@ class GetPlanningSceneServer : public rclcpp::Node {
   }
 
   void createSubscribers() {
+    // Use BEST_EFFORT QoS to match Gazebo sensor publisher
+    auto sensor_qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort();
+
     // Create subscriber for point cloud data
     point_cloud_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>(
       point_cloud_topic,
-      10,  // QoS depth
+      sensor_qos,
       std::bind(&GetPlanningSceneServer::pointCloudCallback, this, std::placeholders::_1)
     );
 
     // Create subscriber for RGB image data
     rgb_image_sub = this->create_subscription<sensor_msgs::msg::Image>(
       rgb_image_topic,
-      10,  // QoS depth
+      sensor_qos,
       std::bind(&GetPlanningSceneServer::rgbImageCallback, this, std::placeholders::_1)
     );
 

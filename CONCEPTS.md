@@ -29,6 +29,12 @@ A deep-dive into every concept you encountered while building and debugging this
 21. [SRDF Collision Matrix — Gripper Self-Collision Entries](#21-srdf-collision-matrix--gripper-self-collision-entries)
 22. [Gripper Stall Detection — ABORTED Means Success](#22-gripper-stall-detection--aborted-means-success)
 23. [Headless Testing and RViz Crashes](#23-headless-testing-and-rviz-crashes)
+24. [Point Cloud TF Frames and ROS 2 QoS](#24-point-cloud-tf-frames-and-ros-2-qos)
+25. [PCL Plane and Object Segmentation](#25-pcl-plane-and-object-segmentation)
+26. [Grasp Detection — ur_grasp Package](#26-grasp-detection--ur_grasp-package)
+27. [Data Collection for Behavior Cloning — ur_data_collector](#27-data-collection-for-behavior-cloning--ur_data_collector)
+28. [Sequential Pick-and-Place with Python MoveIt Client](#28-sequential-pick-and-place-with-python-moveit-client)
+29. [MTC Humble vs Jazzy Compatibility](#29-mtc-humble-vs-jazzy-compatibility)
 
 ---
 
@@ -869,3 +875,285 @@ A **Vision-Language-Action (VLA)** model (e.g., OpenVLA, RT-2) extends BC with a
 4. Deploy the inference node in ROS 2 — subscribe to camera + command topic, publish joint targets
 
 The `ur_data_collector` HDF5 format is designed to be easy to convert to these training formats. Each episode is a contiguous chunk of `(rgb_images, joint_positions, actions)` arrays.
+
+---
+
+## 24. Point Cloud TF Frames and ROS 2 QoS
+
+### Optical Frame vs Link Frame
+
+Depth cameras publish point clouds in the **optical frame** convention (Z-forward, X-right, Y-down per REP-103), not the link frame (X-forward, Z-up). A common mistake is setting `<gz_frame_id>` to the link frame — this makes the cloud appear rotated 90° in RViz.
+
+**Fix**: Set `<gz_frame_id>camera_head_depth_optical_frame</gz_frame_id>` so the bridge stamps messages with the correct optical frame ID.
+
+### Verifying TF
+
+```bash
+ros2 run tf2_ros tf2_echo base_link camera_head_depth_optical_frame
+# Expect non-identity translation + rotation including -π/2 roll and -π/2 yaw (optical rotation)
+
+ros2 run tf2_tools view_frames  # dump full TF tree to PDF
+```
+
+### ROS 2 QoS Mismatch
+
+Ignition Gazebo's `ros_gz_bridge` publishes sensor data with `BEST_EFFORT` reliability. If your subscriber uses the default `RELIABLE` QoS, it will **never receive any messages** — no error is logged, messages are silently dropped.
+
+```cpp
+// Wrong — default QoS is RELIABLE:
+this->create_subscription<sensor_msgs::msg::PointCloud2>(topic, 10, callback);
+
+// Correct — match Gazebo's BEST_EFFORT:
+auto qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort();
+this->create_subscription<sensor_msgs::msg::PointCloud2>(topic, qos, callback);
+```
+
+This affects **any** node subscribing to Gazebo sensor topics: point clouds, images, laser scans.
+
+### Lazy Bridge
+
+The `ros_gz_bridge` for point clouds is **lazy** by default — it only starts bridging when a ROS 2 subscriber connects. If you check `ros2 topic hz` before any subscriber exists, the topic will show 0 Hz even though the Gazebo sensor is publishing.
+
+### Octomap (Green Dots in Planning Scene)
+
+MoveIt's `PointCloudOctomapUpdater` converts the live point cloud into a voxel occupancy map (octomap) that move_group uses for collision avoidance. To enable it:
+
+1. Install: `sudo apt install ros-humble-moveit-ros-perception`
+2. Configure `sensors_3d.yaml`:
+```yaml
+sensors:
+  - default_sensor
+default_sensor:
+  sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+  point_cloud_topic: /camera_head/depth/color/points
+  max_range: 1.5
+  max_update_rate: 1.0
+  padding_offset: 0.2
+```
+3. The green/grey voxels visible in RViz's PlanningScene display are the octomap.
+
+---
+
+## 25. PCL Plane and Object Segmentation
+
+### Pipeline
+
+The `get_planning_scene_server` uses PCL to detect objects on a table:
+
+```
+Raw PointCloud2
+  → transform to base_link
+  → CropBox (workspace limits)
+  → RANSAC plane segmentation → table plane + above-table cloud
+  → EuclideanClusterExtraction → individual object clusters
+  → cylinder/box fitting per cluster → CollisionObject
+```
+
+### RANSAC Plane Segmentation
+
+```cpp
+pcl::SACSegmentation<PointT> seg;
+seg.setModelType(pcl::SACMODEL_PLANE);
+seg.setMethodType(pcl::SAC_RANSAC);
+seg.setDistanceThreshold(0.01);  // 1 cm inlier tolerance
+seg.setMaxIterations(1000);
+```
+
+The table plane must have enough inliers — if the crop box cuts the table in half, RANSAC may fail to converge. **Always crop symmetrically around the workspace center** (include both ±Y).
+
+### Cluster Extraction
+
+```cpp
+pcl::EuclideanClusterExtraction<PointT> ec;
+ec.setClusterTolerance(0.02);   // 2 cm gap = different cluster
+ec.setMinClusterSize(150);       // filter noise
+ec.setMaxClusterSize(1000000);
+```
+
+If `min_cluster_size` is too large, small objects (narrow cylinders) get filtered. Reduce to 50–100 for thin objects.
+
+### Cylinder Fitting
+
+```cpp
+seg.setModelType(pcl::SACMODEL_CYLINDER);
+seg.setNormalDistanceWeight(0.1);
+seg.setRadiusLimits(0.01, 0.05);  // 1–5 cm radius
+seg.setDistanceThreshold(0.02);
+```
+
+Returns 7 coefficients: `[point_on_axis.x, y, z, axis.x, y, z, radius]`. The cylinder axis direction gives the object's orientation; the midpoint along the axis at half-height gives the grasp center.
+
+### Debug PCD Files
+
+The server saves intermediate clouds to `/tmp/` at each pipeline step:
+- `4_convertToPCL_debug_cloud.pcd` — full transformed cloud
+- `5_support_plane_debug_cloud.pcd` — table inliers
+- `5_objects_cloud_debug_cloud.pcd` — everything above the table
+
+View them with: `ros2 run rviz2 rviz2` and add a PointCloud2 display pointed at a file, or use `pcl_viewer` from `ros-humble-pcl-ros`.
+
+---
+
+## 26. Grasp Detection — ur_grasp Package
+
+The `ur_grasp` package provides two backends for detecting grasp poses from a point cloud:
+
+### Backend 1: simple_grasping (primary)
+
+`ros-humble-simple-grasping` is an apt-installable, CPU-only package that detects objects using PCL RANSAC and returns `moveit_msgs/Grasp[]` directly. It understands cylinders and boxes.
+
+```bash
+sudo apt install ros-humble-simple-grasping
+```
+
+The `FindObjects` action server detects objects and returns their shapes, poses, and pre-computed grasp poses ready for MTC.
+
+### Backend 2: Numpy centroid (fallback)
+
+When `simple_grasping` is unavailable or fails, `ur_grasp` falls back to a colour-based centroid estimator:
+
+1. Subscribe to `/camera_head/depth/color/points`
+2. HSV threshold to isolate the target colour
+3. Z-passthrough to remove floor/ceiling
+4. Compute centroid (x, y)
+5. `grasp_z = min_z + 0.30 * height` (30% from bottom gives best 2F-85 finger contact)
+
+### Grasp Height Rule
+
+For a Robotiq 2F-85 on cylinders: grasp at **30% from the bottom** of the object. Too high → fingers above the cylinder. Too low → fingers hit the table.
+
+### Service Interface
+
+```bash
+# Detect and optionally execute a grasp
+ros2 run ur_grasp grasp_node --ros-args -p colour:=red
+python3 testing/test_grasp.py --colour red --execute
+```
+
+The node publishes `/ur_grasp/grasp_pose` (PoseStamped) and `/ur_grasp/grasp_marker` (MarkerArray for RViz).
+
+---
+
+## 27. Data Collection for Behavior Cloning — ur_data_collector
+
+### What It Records
+
+The `ur_data_collector` node subscribes to:
+- `/joint_states` — arm joint positions at 50 Hz
+- `/camera_head/color/image_raw` — RGB frames at 30 Hz
+
+It saves synchronized episodes to HDF5 files at `~/ur3_demos/`.
+
+### HDF5 Episode Format
+
+```
+demo_20260326_143201.h5
+├── rgb_images      (N, H, W, 3)   uint8
+├── joint_positions (N, 6)         float32
+├── gripper_positions (N,)         float32
+└── timestamps      (N,)           float64
+```
+
+### Usage
+
+```bash
+# Start the node
+ros2 launch ur_data_collector data_collector.launch.py
+
+# Record a demonstration
+ros2 service call /data_collector/start_recording std_srvs/srv/Trigger
+# ... perform the task manually or run pick_cylinders.py ...
+ros2 service call /data_collector/stop_recording std_srvs/srv/Trigger
+
+# Train a behavior cloning policy
+python3 ur_data_collector/scripts/train_bc.py --data_dir ~/ur3_demos/
+```
+
+### Not a Playback System
+
+The data collector **records only** — it does not replay trajectories. The HDF5 format is designed for offline training of BC/VLA models. For playback, use the trajectory from a completed MTC task or replay via `ros2 bag`.
+
+---
+
+## 28. Sequential Pick-and-Place with Python MoveIt Client
+
+### Architecture
+
+The `testing/pick_cylinders.py` script drives the robot using the MoveIt action client directly from Python, without MTC:
+
+```
+pick_cylinders.py
+  → MoveGroup action (/move_group/... via MotionExecutor)
+  → arm_controller (FollowJointTrajectory)
+  → gripper_controller (GripperCommand)
+```
+
+### Key Design Decisions
+
+**`rclpy.spin()` in daemon thread** — Using `spin_once(0.1)` in the main loop causes action result callbacks to never fire (30s timeout). Must use `rclpy.spin()` in a daemon thread:
+
+```python
+import threading
+spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+spin_thread.start()
+```
+
+**`optional=True` on home-return steps** — Pilz PTP rejects zero-duration trajectories. If the arm is already at the home pose, the plan fails. Marking home-return steps as optional prevents the whole sequence from aborting.
+
+**IK seed steering** — KDL IK returns solutions closest to the seed. Seeding with `shoulder_pan = atan2(target_y, target_x)` gives natural, non-wrapped solutions.
+
+### Hierarchical Step Sequence
+
+```
+INIT → PRE_GRASP → DESCEND → GRASP → LIFT → TRANSPORT → LOWER → RELEASE → RETREAT → RETURN
+```
+
+Each step is a dict with `name`, `type` (arm/gripper), `pose`/`joints`, and optional `carry_z`.
+
+---
+
+## 29. MTC Humble vs Jazzy Compatibility
+
+### API Differences
+
+| Feature | Humble (MTC 2.5) | Jazzy (MTC 2.7+) |
+|---|---|---|
+| `PipelinePlanner` constructor | `(node, pipeline_id_map)` | `(node)` then `setPipeline()` |
+| `create_service` QoS | needs explicit `rclcpp::QoS` object | accepts integer depth |
+| `ExecuteTaskSolutionCapability` | built separately from `capabilities/` package | included in `moveit_task_constructor_core` |
+| Stage property setters | `setProperty("key", value)` | same |
+
+### Building MTC from Source on Humble
+
+The system `ros-humble-moveit-task-constructor-*` packages lack the `capabilities` package (which provides `ExecuteTaskSolutionCapability` for move_group). Build from source:
+
+```bash
+# In your workspace src/:
+git clone https://github.com/ros-planning/moveit_task_constructor.git
+colcon build --packages-select \
+  moveit_task_constructor_msgs \
+  rviz_marker_tools \
+  moveit_task_constructor_core \
+  moveit_task_constructor_capabilities \
+  moveit_task_constructor_visualization
+```
+
+Without `capabilities`, move_group logs:
+```
+Exception while loading move_group capability 'move_group/ExecuteTaskSolutionCapability': ... does not exist
+```
+MTC task execution will fail silently (plan succeeds but execution never fires).
+
+### `PipelinePlanner` on Humble
+
+```cpp
+// Humble API:
+std::unordered_map<std::string, std::string> pipeline_map = {
+  {"ompl", "ompl_interface/OMPLPlanner"}
+};
+auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(node, pipeline_map);
+
+// Jazzy API (different signature — check at compile time):
+auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(node);
+planner->setPlannerId("ompl[RRTConnect]");
+```

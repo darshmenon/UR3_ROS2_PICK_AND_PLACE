@@ -71,7 +71,7 @@
     <joint name="camera_head_joint" type="fixed">
       <parent link="torso_link"/>
       <child link="camera_head_link" />
-      <origin xyz="0 0.01 0.70" rpy="0.0 ${camera_tilt_angle_deg * M_PI / 180} ${M_PI/2}"/>
+      <origin xyz="0 0.01 0.50" rpy="0.0 ${camera_tilt_angle_deg * M_PI / 180} ${M_PI/2}"/>
     </joint>
 
     <link name="camera_head_link">
