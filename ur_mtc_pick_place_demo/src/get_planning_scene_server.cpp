@@ -941,6 +941,11 @@ class GetPlanningSceneServer : public rclcpp::Node {
       RCLCPP_ERROR(this->get_logger(), "Plane and object segmentation failed");
       return;
     }
+    // segmentPlaneAndObjects returns empty-but-non-null clouds on failure
+    if (support_plane_cloud->empty() || plane_coefficients->values.empty()) {
+      RCLCPP_ERROR(this->get_logger(), "Segmentation returned empty results — point cloud may be invalid or out of range");
+      return;
+    }
 
     RCLCPP_INFO(this->get_logger(), "Plane and object segmentation successful");
     RCLCPP_INFO(this->get_logger(), "Support plane cloud size: %zu", support_plane_cloud->size());
