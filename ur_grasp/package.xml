@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ur_grasp</name>
+  <version>0.1.0</version>
+  <description>Grasp detection for UR3 + Robotiq 2F-85 from point cloud</description>
+  <maintainer email="darshmenon02@gmail.com">darshmenon</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>sensor_msgs_py</depend>
+
+  <!-- optional: sudo apt install ros-humble-simple-grasping -->
+  <exec_depend condition="$ROS_VERSION == 2">object_recognition_msgs</exec_depend>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

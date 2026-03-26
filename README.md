@@ -141,6 +141,51 @@ python3 ~/UR3_ROS2_PICK_AND_PLACE/ur_system_tests/scripts/arm_gripper_loop_contr
 
 ---
 
+## 🦾 Grasp Detection (`ur_grasp`)
+
+Estimates grasp poses from the Intel D435 point cloud. Two backends auto-selected at runtime:
+
+| Backend | How | Install |
+|---------|-----|---------|
+| **simple_grasping** (primary) | PCL RANSAC segmentation → `moveit_msgs/Grasp[]` | `sudo apt install ros-humble-simple-grasping` ✅ installed |
+| **numpy centroid** (fallback) | Colour filter + centroid + height extent — no extra deps | built-in |
+
+```bash
+source install/setup.bash
+
+# Terminal 1 — simulation
+ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Terminal 2 — grasp detection node
+ros2 launch ur_grasp grasp_detection.launch.py colour:=red
+
+# Terminal 3 — trigger detection + see result
+python3 testing/test_grasp.py --colour red
+
+# Detect AND execute the grasp:
+python3 testing/test_grasp.py --colour blue --execute
+
+# Watch grasp arrow in RViz: topic /ur_grasp/grasp_marker
+```
+
+**How it works (numpy backend):**
+1. Subscribe to `/camera_head/depth/color/points`
+2. HSV colour filter → isolate target cylinder points
+3. Z passthrough (remove floor/ceiling)
+4. Centroid → `(x, y)` of cylinder
+5. Height extent → `grasp_z = min_z + 0.30 * height` (30% up for reliable 2F-85 contact)
+6. Publish as `geometry_msgs/PoseStamped` on `/ur_grasp/grasp_pose`
+
+**Alternate world with more objects:**
+```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py world_file:=pick_and_place_demo.world
+
+# Pick red cylinder from that world:
+python3 testing/pick_cylinders.py --red
+```
+
+---
+
 ## 🤖 Sequential Hierarchical Pick-and-Place
 
 Picks both cylinders (blue → bin_left, green → bin_right) using a 10-step hierarchical plan:
