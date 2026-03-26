@@ -6,6 +6,6 @@ default_sensor:
   max_update_rate: 1.0
   padding_offset: 0.2
   padding_scale: 1.0
-  point_cloud_topic: /camera/depth/color/points
+  point_cloud_topic: /camera_head/depth/color/points
   point_subsample: 1
   sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
