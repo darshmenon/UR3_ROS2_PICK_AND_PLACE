@@ -85,6 +85,23 @@ This project supports [MoveIt Task Constructor (MTC)](https://github.com/ros-pla
 colcon build --symlink-install
 ```
 
+### MongoDB (required for warehouse_ros_mongo)
+
+MTC uses `warehouse_ros_mongo` to persist planning scenes and trajectories. MongoDB must be installed and running before launching the demo:
+
+```bash
+curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
+  sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | \
+  sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+
+sudo apt-get update && sudo apt-get install -y mongodb-org
+sudo systemctl start mongod && sudo systemctl enable mongod
+```
+
+Verify it is running: `mongosh` should connect to `mongodb://127.0.0.1:27017`.
+
 For Humble/Jazzy API differences and troubleshooting, see [`ur_mtc_pick_place_demo/README.md`](ur_mtc_pick_place_demo/README.md).
 
 ---
