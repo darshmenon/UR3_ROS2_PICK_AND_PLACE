@@ -35,6 +35,9 @@ A deep-dive into every concept you encountered while building and debugging this
 27. [Data Collection for Behavior Cloning — ur_data_collector](#27-data-collection-for-behavior-cloning--ur_data_collector)
 28. [Sequential Pick-and-Place with Python MoveIt Client](#28-sequential-pick-and-place-with-python-moveit-client)
 29. [MTC Humble vs Jazzy Compatibility](#29-mtc-humble-vs-jazzy-compatibility)
+30. [warehouse_ros_mongo — Persistent Planning Scene Storage](#30-warehouse_ros_mongo--persistent-planning-scene-storage)
+31. [MTC Pick-and-Place Pipeline — Full Stage Breakdown](#31-mtc-pick-and-place-pipeline--full-stage-breakdown)
+32. [PCL Perception Pipeline — Normals, Curvature, and RSD](#32-pcl-perception-pipeline--normals-curvature-and-rsd)
 
 ---
 
@@ -1156,4 +1159,246 @@ auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(node, pipeline_ma
 // Jazzy API (different signature — check at compile time):
 auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(node);
 planner->setPlannerId("ompl[RRTConnect]");
+```
+
+---
+
+## 30. warehouse_ros_mongo — Persistent Planning Scene Storage
+
+### What It Is
+
+`warehouse_ros_mongo` is a ROS 2 package that provides a **persistent storage backend** for MoveIt's planning scene, robot states, and motion plan trajectories. It stores data in a local **MongoDB** database instead of only keeping it in RAM.
+
+MoveIt's `move_group` node has a built-in warehouse interface. When `warehouse_ros_mongo` is installed and MongoDB is running, move_group can:
+- Save and reload planning scenes (including collision objects)
+- Store named robot states (home, pre-grasp, etc.)
+- Persist and replay planned trajectories
+
+### Why MTC Needs It
+
+MTC's `ExecuteTaskSolutionCapability` (a move_group capability plugin) sends the final multi-stage trajectory to move_group for execution. Without warehouse_ros_mongo the planning scene diff that MTC computes between stages cannot be stored and forwarded correctly between stage boundaries — this causes the diff-scene fix described in Section 29 (Fix 1).
+
+Beyond that, warehouse_ros_mongo lets you:
+1. **Inspect stored solutions** in RViz's MotionPlanning panel after a task runs
+2. **Replay** a successful pick-and-place without re-planning
+
+### MongoDB Setup
+
+```bash
+# Start the daemon (must be running before launching MTC):
+sudo systemctl start mongod
+
+# Verify it is up:
+sudo systemctl status mongod
+# Look for: Active: active (running)
+```
+
+The ROS 2 node connects to `localhost:27017` by default. The database name is set by the `warehouse_host` / `warehouse_port` move_group parameters.
+
+### Architecture
+
+```
+MoveIt move_group
+   └── warehouse plugin: warehouse_ros_mongo
+          └── MongoDB (localhost:27017)
+                 ├── collection: planning_scene   ← named scenes
+                 ├── collection: robot_states     ← named poses
+                 └── collection: motion_plans     ← stored trajectories
+```
+
+### Build Note (Humble)
+
+The upstream `warehouse_ros_mongo` package.xml on the `ros2` branch incorrectly lists `<depend>mongodb</depend>`. This causes `rosdep` to fail because the system package name is `mongodb-org`, not `mongodb`. Fix applied in this repo:
+
+```bash
+sed -i '/<depend>mongodb<\/depend>/d' src/warehouse_ros_mongo/package.xml
+```
+
+Then build and install normally with `colcon build`.
+
+---
+
+## 31. MTC Pick-and-Place Pipeline — Full Stage Breakdown
+
+The `ur_mtc_pick_place_demo` implements a complete pick-and-place task using MTC. Here is exactly what each stage does and how they connect.
+
+### High-Level View
+
+```
+Task: pick_place_task
+│
+├── Stage: CurrentState              ← snapshot of joint positions from /joint_states
+├── Stage: open gripper (MoveTo)     ← interpolation planner, gripper → open pose
+│
+├── Container: pick (SerialContainer)
+│   ├── Stage: move to pick (Connect)       ← OMPL, arm moves to pre-grasp region
+│   ├── Stage: allow collision (object, gripper)  ← MoveIt ACM edit
+│   ├── Stage: approach object (MoveRelative)     ← Cartesian −Z approach
+│   ├── Container: grasp (SimpleGrasp)
+│   │   ├── Stage: generate grasp pose (GenerateGraspPose)  ← samples angles around object
+│   │   └── Stage: grasp IK (ComputeIK)                     ← solves IK for each sample
+│   ├── Stage: allow collision (object, support)  ← stop penalizing table contact
+│   ├── Stage: close gripper (MoveTo)             ← interpolation, gripper → closed pose
+│   └── Stage: lift object (MoveRelative)         ← Cartesian +Z lift
+│
+├── Container: place (SerialContainer)
+│   ├── Stage: move to place (Connect)      ← OMPL, arm moves to drop region
+│   ├── Container: place pose (SimpleUngrasp)
+│   │   ├── Stage: generate place pose (GeneratePlacePose)
+│   │   └── Stage: place IK (ComputeIK)
+│   ├── Stage: open gripper (MoveTo)        ← interpolation, gripper → open pose
+│   ├── Stage: forbid collision (object, support)  ← re-enable table collision check
+│   └── Stage: retreat (MoveRelative)       ← Cartesian −Z retreat
+│
+└── Stage: return home (MoveTo)      ← OMPL, arm back to named pose "ready"
+```
+
+### Solvers Used Per Stage
+
+| Stage | Solver | Why |
+|-------|--------|-----|
+| `open/close gripper` | `JointInterpolationPlanner` | Gripper has only 1 DOF — no need for OMPL sampling |
+| `move to pick / move to place` | `PipelinePlanner` (OMPL RRTConnect) | Free-space arm motion, needs collision-aware sampling |
+| `approach object / lift / retreat` | `CartesianPath` | Straight-line Cartesian motion required for reliable grasp |
+| `generate grasp pose` | Built-in generator | Samples discrete angles (every 10°) around the object's Z axis |
+| `ComputeIK` | KDL IK solver | Wraps each candidate grasp pose and tries to find a valid IK solution |
+
+### Connect Stages and Backtracking
+
+A `Connect` stage bridges two adjacent stages. MTC tries all combinations of end-states from the left stage and start-states from the right stage, running the planner for each pair. If the first combination fails (e.g., IK has no solution for grasp angle 0°), MTC **automatically backtracks** and tries the next grasp angle. This is the key advantage over coding pick-and-place directly with MoveGroupInterface.
+
+### Planning Scene Edits Inside MTC
+
+MTC stages can temporarily modify the planning scene's Allowed Collision Matrix (ACM):
+
+```cpp
+// Allow gripper ↔ object contact during approach:
+auto allow_collision = std::make_unique<mtc::stages::ModifyPlanningScene>("allow collision");
+allow_collision->allowCollisions(object_name, gripper_group, true);
+task.add(std::move(allow_collision));
+
+// After placing, re-enable the check:
+auto forbid_collision = std::make_unique<mtc::stages::ModifyPlanningScene>("forbid collision");
+forbid_collision->allowCollisions(object_name, support_surface, false);
+task.add(std::move(forbid_collision));
+```
+
+These edits propagate forward through the stage tree as planning scene diffs — each stage sees the world as it was left by the previous stage.
+
+### Launch Sequence
+
+```bash
+# Terminal 1 — full simulation (wait ~45 s for controllers):
+source install/setup.bash && ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Terminal 2 — planning scene server (reads depth camera, populates MoveIt scene):
+source install/setup.bash
+ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py
+
+# Terminal 3 — run the MTC pick-and-place task:
+source install/setup.bash
+ros2 launch ur_mtc_pick_place_demo pick_place_demo.launch.py
+```
+
+---
+
+## 32. PCL Perception Pipeline — Normals, Curvature, and RSD
+
+The `ur_perception` package processes raw `PointCloud2` data from the Intel RealSense D435 and produces a list of `CollisionObject` messages for MoveIt's planning scene. The pipeline has four C++ files:
+
+```
+plane_segmentation.cpp
+normals_curvature_and_rsd_estimation.cpp
+cluster_extraction.cpp
+object_segmentation.cpp
+```
+
+### Stage 1 — Plane Segmentation (`plane_segmentation.cpp`)
+
+**Goal:** separate the table surface from the objects resting on it.
+
+```
+Raw PointCloud2 (RGB-D, camera frame)
+  → TF transform to base_link frame
+  → CropBox filter (workspace bounding box)
+  → Surface normal estimation (PCL NormalEstimation, k=10 neighbors)
+  → Candidate plane detection via RANSAC + normal-based scoring
+  → Best plane selected using weighted score:
+       score = w_inliers * inlier_ratio
+             + w_size    * cluster_size
+             + w_distance * (1 / distance_to_sensor)
+             + w_orientation * normal_alignment_with_Z
+  → Extract inliers → support_plane_cloud
+  → Extract everything above the plane → objects_cloud
+```
+
+The normal-based weighting avoids picking a vertical wall as the "table". A plane that faces upward (+Z normal) and has many inliers wins.
+
+### Stage 2 — Normals, Curvature, and RSD (`normals_curvature_and_rsd_estimation.cpp`)
+
+This stage enriches each point in `objects_cloud` with three descriptors used by the region-growing cluster algorithm in Stage 3.
+
+**Normal vector** — computed via PCA on the k-nearest neighbors of each point. The eigenvector corresponding to the smallest eigenvalue is the surface normal. For boundary points (fewer than k neighbors), a smaller neighborhood is used.
+
+**Curvature** — the ratio of the smallest eigenvalue to the sum of all eigenvalues:
+
+```
+curvature = λ_min / (λ_x + λ_y + λ_z)
+```
+
+Low curvature = flat region. High curvature = edge or corner. Region growing uses this to stop clusters from crossing sharp edges.
+
+**RSD (Radius-based Surface Descriptor)** — for each point, PCL fits a sphere and a plane to its neighborhood and records the minimum and maximum fitting radii (`r_min`, `r_max`). These radii encode local shape:
+
+| r_min / r_max | Meaning |
+|---------------|---------|
+| Both large | Flat surface (plane) |
+| r_min small, r_max large | Edge |
+| Both small | Vertex or highly curved region |
+| r_min ≈ object_radius | Cylindrical surface |
+
+The output point type is `PointXYZRGBNormalRSD` — a custom PCL type that carries XYZ, RGB, `normal_x/y/z`, `curvature`, `r_min`, and `r_max`.
+
+### Stage 3 — Cluster Extraction (`cluster_extraction.cpp`)
+
+Uses **Region Growing** (not Euclidean clustering) to group points into object clusters. Region growing starts at a seed point and expands to neighbors if:
+
+1. The **angle between normals** is below `smoothness_threshold` (typically 10°)
+2. The **curvature** of the neighbor is below `curvature_threshold` (typically 1.0)
+
+This handles objects that touch each other (two cylinders side by side) better than Euclidean clustering, because a shared-boundary point will have high curvature and will not propagate into the adjacent object.
+
+```cpp
+pcl::RegionGrowing<PointXYZRGBNormalRSD, pcl::Normal> reg;
+reg.setMinClusterSize(min_cluster_size);   // filter noise
+reg.setMaxClusterSize(max_cluster_size);
+reg.setNumberOfNeighbours(nearest_neighbors);
+reg.setSmoothnessThreshold(smoothness_threshold / 180.0f * M_PI);
+reg.setCurvatureThreshold(curvature_threshold);
+```
+
+### Stage 4 — Object Segmentation (`object_segmentation.cpp`)
+
+Each cluster is fit to a **cylinder** or **box** model using RANSAC:
+
+- **Cylinder**: `pcl::SACMODEL_CYLINDER` returns 7 coefficients `[px, py, pz, ax, ay, az, radius]`. The axis direction determines object orientation; midpoint at `pz + 0.5 * height` is the grasp centre.
+- **Box**: oriented bounding box computed from PCA of cluster points.
+
+The result is a `moveit_msgs::CollisionObject` per cluster, sent to the MoveIt planning scene via `planning_scene_interface.addCollisionObjects()`. MTC then plans around these objects.
+
+### Debug PCD Files
+
+The server writes intermediate clouds to `/tmp/` at each stage:
+
+```
+4_convertToPCL_debug_cloud.pcd      ← after transform + cropbox
+5_support_plane_debug_cloud.pcd     ← table inlier points
+5_objects_cloud_debug_cloud.pcd     ← above-table points only
+```
+
+View with:
+```bash
+ros2 run rviz2 rviz2   # add PointCloud2 display → file source
+# or:
+pcl_viewer /tmp/5_objects_cloud_debug_cloud.pcd
 ```
