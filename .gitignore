@@ -1,6 +1,7 @@
 build/
 install/
 log/
-build/
-install/
-log/
+resume.md
+.vscode/
+.claude/
+testing/

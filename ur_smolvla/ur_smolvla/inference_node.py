@@ -260,9 +260,10 @@ class SmolVLAInferenceNode(Node):
         for i, action in enumerate(actions):
             pt = JointTrajectoryPoint()
             pt.positions = [float(action[j]) for j in range(6)]
+            total_ms = self.step_duration_ms * (i + 1)
             pt.time_from_start = Duration(
-                sec=0,
-                nanosec=int(self.step_duration_ms * 1e6 * (i + 1)),
+                sec=int(total_ms // 1000),
+                nanosec=int((total_ms % 1000) * 1e6),
             )
             msg.points.append(pt)
 
