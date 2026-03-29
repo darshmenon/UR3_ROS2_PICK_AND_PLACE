@@ -47,6 +47,12 @@ try:
 except ImportError:
     SMOLVLA_AVAILABLE = False
 
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+
 
 ARM_JOINT_NAMES = [
     'shoulder_pan_joint',
@@ -194,8 +200,6 @@ class SmolVLAInferenceNode(Node):
 
     def _build_obs(self, image, joints):
         """Build observation dict expected by SmolVLA."""
-        import cv2
-
         # Resize to 512x512
         img = cv2.resize(image, (IMAGE_SIZE, IMAGE_SIZE))
         img_tensor = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0  # (3, H, W)

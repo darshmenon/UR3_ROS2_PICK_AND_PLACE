@@ -14,9 +14,9 @@ This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3
 
 ## Demo
 
-![alt text](images/exec.gif)
+![alt text](assets/exec.gif)
 
-![alt text](<images/gazebo_simonline-video-cutter.com-ezgif.com-video-to-gif-converter (1).gif>)
+![alt text](<assets/gazebo_simonline-video-cutter.com-ezgif.com-video-to-gif-converter (1).gif>)
 
 ---
 
@@ -250,39 +250,39 @@ This script launches the Gazebo simulation, MoveIt 2, the planning scene server,
 
 ### UR3 with Robotiq Gripper in RViz
 
-![Arm with Gripper](/images/arm_with_gripper.png)
+![Arm with Gripper](/assets/arm_with_gripper.png)
 
 ### Robotiq Gripper Close-up
 
-![Gripper](/images/gripper.png)
+![Gripper](/assets/gripper.png)
 
 ### Simulation in Gazebo
 
-![Gazebo View](/images/image.png)
+![Gazebo View](/assets/image.png)
 
 ### RViz Overview
 
-![RViz 1](/images/rviz1.png)
+![RViz 1](/assets/rviz1.png)
 
 ### MTC Overview
 
-![MTC](/images/mtc.png)
+![MTC](/assets/mtc.png)
 
 ### Pick Error
 
-![pick error](images/pick_error.png)
+![pick error](assets/pick_error.png)
 
 ### MTC Pipeline
 
-![MTC Pipeline](images/mtc_pp.png)
+![MTC Pipeline](assets/mtc_pp.png)
 
 ### Loop Demo
 
-![loop](images/looponline-video-cutter.com-ezgif.com-video-to-gif-converter.gif)
+![loop](assets/looponline-video-cutter.com-ezgif.com-video-to-gif-converter.gif)
 
 ### Colour Pick
 
-![colour pick](colour_pick.png)
+![colour pick](assets/colour_pick.png)
 
 ---
 
