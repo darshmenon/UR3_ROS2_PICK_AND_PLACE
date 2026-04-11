@@ -10,11 +10,20 @@ cleanup() {
 trap 'cleanup' SIGINT SIGTERM
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WS_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-
-source "$WS_ROOT/install/setup.bash"
+if [ -f "$SCRIPT_DIR/../../../../setup.bash" ]; then
+    # Installed script path: <ws>/install/<pkg>/share/<pkg>/scripts
+    source "$SCRIPT_DIR/../../../../setup.bash"
+elif [ -f "$SCRIPT_DIR/../../install/setup.bash" ]; then
+    # Source tree path: <ws>/src-or-root/<pkg>/scripts
+    source "$SCRIPT_DIR/../../install/setup.bash"
+else
+    echo "Could not locate a workspace setup.bash from $SCRIPT_DIR"
+    exit 1
+fi
 
 export DISPLAY="${DISPLAY:-:1}"
+export ROS_LOG_DIR="${ROS_LOG_DIR:-/tmp/roslogs}"
+mkdir -p "$ROS_LOG_DIR"
 
 echo "Launching Gazebo simulation..."
 ros2 launch ur_gazebo ur.gazebo.launch.py \
@@ -29,7 +38,8 @@ gz service -s /gui/move_to/pose \
     --reqtype gz.msgs.GUICamera \
     --reptype gz.msgs.Boolean \
     --timeout 2000 \
-    --req "pose: {position: {x: 1.36, y: -0.58, z: 0.95} orientation: {x: -0.26, y: 0.1, z: 0.89, w: 0.35}}" &
+    --req "pose: {position: {x: 1.36, y: -0.58, z: 0.95} orientation: {x: -0.26, y: 0.1, z: 0.89, w: 0.35}}" \
+    || echo "Gazebo GUI camera move service not available yet; continuing without it."
 
 echo "Launching MoveIt move_group..."
 ros2 launch moveit_config move_group.launch.py \

@@ -67,7 +67,6 @@ def generate_launch_description():
     # Launch Configurations
     world_file = LaunchConfiguration('world_file')
     world_path = PathJoinSubstitution([pkg_share_gazebo, gazebo_worlds_path, world_file])
-    controller_yaml = PathJoinSubstitution([pkg_share_moveit, 'config', 'ros2_controllers.yaml'])
     use_sim_time = LaunchConfiguration('use_sim_time')
     robot_name = LaunchConfiguration('robot_name')
 
@@ -144,22 +143,6 @@ def generate_launch_description():
         .to_moveit_configs()
       )
 
-    controller_manager_node = Node(
-        package='controller_manager',
-        executable='ros2_control_node',
-        parameters=[
-        robot_description, 
-        controller_yaml,
-        {'use_sim_time': True}  # Enable simulation time
-        ],
-        output='screen',
-        remappings=[('~/robot_description', '/robot_description')]  # ✅ correct
-    )
-
-
-      
-
-                    
     # Set environment variables
     set_env_vars_resources = AppendEnvironmentVariable(
         'GZ_SIM_RESOURCE_PATH',
@@ -177,30 +160,25 @@ def generate_launch_description():
 
     
     controllers = ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
-    delays = [35.0, 40.0, 45.0]
-
-
+    delays = [15.0, 20.0, 25.0]
 
     for controller, delay in zip(controllers, delays):
         ld.add_action(
-            RegisterEventHandler(
-                OnProcessStart(
-                    target_action=controller_manager_node,
-                    on_start=[
-                        TimerAction(
-                            period=delay,
-                            actions=[
-                                Node(
-                                    package="controller_manager",
-                                    executable="spawner",
-                                    arguments=[controller],
-                                    parameters=[{'use_sim_time': True}],
-                                    output='screen'
-                                )
-                            ]
-                        )
-                    ]
-                )
+            TimerAction(
+                period=delay,
+                actions=[
+                    Node(
+                        package="controller_manager",
+                        executable="spawner",
+                        arguments=[
+                            controller,
+                            "--controller-manager",
+                            "/controller_manager",
+                        ],
+                        parameters=[{'use_sim_time': True}],
+                        output='screen'
+                    )
+                ]
             )
         )
 
@@ -301,17 +279,6 @@ def generate_launch_description():
     ld.add_action(start_gazebo_ros_bridge_cmd)
     ld.add_action(start_gazebo_ros_image_bridge_cmd)
     ld.add_action(start_gazebo_ros_spawner_cmd)
-    ld.add_action(RegisterEventHandler(
-        event_handler=OnProcessStart(
-            target_action=robot_state_publisher_cmd,
-            on_start=[
-                TimerAction(
-                    period=10.0,
-                    actions=[controller_manager_node]
-                )
-            ]
-        )
-    ))    # ld.add_action(joint_state_publisher_node)
     ld.add_action(move_group_node)
     ld.add_action(rviz_node)
 

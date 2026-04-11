@@ -55,11 +55,16 @@ Visualization Manager:
   Class: ""
   Displays:
     - Class: rviz_default_plugins/PointCloud2
-      Color Transformer: RGB8
+      Color: 80; 255; 120
+      Color Transformer: FlatColor
       Enabled: true
       Name: PointCloud2
+      Position Transformer: XYZ
       Queue Size: 10
       Reliability Policy: Best Effort
+      Size (Pixels): 2
+      Size (m): 0.004999999888241291
+      Style: Points
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -67,6 +72,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Best Effort
         Value: /camera_head/depth/color/points
+      Use Fixed Frame: true
       Value: true
     - Alpha: 0.5
       Cell Size: 1

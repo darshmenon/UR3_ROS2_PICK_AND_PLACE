@@ -631,10 +631,10 @@ Visualization Manager:
         Min Value: -10
         Value: true
       Axis: Z
-      Channel Name: rgb
+      Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: RGB8
+      Color: 80; 255; 120
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -645,9 +645,9 @@ Visualization Manager:
       Name: PointCloud2
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.009999999776482582
-      Style: Flat Squares
+      Size (Pixels): 2
+      Size (m): 0.004999999888241291
+      Style: Points
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -655,7 +655,7 @@ Visualization Manager:
         Reliability Policy: Best Effort
         Value: /camera_head/depth/color/points
       Use Fixed Frame: true
-      Use rainbow: true
+      Use rainbow: false
       Value: true
   Enabled: true
   Global Options:

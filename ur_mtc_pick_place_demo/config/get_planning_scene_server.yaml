@@ -18,8 +18,8 @@ get_planning_scene_server:
     # Plane and object segmentation parameters
     max_iterations: 100
     distance_threshold: 0.01
-    z_tolerance: 0.20
-    angle_tolerance: 0.9848077530  # cos(10 * M_PI / 180.0) — looser for noisy depth cameras
+    z_tolerance: 0.55
+    angle_tolerance: 0.9659258263  # cos(15 * M_PI / 180.0) — accept slightly tilted support planes
     plane_segmentation_threshold: 0.001
     min_cluster_size: 50
     max_cluster_size: 1000000
