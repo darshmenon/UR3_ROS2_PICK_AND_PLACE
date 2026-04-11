@@ -10,6 +10,32 @@ if(POLICY CMP0074)
 endif()
 project(ur_mtc_pick_place_demo)
 
+# OpenMPI can report include flags with "-I" prefixes that newer PCL/VTK/MPI
+# discovery paths may treat as literal directories. Normalize them before PCL.
+find_program(MPICC_EXECUTABLE mpicc)
+if(MPICC_EXECUTABLE)
+  execute_process(
+    COMMAND ${MPICC_EXECUTABLE} --showme:compile
+    OUTPUT_VARIABLE MPI_SHOWME_COMPILE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+  if(MPI_SHOWME_COMPILE)
+    separate_arguments(MPI_SHOWME_TOKENS UNIX_COMMAND "${MPI_SHOWME_COMPILE}")
+    set(MPI_SANITIZED_INCLUDE_DIRS "")
+    foreach(token IN LISTS MPI_SHOWME_TOKENS)
+      if(token MATCHES "^-I.+")
+        string(REGEX REPLACE "^-I" "" include_dir "${token}")
+        list(APPEND MPI_SANITIZED_INCLUDE_DIRS "${include_dir}")
+      endif()
+    endforeach()
+    if(MPI_SANITIZED_INCLUDE_DIRS)
+      set(MPI_C_COMPILER_INCLUDE_DIRS "${MPI_SANITIZED_INCLUDE_DIRS}" CACHE STRING "" FORCE)
+      set(MPI_CXX_COMPILER_INCLUDE_DIRS "${MPI_SANITIZED_INCLUDE_DIRS}" CACHE STRING "" FORCE)
+    endif()
+  endif()
+endif()
+
 # Build settings
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
