@@ -35,6 +35,84 @@
 
 #include "ur_mtc_pick_place_demo/plane_segmentation.h"
 
+namespace {
+
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr extractPointCloud(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    const pcl::PointIndices::Ptr& indices) {
+  auto output_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+  pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+  extract.setInputCloud(input_cloud);
+  extract.setIndices(indices);
+  extract.filter(*output_cloud);
+  return output_cloud;
+}
+
+bool isValidSupportPlane(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& plane_cloud,
+    const pcl::PointIndices::Ptr& inliers,
+    const pcl::ModelCoefficients::Ptr& coefficients,
+    double z_tolerance,
+    double angle_tolerance) {
+  if (inliers->indices.empty() || coefficients->values.size() < 4) {
+    return false;
+  }
+
+  Eigen::Vector3f plane_normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
+  if (plane_normal.norm() == 0.0f) {
+    return false;
+  }
+  plane_normal.normalize();
+
+  Eigen::Vector4f plane_center;
+  pcl::compute3DCentroid(*plane_cloud, *inliers, plane_center);
+
+  const double dot_product = std::abs(plane_normal.dot(Eigen::Vector3f::UnitZ()));
+  const bool is_valid = (std::abs(plane_center[2]) < z_tolerance) && (dot_product > angle_tolerance);
+  LOG_INFO("Fallback plane candidate center: [" << plane_center[0] << ", " << plane_center[1] << ", "
+           << plane_center[2] << "], normal dot z: " << dot_product
+           << ", z_tolerance: " << z_tolerance << ", angle_tolerance: " << angle_tolerance);
+  return is_valid;
+}
+
+bool fitFallbackPlane(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cleaned_cloud,
+    int max_iterations,
+    double distance_threshold,
+    double z_tolerance,
+    double angle_tolerance,
+    pcl::ModelCoefficients::Ptr& best_plane_model) {
+  pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  seg.setOptimizeCoefficients(true);
+  seg.setModelType(pcl::SACMODEL_PLANE);
+  seg.setMethodType(pcl::SAC_RANSAC);
+  seg.setMaxIterations(max_iterations);
+  seg.setDistanceThreshold(distance_threshold);
+  seg.setInputCloud(cleaned_cloud);
+  seg.segment(*inliers, *coefficients);
+
+  if (inliers->indices.empty()) {
+    LOG_ERROR("Fallback plane segmentation also found no plane.");
+    return false;
+  }
+
+  auto fallback_plane_cloud = extractPointCloud(cleaned_cloud, inliers);
+  if (!isValidSupportPlane(
+          fallback_plane_cloud, inliers, coefficients, z_tolerance, angle_tolerance)) {
+    LOG_ERROR("Fallback dominant plane was outside the accepted workspace or orientation bounds.");
+    return false;
+  }
+
+  *best_plane_model = *coefficients;
+  LOG_INFO("Fallback dominant-plane RANSAC found a valid support plane with "
+           << inliers->indices.size() << " inliers");
+  return true;
+}
+
+}  // namespace
+
 // Function to segment the support plane and objects from a point cloud
 std::tuple<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::ModelCoefficients::Ptr>
 segmentPlaneAndObjects(
@@ -122,17 +200,11 @@ segmentPlaneAndObjects(
   }
   LOG_INFO("Found " << horizontal_indices->indices.size() << " points likely belonging to horizontal surfaces");
 
-  if (horizontal_indices->indices.empty()) {
-    LOG_ERROR("No horizontal surfaces found.");
-    return std::make_tuple(support_plane_cloud, objects_cloud, best_plane_model);
-  }
-  // Extract the points with horizontal normals
-  pcl::ExtractIndices<pcl::PointXYZRGB> extract;
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr horizontal_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-  extract.setInputCloud(cleaned_cloud);
-  extract.setIndices(horizontal_indices);
-  extract.filter(*horizontal_cloud);
-  LOG_INFO("Extracted horizontal cloud with " << horizontal_cloud->size() << " points");
+  if (!horizontal_indices->indices.empty()) {
+    horizontal_cloud = extractPointCloud(cleaned_cloud, horizontal_indices);
+    LOG_INFO("Extracted horizontal cloud with " << horizontal_cloud->size() << " points");
+  }
 
   // 3. Perform Euclidean clustering on these points to get support surface candidate clusters
   LOG_INFO("Starting Euclidean clustering");
@@ -146,13 +218,10 @@ segmentPlaneAndObjects(
   ec.setMaxClusterSize(max_cluster_size);
   ec.setSearchMethod(cluster_tree);
   ec.setInputCloud(horizontal_cloud);
-  ec.extract(cluster_indices);
-  LOG_INFO("Finished clustering. Found " << cluster_indices.size() << " clusters");
-
-  if (cluster_indices.empty()) {
-    LOG_ERROR("No clusters found.");
-    return std::make_tuple(support_plane_cloud, objects_cloud, best_plane_model);
+  if (!horizontal_cloud->empty()) {
+    ec.extract(cluster_indices);
   }
+  LOG_INFO("Finished clustering. Found " << cluster_indices.size() << " clusters");
 
   // 4. Process each support surface candidate cluster
   LOG_INFO("Processing support surface candidate clusters");
@@ -164,11 +233,8 @@ segmentPlaneAndObjects(
     const auto& cluster = cluster_indices[i];
 
     // Extract the current cluster
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    pcl::ExtractIndices<pcl::PointXYZRGB> cluster_extract;
-    cluster_extract.setInputCloud(horizontal_cloud);
-    cluster_extract.setIndices(std::make_shared<const pcl::PointIndices>(cluster));
-    cluster_extract.filter(*cluster_cloud);
+    pcl::PointIndices::Ptr cluster_ptr(new pcl::PointIndices(cluster));
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_cloud = extractPointCloud(horizontal_cloud, cluster_ptr);
     LOG_INFO("  Cluster size: " << cluster_cloud->size() << " points");
 
     // Use RANSAC to fit a plane model
@@ -191,8 +257,8 @@ segmentPlaneAndObjects(
 
     // Validate the plane model based on the robot's workspace limits
     Eigen::Vector3f plane_normal(coefficients->values[0], coefficients->values[1], coefficients->values[2]);
-    Eigen::Vector3f up_vector(0, 0, 1);
-    double dot_product = plane_normal.dot(up_vector);
+    plane_normal.normalize();
+    double dot_product = std::abs(plane_normal.dot(Eigen::Vector3f::UnitZ()));
 
     Eigen::Vector4f plane_center;
     pcl::compute3DCentroid(*cluster_cloud, *inliers, plane_center);
@@ -234,6 +300,15 @@ segmentPlaneAndObjects(
       *best_plane_model = *coefficients;
       found_valid_plane = true;
       LOG_INFO("  New best plane model found. Score: " << best_score);
+    }
+  }
+
+  if (!found_valid_plane) {
+    LOG_INFO("Horizontal-surface clustering did not yield a valid support plane. Trying fallback RANSAC.");
+    found_valid_plane = fitFallbackPlane(
+        cleaned_cloud, max_iterations, distance_threshold, z_tolerance, angle_tolerance, best_plane_model);
+    if (found_valid_plane) {
+      best_score = 0.0;
     }
   }
 

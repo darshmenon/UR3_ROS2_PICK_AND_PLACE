@@ -174,20 +174,6 @@ ros2 action send_goal /arm_controller/follow_joint_trajectory control_msgs/actio
 python3 ~/UR3_ROS2_PICK_AND_PLACE/ur_system_tests/scripts/arm_gripper_loop_controller.py
 ```
 
----
-
-## Sequential Hierarchical Pick-and-Place
-
-Picks cylinders using a 10-step plan: `INIT → PRE_GRASP → DESCEND → GRASP → LIFT → TRANSPORT → LOWER → RELEASE → RETREAT → RETURN`
-
-```bash
-source install/setup.bash
-python3 testing/pick_cylinders.py           # both cylinders
-python3 testing/pick_cylinders.py --blue
-python3 testing/pick_cylinders.py --green
-python3 testing/pick_cylinders.py --red
-python3 testing/pick_cylinders.py --dry     # print plan only
-```
 
 ---
 
