@@ -17,7 +17,7 @@
     <xacro:property name="d435_cam_depth_to_infra2_offset" value="-0.050"/>
     <xacro:property name="d435_cam_depth_to_color_offset" value="0.015"/>
 
-    <xacro:property name="camera_tilt_angle_deg" value="55"/>
+    <xacro:property name="camera_tilt_angle_deg" value="25"/>
 
   <link name="torso_link">
   <inertial>
@@ -71,12 +71,12 @@
     <joint name="camera_head_joint" type="fixed">
       <parent link="torso_link"/>
       <child link="camera_head_link" />
-      <origin xyz="0 0 0.70" rpy="0.0 ${camera_tilt_angle_deg * M_PI / 180} ${M_PI/2}"/>
+      <origin xyz="0 0.01 0.70" rpy="0.0 ${camera_tilt_angle_deg * M_PI / 180} ${M_PI/2}"/>
     </joint>
 
     <link name="camera_head_link">
       <visual>
-        <origin xyz="0 0 0" rpy="${M_PI/2} 0.0 0.0"/>
+        <origin xyz="0 0 0" rpy="${M_PI/2} 0.0 ${M_PI/2}"/>
         <geometry>
           <mesh filename="file://$(find ur_description)/meshes/d435/visual/d435.stl" />
         </geometry>
@@ -85,7 +85,7 @@
         </material>
       </visual>
       <collision>
-        <origin xyz="0 0 0" rpy="${M_PI/2} 0.0 0.0"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
           <box size="${d435_cam_depth} ${d435_cam_width} ${d435_cam_height}"/>
         </geometry>
@@ -168,10 +168,12 @@
     </camera>
     <always_on>1</always_on>
     <update_rate>10</update_rate>
-    <!-- Use depth optical frame: Ignition outputs point cloud in Z-forward optical
-         convention, so the frame_id must match the optical frame (not camera_head_link
-         which has a different orientation from the mounting joint RPY). -->
-    <gz_frame_id>camera_head_depth_optical_frame</gz_frame_id>
+    <gz_frame_id>camera_head_link</gz_frame_id>
+    <output>
+      <image>true</image>
+      <depth_image>true</depth_image>
+      <point_cloud>true</point_cloud>
+    </output>
     <visualize>true</visualize>
   </sensor>
 </gazebo>

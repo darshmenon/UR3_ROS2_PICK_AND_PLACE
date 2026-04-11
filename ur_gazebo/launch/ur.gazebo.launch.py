@@ -15,6 +15,7 @@ from launch.actions import (
     TimerAction,
 )
 from launch.conditions import IfCondition
+from launch.conditions import UnlessCondition
 from launch.event_handlers import OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable
@@ -82,6 +83,7 @@ def generate_launch_description():
         DeclareLaunchArgument("tf_prefix", default_value='""', description="Prefix for joint names"),
         DeclareLaunchArgument("use_rviz", default_value="true", description="Launch RViz2"),
         DeclareLaunchArgument("use_move_group", default_value="true", description="Launch move_group node"),
+        DeclareLaunchArgument("use_gazebo_gui", default_value="true", description="Launch Gazebo with the GUI client"),
     ]
 
     # Create launch description
@@ -189,15 +191,17 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-    launch_arguments=[('gz_args', ['-r -v 4 ', world_path]), ('use_sim_time', 'true')]
+        launch_arguments=[('gz_args', ['-r -v 4 ', world_path]), ('use_sim_time', 'true')],
+        condition=IfCondition(LaunchConfiguration("use_gazebo_gui")),
     )
-    
-        # start_gazebo_cmd = IncludeLaunchDescription(
-        # PythonLaunchDescriptionSource(
-        #     os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
-        # ),
-        #  launch_arguments=[('gz_args', ['-r -v 4 ', world_path])]
-        #     )
+
+    start_gazebo_headless_cmd = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
+        ),
+        launch_arguments=[('gz_args', ['-s -r -v 4 ', world_path]), ('use_sim_time', 'true')],
+        condition=UnlessCondition(LaunchConfiguration("use_gazebo_gui")),
+    )
 
 
     # Start Gazebo ROS Bridge
@@ -280,6 +284,7 @@ def generate_launch_description():
     ld.add_action(set_env_vars_resources)
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(start_gazebo_cmd)
+    ld.add_action(start_gazebo_headless_cmd)
     ld.add_action(start_gazebo_ros_bridge_cmd)
     ld.add_action(start_gazebo_ros_image_bridge_cmd)
     ld.add_action(start_gazebo_ros_spawner_cmd)

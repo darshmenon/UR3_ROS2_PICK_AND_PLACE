@@ -21,15 +21,21 @@ else
     exit 1
 fi
 
-export DISPLAY="${DISPLAY:-:1}"
 export ROS_LOG_DIR="${ROS_LOG_DIR:-/tmp/roslogs}"
 mkdir -p "$ROS_LOG_DIR"
+
+if [ -z "${DISPLAY:-}" ]; then
+    echo "DISPLAY is not set. Gazebo GUI needs an active desktop session."
+    echo "Set DISPLAY first, or run headless by passing use_gazebo_gui:=false manually."
+    exit 1
+fi
 
 echo "Launching Gazebo simulation..."
 ros2 launch ur_gazebo ur.gazebo.launch.py \
     world_file:=pick_and_place_demo.world \
     use_rviz:=false \
-    use_move_group:=false &
+    use_move_group:=false \
+    use_gazebo_gui:=true &
 
 sleep 40
 
@@ -43,6 +49,7 @@ gz service -s /gui/move_to/pose \
 
 echo "Launching MoveIt move_group..."
 ros2 launch moveit_config move_group.launch.py \
+    use_rviz:=false \
     rviz_config_file:=mtc_demos.rviz \
     rviz_config_package:=ur_mtc_pick_place_demo &
 
