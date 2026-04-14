@@ -34,7 +34,7 @@ cd UR3_ROS2_PICK_AND_PLACE
 ### 2. Install ROS Dependencies
 
 ```bash
-# Replace $ROS_DISTRO with humble or jazzy
+# Set to humble or jazzy
 export ROS_DISTRO=humble
 
 sudo apt install ros-$ROS_DISTRO-rviz2 \
@@ -55,6 +55,13 @@ sudo apt install ros-$ROS_DISTRO-rviz2 \
                  ros-$ROS_DISTRO-tf2-geometry-msgs \
                  ros-$ROS_DISTRO-pcl-ros
 ```
+
+> **Jazzy only** — add these two extra packages:
+> ```bash
+> sudo apt install ros-jazzy-ros-gz-sim ros-jazzy-ros-gz-bridge \
+>                  ros-jazzy-moveit-planners-stomp
+> ```
+> STOMP is not packaged for Humble so leave it out there — the planner init fails silently and is harmless.
 
 ### 3. Install Python Dependencies
 
@@ -343,6 +350,39 @@ The inference node subscribes to `/camera_head/color/image_raw` + `/joint_states
 1. Record demonstrations with `ur_data_collector` (saves HDF5 episodes)
 2. Convert to LeRobot dataset format and fine-tune SmolVLA
 3. Point `checkpoint:=` at your fine-tuned model and run inference
+
+### SAC RL Policy Runner (`mujoco_ur_rl_ros2`)
+
+Run a pre-trained Soft Actor-Critic (SAC) policy trained in MuJoCo directly on the simulated UR3. Two nodes are included:
+
+- **`ur_policy_node`** — basic reach policy (arm joints only, no gripper)
+- **`shared_arm_policy_node`** — full pick-and-place policy with arm + gripper
+
+**Run with a trained model:**
+
+```bash
+# Terminal 1 — start simulation
+ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Terminal 2 — run shared-arm SAC policy
+ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
+  --ros-args \
+  -p model_path:=/path/to/best_model.zip \
+  -p object_x:=0.45 -p object_y:=0.0 -p object_z:=0.045 \
+  -p drop_x:=0.45  -p drop_y:=0.2  -p drop_z:=0.025
+```
+
+Or use the bundled Gazebo launch (boots simulation + policy together):
+
+```bash
+ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
+  model_path:=/path/to/best_model.zip \
+  launch_policy:=true
+```
+
+The policy subscribes to `/joint_states` and publishes `JointTrajectory` commands to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory` at 10 Hz.
+
+**Training environments** (for re-training or fine-tuning) are in `mujoco_ur_rl_ros2/envs/` — MuJoCo Gymnasium environments for reach, pick-place, and dual-arm tasks.
 
 ### Full Demo (all-in-one)
 

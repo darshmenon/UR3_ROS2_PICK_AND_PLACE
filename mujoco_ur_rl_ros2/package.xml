@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>mujoco_ur_rl_ros2</name>
+  <version>0.1.0</version>
+  <description>ROS 2 policy runner and launch files for mujoco-ur-arm-rl.</description>
+  <maintainer email="darshmenon02@gmail.com">darshmenon</maintainer>
+  <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
