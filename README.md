@@ -353,6 +353,8 @@ The inference node subscribes to `/camera_head/color/image_raw` + `/joint_states
 
 ### SAC RL Policy Runner (`mujoco_ur_rl_ros2`)
 
+> **Note on UR3 Adaptation:** The models trained in `mujoco-ur-arm-rl` are optimized for the UR5e arm. To use them effectively on the UR3, you will need to tweak the Gymnasium environments (to account for UR3 link lengths/workspace) and retrain the model. Furthermore, ensure spawned objects aren't placed too close to the robotic base, as this causes reachability issues.
+
 Run a pre-trained Soft Actor-Critic (SAC) policy trained in MuJoCo directly on the simulated UR3. Two nodes are included:
 
 - **`ur_policy_node`** — basic reach policy (arm joints only, no gripper)
@@ -382,7 +384,23 @@ ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
 
 The policy subscribes to `/joint_states` and publishes `JointTrajectory` commands to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory` at 10 Hz.
 
-**Training environments** (for re-training or fine-tuning) are in `mujoco_ur_rl_ros2/envs/` — MuJoCo Gymnasium environments for reach, pick-place, and dual-arm tasks.
+**Training environments** (for re-training or fine-tuning) are in `mujoco_ur_rl_ros2/envs/`:
+
+| Env | Description |
+|---|---|
+| `ur_gazebo_single_arm_env.py` | Single arm at origin — matches Gazebo layout, use this to train a policy that transfers directly |
+| `ur_pick_place_env.py` | Basic pick-place, simple reward |
+| `shared_arm_env.py` | Multi-arm shared policy training |
+| `ur_dual_arm_env.py` | Dual-arm scene with proven phase-based reward |
+
+**Train a Gazebo-compatible policy from scratch:**
+
+```bash
+cd /path/to/mujoco-ur-arm-rl
+python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py --timesteps 2000000 --n-envs 8
+```
+
+Best model saves to `models/gazebo_single_arm/<run>/best_model.zip`. Then pass that path to `shared_arm_policy_node` above.
 
 ### Full Demo (all-in-one)
 
