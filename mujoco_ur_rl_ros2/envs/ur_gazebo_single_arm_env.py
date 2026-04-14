@@ -144,15 +144,21 @@ class URGazeboSingleArmEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
-        self.data.qpos[:N_ARM] = READY_POSE
-        self.data.ctrl[:N_ARM] = READY_POSE
-        self.data.ctrl[N_ARM]  = 0.0
-
         ox = float(self.np_random.uniform(*OBJ_X_RANGE))
         oy = float(self.np_random.uniform(*OBJ_Y_RANGE))
+
         if self.curriculum_mode == "grasp_focus":
+            # narrow object range and jitter arm toward it so grasp is discoverable
             ox = float(self.np_random.uniform(0.30, 0.40))
             oy = float(self.np_random.uniform(-0.05, 0.05))
+            jitter = self.np_random.uniform(-0.04, 0.04, size=N_ARM).astype(np.float64)
+            start_pose = READY_POSE + jitter
+        else:
+            start_pose = READY_POSE
+
+        self.data.qpos[:N_ARM] = start_pose
+        self.data.ctrl[:N_ARM] = start_pose
+        self.data.ctrl[N_ARM]  = 0.0
         s = self._obj_qpos_start
         self.data.qpos[s:s+3]   = [ox, oy, OBJ_Z]
         self.data.qpos[s+3:s+7] = [1.0, 0.0, 0.0, 0.0]

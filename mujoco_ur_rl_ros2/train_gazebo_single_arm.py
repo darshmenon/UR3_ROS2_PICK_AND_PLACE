@@ -92,11 +92,10 @@ def main():
             batch_size=args.batch_size,
             gamma=0.99,
             tau=0.005,
-            ent_coef="auto",
-            target_entropy=-14.0,  # full action dim keeps exploration alive longer
-            learning_starts=10_000,
+            ent_coef=0.1,          # fixed entropy — prevents auto-tuning to zero
+            learning_starts=50_000,
             train_freq=4,
-            gradient_steps=4,
+            gradient_steps=2,
             policy_kwargs={"net_arch": [256, 256, 256]},
         )
 
