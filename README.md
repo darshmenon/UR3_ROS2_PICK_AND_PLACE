@@ -396,11 +396,29 @@ The policy subscribes to `/joint_states` and publishes `JointTrajectory` command
 **Train a Gazebo-compatible policy from scratch:**
 
 ```bash
-cd /path/to/mujoco-ur-arm-rl
-python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py --timesteps 2000000 --n-envs 8
+# from the repo root
+python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
+  --timesteps 2000000 \
+  --n-envs 8 \
+  --curriculum grasp_focus
 ```
 
-Best model saves to `models/gazebo_single_arm/<run>/best_model.zip`. Then pass that path to `shared_arm_policy_node` above.
+**Resume a previous run:**
+
+```bash
+python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
+  --timesteps 2000000 \
+  --n-envs 8 \
+  --curriculum grasp_focus \
+  --resume models/gazebo_single_arm/<run>/best_model.zip
+```
+
+Best model saves to `models/gazebo_single_arm/<run>/best_model.zip` — checkpoints saved every 100k steps. Then pass that path to `shared_arm_policy_node` above.
+
+> **Key hyperparameters** (in `train_gazebo_single_arm.py`):
+> - `--curriculum grasp_focus` — starts episodes near the object, critical for learning grasps
+> - `ent_coef=0.1` (fixed) — prevents SAC entropy from collapsing before grasps are discovered
+> - `--learning-rate`, `--buffer-size`, `--batch-size` — tunable via CLI
 
 ### Full Demo (all-in-one)
 
