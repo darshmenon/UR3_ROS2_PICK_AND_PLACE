@@ -22,7 +22,9 @@ N_ARM  = 6
 N_GRIP = 1
 N_CTRL = N_ARM + N_GRIP
 
-READY_POSE     = np.array([0.0, -1.0, 1.5, -1.57, -1.57, 0.0], dtype=np.float64)
+READY_POSE     = np.array([0.0,   -1.0,  1.5,   -1.57, -1.57, 0.0], dtype=np.float64)
+# pre-computed via IK: EE at [0.35, 0, 0.15] — above the object workspace
+GRASP_POSE     = np.array([0.492, -1.63, 3.668, -1.911, -1.254, 0.0], dtype=np.float64)
 ARM_ACT_SCALE  = np.array([2.0, 1.8, 2.0, 1.8, 1.6, 1.6],      dtype=np.float64)
 
 OBJ_X_RANGE  = (0.28, 0.45)
@@ -148,11 +150,11 @@ class URGazeboSingleArmEnv(gym.Env):
         oy = float(self.np_random.uniform(*OBJ_Y_RANGE))
 
         if self.curriculum_mode == "grasp_focus":
-            # narrow object range and jitter arm toward it so grasp is discoverable
+            # narrow object range, start arm at pre-grasp pose above object
             ox = float(self.np_random.uniform(0.30, 0.40))
             oy = float(self.np_random.uniform(-0.05, 0.05))
-            jitter = self.np_random.uniform(-0.04, 0.04, size=N_ARM).astype(np.float64)
-            start_pose = READY_POSE + jitter
+            jitter = self.np_random.uniform(-0.05, 0.05, size=N_ARM).astype(np.float64)
+            start_pose = GRASP_POSE + jitter
         else:
             start_pose = READY_POSE
 
