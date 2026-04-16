@@ -3,7 +3,7 @@
   <name>ur_llm_planner</name>
   <version>0.0.0</version>
   <description>LLM-driven task planning for UR robot using Claude API</description>
-  <maintainer email="darshmenon02@gmail.com">darsh</maintainer>
+  <maintainer email="darshmenon02@gmail.com">darshmenon</maintainer>
   <license>Apache-2.0</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>

@@ -281,16 +281,115 @@ This script launches the Gazebo simulation, MoveIt 2, the planning scene server,
 
 ## AI / ML Stack
 
+### Grasp Detection (`ur_grasp`)
+
+Point-cloud grasp estimation for tabletop objects from the Intel D435 depth stream.
+
+Verified in this workspace:
+
+- package imports successfully after `source install/setup.bash`
+- installed executable: `ros2 run ur_grasp grasp_node`
+
+Launch:
+
+```bash
+source install/setup.bash
+ros2 run ur_grasp grasp_node
+```
+
+Trigger one detection:
+
+```bash
+ros2 service call /ur_grasp/detect std_srvs/srv/Trigger {}
+```
+
+What to expect if it is working:
+
+- node starts and advertises `/ur_grasp/detect`
+- subscribes to `/camera_head/depth/color/points`
+- publishes `/ur_grasp/grasp_pose`
+- publishes `/ur_grasp/grasp_marker` for RViz visualization
+- if `simple_grasping` is not installed, it falls back to the built-in numpy centroid detector
+- if no point cloud is available yet, the node warns and returns no grasp
+
 ### Vision-Based Perception (`ur_perception`)
 
 Color-based detection with optional YOLO and PCL cluster extraction from the Intel D435 camera.
 
 ```bash
+source install/setup.bash
 ros2 launch ur_perception perception.launch.py
 ros2 topic echo /detected_objects
 ```
 
-Annotated image output: `/detection_image`
+Or run the node directly:
+
+```bash
+source install/setup.bash
+ros2 run ur_perception object_detector_node.py
+```
+
+Verified in this workspace:
+
+- package imports successfully after `source install/setup.bash`
+- installed executable: `ros2 run ur_perception object_detector_node.py`
+
+What to expect if it is working:
+
+- detected objects are published on `/detected_objects`
+- annotated camera output is published on `/detection_image`
+- planning-scene collision objects are published on `/planning_scene`
+- the node waits for `/camera_head/color/image_raw`, `/camera_head/depth/image_rect_raw`, and `/camera_head/camera_info`
+- if `use_yolo:=true` is set but `ultralytics` is missing, it warns and continues with color detection only
+
+### LLM Task Planner (`ur_llm_planner`)
+
+Natural-language task planning with a local Ollama model, connected to perception output and the MoveIt/gripper action pipeline.
+
+Verified in this workspace:
+
+- package imports successfully after `source install/setup.bash`
+- installed executable: `ros2 run ur_llm_planner llm_planner_node.py`
+- text-command topic exists in code: `/llm_planner/command`
+- the planner converts text into a JSON task list and sends it to `MotionExecutor`
+
+Launch:
+
+```bash
+source install/setup.bash
+ros2 run ur_llm_planner llm_planner_node.py
+```
+
+Or with the launch file:
+
+```bash
+source install/setup.bash
+ros2 launch ur_llm_planner llm_planner.launch.py
+```
+
+Send a text instruction:
+
+```bash
+ros2 topic pub --once /llm_planner/command std_msgs/msg/String \
+  "{data: 'pick up the red object and place it to the left of the robot'}"
+```
+
+What to expect if it is working:
+
+- the node subscribes to `/detected_objects`
+- it listens for text commands on `/llm_planner/command`
+- it asks Ollama for a JSON task plan
+- it executes actions such as `move_to_named_pose`, `pick`, `place`, `open_gripper`, and `close_gripper`
+- if Ollama is not running on `http://localhost:11434`, the node warns and returns an empty task list
+- if MoveIt or gripper action servers are not available, planning may succeed but execution will not complete
+
+Ollama setup:
+
+```bash
+ollama serve
+ollama pull llama3.2:3b
+ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
+```
 
 ### SAC RL Policy Runner (`mujoco_ur_rl_ros2`)
 

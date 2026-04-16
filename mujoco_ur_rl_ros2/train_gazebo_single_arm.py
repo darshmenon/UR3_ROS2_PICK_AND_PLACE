@@ -11,6 +11,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
+import re
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
@@ -25,6 +26,32 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
 LOG_ROOT   = "logs/gazebo_single_arm"
 MODEL_ROOT = "models/gazebo_single_arm"
+
+
+def find_resume_replay_buffer(model_path):
+    path = Path(model_path)
+    stem = path.stem
+
+    match = re.match(r"^(?P<prefix>.+)_(?P<steps>\d+)_steps$", stem)
+    if match:
+        candidate = path.with_name(
+            f"{match.group('prefix')}_replay_buffer_{match.group('steps')}_steps.pkl"
+        )
+        if candidate.exists():
+            return str(candidate)
+
+    final_candidate = path.with_name(f"{stem}_replay_buffer.pkl")
+    if final_candidate.exists():
+        return str(final_candidate)
+
+    replay_buffers = sorted(
+        path.parent.glob("*_replay_buffer_*_steps.pkl"),
+        key=lambda replay_path: replay_path.stat().st_mtime,
+    )
+    if replay_buffers:
+        return str(replay_buffers[-1])
+
+    return None
 
 
 def parse_args():
@@ -85,11 +112,25 @@ def main():
         save_freq=max(100_000 // args.n_envs, 1),
         save_path=model_dir,
         name_prefix="ckpt",
+        save_replay_buffer=True,
     )
 
     if args.resume:
         print(f"Resuming from {args.resume}")
-        model = SAC.load(args.resume, env=vec_env)
+        model = SAC.load(
+            args.resume,
+            env=vec_env,
+            tensorboard_log=log_dir,
+            learning_rate=args.learning_rate,
+            buffer_size=args.buffer_size,
+            batch_size=args.batch_size,
+        )
+        replay_buffer_path = find_resume_replay_buffer(args.resume)
+        if replay_buffer_path:
+            print(f"Loading replay buffer from {replay_buffer_path}")
+            model.load_replay_buffer(replay_buffer_path)
+        else:
+            print("No replay buffer found for resume path; continuing with an empty replay buffer.")
     else:
         model = SAC(
             "MlpPolicy",
@@ -117,7 +158,10 @@ def main():
 
     final_path = os.path.join(model_dir, "final_model")
     model.save(final_path)
+    final_replay_buffer_path = os.path.join(model_dir, "final_model_replay_buffer.pkl")
+    model.save_replay_buffer(final_replay_buffer_path)
     print(f"Saved: {final_path}.zip")
+    print(f"Saved replay buffer: {final_replay_buffer_path}")
     print(f"\nTo run in Gazebo:")
     print(f"  ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \\")
     print(f"    --ros-args -p model_path:={model_dir}/best_model.zip \\")

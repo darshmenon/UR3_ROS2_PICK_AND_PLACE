@@ -112,7 +112,7 @@ def generate_launch_description():
             DeclareLaunchArgument("control_rate_hz", default_value="10.0"),
             DeclareLaunchArgument("action_scale", default_value="1.2"),
             DeclareLaunchArgument("gripper_scale", default_value="0.05"),
-            DeclareLaunchArgument("gripper_close_scale", default_value="0.10"),
+            DeclareLaunchArgument("gripper_close_scale", default_value="0.20"),
             DeclareLaunchArgument("step_dt", default_value="0.1"),
             DeclareLaunchArgument("publish_gripper", default_value="true"),
             DeclareLaunchArgument("ee_x", default_value="0.0"),

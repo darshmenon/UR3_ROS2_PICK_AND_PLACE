@@ -54,7 +54,7 @@ class SharedArmPolicyNode(Node):
         self.declare_parameter("control_rate_hz", 10.0)
         self.declare_parameter("action_scale", 1.2)
         self.declare_parameter("gripper_scale", 0.05)
-        self.declare_parameter("gripper_close_scale", 0.10)
+        self.declare_parameter("gripper_close_scale", 0.20)
         self.declare_parameter("step_dt", 0.1)
         self.declare_parameter("publish_gripper", True)
 
