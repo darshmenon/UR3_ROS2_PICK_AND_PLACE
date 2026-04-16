@@ -52,20 +52,21 @@ class SharedArmPolicyNode(Node):
         self.declare_parameter("arm_joint_names", ARM_JOINTS)
         self.declare_parameter("gripper_joint_names", [GRIPPER_JOINT])
         self.declare_parameter("control_rate_hz", 10.0)
-        self.declare_parameter("action_scale", 0.2)
-        self.declare_parameter("gripper_scale", 0.02)
+        self.declare_parameter("action_scale", 1.2)
+        self.declare_parameter("gripper_scale", 0.05)
+        self.declare_parameter("gripper_close_scale", 0.10)
         self.declare_parameter("step_dt", 0.1)
         self.declare_parameter("publish_gripper", True)
 
         self.declare_parameter("ee_x", 0.0)
         self.declare_parameter("ee_y", 0.0)
         self.declare_parameter("ee_z", 0.0)
-        self.declare_parameter("object_x", -1.18)
+        self.declare_parameter("object_x", 0.35)
         self.declare_parameter("object_y", 0.0)
         self.declare_parameter("object_z", 0.045)
-        self.declare_parameter("drop_x", -1.25)
-        self.declare_parameter("drop_y", 0.0)
-        self.declare_parameter("drop_z", 0.02)
+        self.declare_parameter("drop_x", 0.35)
+        self.declare_parameter("drop_y", 0.20)
+        self.declare_parameter("drop_z", 0.025)
         self.declare_parameter("phase", 0.0)
 
         model_path = str(self.get_parameter("model_path").value) or DEFAULT_MODEL_PATH
@@ -73,6 +74,7 @@ class SharedArmPolicyNode(Node):
         self._gripper_joint_names = [str(name) for name in self.get_parameter("gripper_joint_names").value]
         self._action_scale = float(self.get_parameter("action_scale").value)
         self._gripper_scale = float(self.get_parameter("gripper_scale").value)
+        self._gripper_close_scale = float(self.get_parameter("gripper_close_scale").value)
         self._step_dt = float(self.get_parameter("step_dt").value)
         self._publish_gripper = bool(self.get_parameter("publish_gripper").value)
         self._warned_missing_arm_joints = set()
@@ -166,7 +168,9 @@ class SharedArmPolicyNode(Node):
 
         self._publish_arm(arm_target)
         if self._publish_gripper and action.shape[0] >= 7:
-            gripper_target = float(self.gripper_qpos + np.clip(action[6], -1.0, 1.0) * self._gripper_scale)
+            gripper_action = float(np.clip(action[6], -1.0, 1.0))
+            gripper_scale = self._gripper_close_scale if gripper_action > 0.0 else self._gripper_scale
+            gripper_target = float(self.gripper_qpos + gripper_action * gripper_scale)
             self._publish_gripper_target(gripper_target)
 
     def _duration(self):

@@ -7,7 +7,7 @@ Uses the same proven reward structure as ur_dual_arm_env.py.
 Obs (23-dim, matches shared_arm_policy_node):
   qpos[6] + qvel[6] + ee_pos[3] + obj_pos[3] + drop_pos[3] + gripper[1] + phase[1]
 
-Actions (7-dim): 6 arm joint targets (relative to ready_pose) + 1 gripper
+Actions (7-dim): 6 arm joint deltas from the current commanded pose + 1 gripper delta
 """
 
 import mujoco
@@ -26,7 +26,9 @@ READY_POSE     = np.array([0.0,   -1.0,  1.5,   -1.57, -1.57, 0.0], dtype=np.flo
 # pre-computed via IK: EE at [0.35, 0, 0.15] — above the object workspace
 GRASP_POSE     = np.array([0.492, -1.63, 3.668, -1.911, -1.254, 0.0], dtype=np.float64)
 # delta per env step — matches shared_arm_policy_node (action_scale=1.0, step_dt=0.1)
-ARM_DELTA_SCALE = 0.1   # rad per step per unit action
+ARM_DELTA_SCALE = 0.12   # slightly faster arm motion per step for quicker reaches
+GRIPPER_OPEN_DELTA_SCALE = 0.05
+GRIPPER_CLOSE_DELTA_SCALE = 0.10
 
 OBJ_X_RANGE  = (0.28, 0.45)
 OBJ_Y_RANGE  = (-0.15, 0.15)
@@ -188,7 +190,9 @@ class URGazeboSingleArmEnv(gym.Env):
         self.data.ctrl[:N_ARM] = np.clip(arm_target, arm_range[:, 0], arm_range[:, 1])
 
         # gripper: delta from current position — matches shared_arm_policy_node semantics
-        grip_delta = float(action[N_ARM]) * 0.05   # ~50 steps to fully open/close
+        grip_action = float(action[N_ARM])
+        grip_scale = GRIPPER_CLOSE_DELTA_SCALE if grip_action > 0.0 else GRIPPER_OPEN_DELTA_SCALE
+        grip_delta = grip_action * grip_scale
         gl, gh = self.model.actuator_ctrlrange[N_ARM]
         self.data.ctrl[N_ARM] = float(np.clip(self.data.ctrl[N_ARM] + grip_delta, gl, gh))
 

@@ -33,6 +33,8 @@ def parse_args():
     p.add_argument("--n-envs",         type=int,   default=8)
     p.add_argument("--curriculum",     type=str,   default="easy_grasp",
                    choices=["none", "easy_grasp", "grasp_focus"])
+    p.add_argument("--render",         action="store_true",
+                   help="Render the first training environment in a MuJoCo viewer")
     p.add_argument("--resume",         type=str,   default=None,
                    help="Path to existing model zip to resume from")
     p.add_argument("--learning-rate",  type=float, default=3e-4)
@@ -41,9 +43,9 @@ def parse_args():
     return p.parse_args()
 
 
-def make_env(curriculum):
+def make_env(curriculum, render_mode=None):
     def _init():
-        return URGazeboSingleArmEnv(curriculum_mode=curriculum)
+        return URGazeboSingleArmEnv(curriculum_mode=curriculum, render_mode=render_mode)
     return _init
 
 
@@ -60,8 +62,15 @@ def main():
     print(f"Run: {run_name}")
     print(f"Timesteps: {args.timesteps:,}  |  envs: {args.n_envs}  |  curriculum: {args.curriculum}")
 
-    vec_env  = VecMonitor(DummyVecEnv([make_env(args.curriculum)] * args.n_envs))
-    eval_env = VecMonitor(DummyVecEnv([make_env(args.curriculum)] * 4))
+    if args.render and args.n_envs != 1:
+        raise ValueError("--render requires --n-envs 1 so a single MuJoCo viewer can be shown reliably.")
+
+    train_env_fns = [
+        make_env(args.curriculum, render_mode="human" if args.render and idx == 0 else None)
+        for idx in range(args.n_envs)
+    ]
+    vec_env  = VecMonitor(DummyVecEnv(train_env_fns))
+    eval_env = VecMonitor(DummyVecEnv([make_env(args.curriculum) for _ in range(4)]))
 
     eval_cb = EvalCallback(
         eval_env,

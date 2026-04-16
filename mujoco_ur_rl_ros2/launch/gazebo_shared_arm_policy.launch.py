@@ -14,6 +14,9 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
     launch_policy = LaunchConfiguration("launch_policy")
     policy_delay = LaunchConfiguration("policy_delay")
+    use_rviz = LaunchConfiguration("use_rviz")
+    use_move_group = LaunchConfiguration("use_move_group")
+    use_gazebo_gui = LaunchConfiguration("use_gazebo_gui")
 
     default_gazebo_launch = PathJoinSubstitution(
         [FindPackageShare("ur_gazebo"), "launch", "ur.gazebo.launch.py"]
@@ -27,6 +30,9 @@ def generate_launch_description():
             "robot_name": robot_name,
             "ur_type": ur_type,
             "use_sim_time": use_sim_time,
+            "use_rviz": use_rviz,
+            "use_move_group": use_move_group,
+            "use_gazebo_gui": use_gazebo_gui,
         }.items(),
     )
 
@@ -48,6 +54,7 @@ def generate_launch_description():
                 "control_rate_hz": LaunchConfiguration("control_rate_hz"),
                 "action_scale": LaunchConfiguration("action_scale"),
                 "gripper_scale": LaunchConfiguration("gripper_scale"),
+                "gripper_close_scale": LaunchConfiguration("gripper_close_scale"),
                 "step_dt": LaunchConfiguration("step_dt"),
                 "publish_gripper": LaunchConfiguration("publish_gripper"),
                 "ee_x": LaunchConfiguration("ee_x"),
@@ -73,10 +80,13 @@ def generate_launch_description():
                 default_value=default_gazebo_launch,
                 description="Path to the UR Gazebo launch file. Defaults to the bundled ur_gazebo package.",
             ),
-            DeclareLaunchArgument("world_file", default_value="colored_blocks.world"),
+            DeclareLaunchArgument("world_file", default_value="single_arm_transfer.world"),
             DeclareLaunchArgument("robot_name", default_value="ur"),
             DeclareLaunchArgument("ur_type", default_value="ur3"),
             DeclareLaunchArgument("use_sim_time", default_value="true"),
+            DeclareLaunchArgument("use_rviz", default_value="false"),
+            DeclareLaunchArgument("use_move_group", default_value="false"),
+            DeclareLaunchArgument("use_gazebo_gui", default_value="true"),
             DeclareLaunchArgument("launch_policy", default_value="true"),
             DeclareLaunchArgument(
                 "policy_delay",
@@ -91,7 +101,7 @@ def generate_launch_description():
             DeclareLaunchArgument("joint_state_topic", default_value="/joint_states"),
             DeclareLaunchArgument(
                 "arm_trajectory_topic",
-                default_value="/scaled_joint_trajectory_controller/joint_trajectory",
+                default_value="/arm_controller/joint_trajectory",
             ),
             DeclareLaunchArgument("gripper_trajectory_topic", default_value="/gripper_controller/joint_trajectory"),
             DeclareLaunchArgument(
@@ -100,19 +110,20 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument("gripper_joint_names", default_value="['finger_joint']"),
             DeclareLaunchArgument("control_rate_hz", default_value="10.0"),
-            DeclareLaunchArgument("action_scale", default_value="0.2"),
-            DeclareLaunchArgument("gripper_scale", default_value="0.02"),
+            DeclareLaunchArgument("action_scale", default_value="1.2"),
+            DeclareLaunchArgument("gripper_scale", default_value="0.05"),
+            DeclareLaunchArgument("gripper_close_scale", default_value="0.10"),
             DeclareLaunchArgument("step_dt", default_value="0.1"),
             DeclareLaunchArgument("publish_gripper", default_value="true"),
             DeclareLaunchArgument("ee_x", default_value="0.0"),
             DeclareLaunchArgument("ee_y", default_value="0.0"),
             DeclareLaunchArgument("ee_z", default_value="0.0"),
-            DeclareLaunchArgument("object_x", default_value="-1.18"),
+            DeclareLaunchArgument("object_x", default_value="0.35"),
             DeclareLaunchArgument("object_y", default_value="0.0"),
             DeclareLaunchArgument("object_z", default_value="0.045"),
-            DeclareLaunchArgument("drop_x", default_value="-1.25"),
-            DeclareLaunchArgument("drop_y", default_value="0.0"),
-            DeclareLaunchArgument("drop_z", default_value="0.02"),
+            DeclareLaunchArgument("drop_x", default_value="0.35"),
+            DeclareLaunchArgument("drop_y", default_value="0.20"),
+            DeclareLaunchArgument("drop_z", default_value="0.025"),
             DeclareLaunchArgument("phase", default_value="0.0"),
             gazebo,
             delayed_policy,

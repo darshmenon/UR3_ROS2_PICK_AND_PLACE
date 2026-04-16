@@ -283,84 +283,24 @@ This script launches the Gazebo simulation, MoveIt 2, the planning scene server,
 
 ### Vision-Based Perception (`ur_perception`)
 
-Color + optional YOLO object detection + PCL-based cluster extraction from the Intel D435 camera.
+Color-based detection with optional YOLO and PCL cluster extraction from the Intel D435 camera.
 
 ```bash
 ros2 launch ur_perception perception.launch.py
 ros2 topic echo /detected_objects
-# Annotated feed in RViz: /detection_image
 ```
 
-### LLM Task Planning (`ur_llm_planner`)
-
-Natural language to robot motion via local Ollama model:
-
-```bash
-ros2 launch ur_llm_planner llm_planner.launch.py
-ros2 topic pub --once /llm_planner/command std_msgs/msg/String \
-  "{data: 'pick up the red block and place it in the left bin'}"
-```
-
-### Demonstration Recording + Behavior Cloning (`ur_data_collector`)
-
-```bash
-ros2 launch ur_data_collector data_collector.launch.py
-ros2 service call /data_collector/start_recording std_srvs/srv/Trigger
-ros2 service call /data_collector/stop_recording std_srvs/srv/Trigger
-
-python3 ur_data_collector/scripts/train_bc.py \
-  --data_dir ~/ur3_demos \
-  --output_dir ~/bc_policy \
-  --epochs 50
-```
-
-### SmolVLA Vision-Language-Action Policy (`ur_smolvla`)
-
-[SmolVLA](https://huggingface.co/lerobot/smolvla_base) is a compact VLA model from HuggingFace that takes a camera image + joint states and predicts robot actions directly from a natural-language task description. This replaces hardcoded waypoints with a learned policy.
-
-**Install lerobot (requires Python >= 3.11):**
-
-```bash
-python3.11 -m pip install "git+https://github.com/huggingface/lerobot.git#egg=lerobot[smolvla]"
-```
-
-**Run inference against the base model:**
-
-```bash
-# Terminal 1 — start simulation
-ros2 launch ur_gazebo ur.gazebo.launch.py
-
-# Terminal 2 — run SmolVLA inference
-ros2 launch ur_smolvla smolvla_inference.launch.py \
-  task:="pick the red block and place it in the bin"
-```
-
-**Run with a fine-tuned checkpoint:**
-
-```bash
-ros2 launch ur_smolvla smolvla_inference.launch.py \
-  checkpoint:=/path/to/your/checkpoint \
-  task:="pick the red block"
-```
-
-The inference node subscribes to `/camera_head/color/image_raw` + `/joint_states` and publishes `JointTrajectory` commands to `/arm_controller/joint_trajectory` at 10 Hz. The camera is a simulated Intel D435 mounted at 0.50 m height with a 25° downward tilt, giving a clear view of the workspace.
-
-**Workflow to fine-tune SmolVLA on your own pick-and-place demos:**
-
-1. Record demonstrations with `ur_data_collector` (saves HDF5 episodes)
-2. Convert to LeRobot dataset format and fine-tune SmolVLA
-3. Point `checkpoint:=` at your fine-tuned model and run inference
+Annotated image output: `/detection_image`
 
 ### SAC RL Policy Runner (`mujoco_ur_rl_ros2`)
 
-> **Note on UR3 Adaptation:** The models trained in `mujoco-ur-arm-rl` are optimized for the UR5e arm. To use them effectively on the UR3, you will need to tweak the Gymnasium environments (to account for UR3 link lengths/workspace) and retrain the model. Furthermore, ensure spawned objects aren't placed too close to the robotic base, as this causes reachability issues.
+Run a Soft Actor-Critic policy trained in MuJoCo on the simulated UR3.
 
-Run a pre-trained Soft Actor-Critic (SAC) policy trained in MuJoCo directly on the simulated UR3. Two nodes are included:
+Main node:
 
-- **`ur_policy_node`** — basic reach policy (arm joints only, no gripper)
-- **`shared_arm_policy_node`** — full pick-and-place policy with arm + gripper
+- `shared_arm_policy_node`: pick-and-place policy with arm + gripper
 
-**Run with a trained model:**
+Run the policy in Gazebo:
 
 ```bash
 # Terminal 1 — start simulation
@@ -374,7 +314,7 @@ ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
   -p drop_x:=0.45  -p drop_y:=0.2  -p drop_z:=0.025
 ```
 
-Or use the bundled Gazebo launch (boots simulation + policy together):
+Or launch Gazebo and the policy together:
 
 ```bash
 ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
@@ -382,28 +322,18 @@ ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
   launch_policy:=true
 ```
 
-The policy subscribes to `/joint_states` and publishes `JointTrajectory` commands to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory` at 10 Hz.
+The policy reads `/joint_states` and publishes to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory`.
 
-**Training environments** (for re-training or fine-tuning) are in `mujoco_ur_rl_ros2/envs/`:
-
-| Env | Description |
-|---|---|
-| `ur_gazebo_single_arm_env.py` | Single arm at origin — matches Gazebo layout, use this to train a policy that transfers directly |
-| `ur_pick_place_env.py` | Basic pick-place, simple reward |
-| `shared_arm_env.py` | Multi-arm shared policy training |
-| `ur_dual_arm_env.py` | Dual-arm scene with proven phase-based reward |
-
-**Train a Gazebo-compatible policy from scratch:**
+Train a Gazebo-aligned policy:
 
 ```bash
-# from the repo root
 python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
   --timesteps 2000000 \
   --n-envs 8 \
   --curriculum grasp_focus
 ```
 
-**Resume a previous run:**
+Resume training:
 
 ```bash
 python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
@@ -413,12 +343,16 @@ python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
   --resume models/gazebo_single_arm/<run>/best_model.zip
 ```
 
-Best model saves to `models/gazebo_single_arm/<run>/best_model.zip` — checkpoints saved every 100k steps. Then pass that path to `shared_arm_policy_node` above.
+Best checkpoint:
 
-> **Key hyperparameters** (in `train_gazebo_single_arm.py`):
-> - `--curriculum grasp_focus` — starts episodes near the object, critical for learning grasps
-> - `ent_coef=0.1` (fixed) — prevents SAC entropy from collapsing before grasps are discovered
-> - `--learning-rate`, `--buffer-size`, `--batch-size` — tunable via CLI
+- `models/gazebo_single_arm/<run>/best_model.zip`
+
+Key notes:
+
+- `--curriculum grasp_focus` is the most important setting for grasp learning
+- checkpoints are saved every `100k` steps
+- `ur_gazebo_single_arm_env.py` is the main transfer env for Gazebo
+- keep spawned objects inside the UR3 reachable workspace for better transfer
 
 ### Full Demo (all-in-one)
 
@@ -432,3 +366,116 @@ ros2 launch ur_gazebo full_demo.launch.py use_llm_planner:=true
 ## Contributing
 
 Feel free to open pull requests or issues for improvements or bug reports.
+
+---
+
+## How To View Training And Gazebo
+
+### View Training Live (MuJoCo)
+
+`train_gazebo_single_arm.py` trains in MuJoCo, not in Gazebo. To watch training live:
+
+```bash
+python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
+  --timesteps 2000000 \
+  --n-envs 1 \
+  --curriculum grasp_focus \
+  --render \
+  --resume models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip
+```
+
+Use `--render` only with `--n-envs 1`.
+
+### Run Training Headless
+
+For faster training without the MuJoCo viewer:
+
+```bash
+python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
+  --timesteps 2000000 \
+  --n-envs 8 \
+  --curriculum grasp_focus \
+  --resume models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip
+```
+
+### View The Best Policy In Gazebo
+
+Launch Gazebo and the saved policy together:
+
+```bash
+ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
+  model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip \
+  launch_policy:=true
+```
+
+Important:
+
+- Use `launch_policy:=true` if you want the RL policy node to start automatically.
+- After launch, wait about `55` seconds before expecting arm motion.
+- That delay is intentional so Gazebo, `gz_ros2_control`, and the arm/gripper controllers have time to come up cleanly before the policy starts sending commands.
+
+Or run Gazebo and the policy separately:
+
+```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py
+```
+
+```bash
+ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
+  --ros-args \
+  -p model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip \
+  -p arm_trajectory_topic:=/arm_controller/joint_trajectory \
+  -p gripper_trajectory_topic:=/gripper_controller/joint_trajectory \
+  -p object_x:=0.35 -p object_y:=0.0 -p object_z:=0.045 \
+  -p drop_x:=0.35 -p drop_y:=0.20 -p drop_z:=0.025
+```
+
+The bundled Gazebo workflow uses `single_arm_transfer.world`, which is aligned with the single-arm MuJoCo training scene.
+
+### Launch Both Together
+
+Launch Gazebo and MuJoCo training from one command:
+
+```bash
+ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py
+```
+
+Useful variants:
+
+```bash
+# Gazebo + live MuJoCo training viewer
+ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
+  launch_training:=true \
+  training_render:=true
+```
+
+```bash
+# Training only
+ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
+  launch_gazebo:=false \
+  launch_training:=true \
+  training_render:=true
+```
+
+```bash
+# Gazebo only with a specific checkpoint
+ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
+  launch_training:=false \
+  model_path:=/absolute/path/to/best_model.zip
+```
+
+### Quick Summary
+
+- MuJoCo viewer shows the live RL training environment.
+- Headless mode runs the same trainer without opening the viewer.
+- Gazebo shows the trained or best saved policy running on the ROS 2 simulation stack.
+- `train_gazebo_single_arm.py` is named for Gazebo transfer, but the RL loop itself runs in MuJoCo.
+
+---
+
+## Future Scope
+
+- Add a vision-language-action pipeline for task-conditioned robot control.
+- Bring back LLM task planning as a stable feature for high-level commands such as pick, place, sort, and multi-step tabletop tasks.
+- Connect perception, RL, and language planning more tightly so detected objects can be selected and manipulated from natural-language instructions.
+- Improve MuJoCo-to-Gazebo transfer so learned grasping policies behave more consistently on the UR3 with the Robotiq gripper.
