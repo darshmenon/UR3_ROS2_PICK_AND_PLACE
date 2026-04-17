@@ -20,8 +20,8 @@ GRIPPER_JOINT = "finger_joint"
 
 DEFAULT_MODEL_RELATIVE_PATH = (
     Path("models")
-    / "shared_arm"
-    / "shared_arm_8arm_all_samples_resume_20260410_1501"
+    / "gazebo_single_arm"
+    / "gazebo_single_arm_20260417_1153"
     / "best_model.zip"
 )
 
