@@ -25,10 +25,10 @@ N_CTRL = N_ARM + N_GRIP
 READY_POSE     = np.array([0.0,   -1.0,  1.5,   -1.57, -1.57, 0.0], dtype=np.float64)
 # pre-computed via IK: EE at [0.35, 0, 0.15] — above the object workspace
 GRASP_POSE     = np.array([0.492, -1.63, 3.668, -1.911, -1.254, 0.0], dtype=np.float64)
-# delta per env step — matches shared_arm_policy_node (action_scale=1.0, step_dt=0.1)
+# delta per env step — matches shared_arm_policy_node
 ARM_DELTA_SCALE = 0.12   # slightly faster arm motion per step for quicker reaches
 GRIPPER_OPEN_DELTA_SCALE = 0.05
-GRIPPER_CLOSE_DELTA_SCALE = 0.10
+GRIPPER_CLOSE_DELTA_SCALE = 0.20
 
 OBJ_X_RANGE  = (0.28, 0.45)
 OBJ_Y_RANGE  = (-0.15, 0.15)
@@ -95,6 +95,10 @@ class URGazeboSingleArmEnv(gym.Env):
         self._obj_qpos_start = int(self.model.jnt_qposadr[
             mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "object_joint")])
         self._grip_qpos = N_ARM  # qpos[6] = right_driver_joint
+        self._grip_ctrl_min, self._grip_ctrl_max = self.model.actuator_ctrlrange[N_ARM]
+        self._grip_joint_min, self._grip_joint_max = self.model.jnt_range[
+            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "gripper-right_driver_joint")
+        ]
 
         self.observation_space = spaces.Box(-np.inf, np.inf, shape=(23,), dtype=np.float32)
         self.action_space      = spaces.Box(-1.0, 1.0, shape=(N_CTRL,), dtype=np.float32)
@@ -105,6 +109,7 @@ class URGazeboSingleArmEnv(gym.Env):
         self._grasped     = False
         self._drop_pos    = np.array([0.35, 0.20, DROP_Z], dtype=np.float64)
         self._obj_init_pos = np.array([0.35, 0.0, OBJ_Z],  dtype=np.float64)
+        self._grip_target_qpos = float(self._grip_joint_min)
         self._viewer      = None
 
     def _find_geoms(self, names):
@@ -142,6 +147,19 @@ class URGazeboSingleArmEnv(gym.Env):
             if left and right: break
         return left, right
 
+    def _set_gripper_target(self, target_qpos):
+        clipped_qpos = float(np.clip(target_qpos, self._grip_joint_min, self._grip_joint_max))
+        self._grip_target_qpos = clipped_qpos
+
+        joint_span = self._grip_joint_max - self._grip_joint_min
+        ctrl_span = self._grip_ctrl_max - self._grip_ctrl_min
+        if joint_span <= 0.0 or ctrl_span <= 0.0:
+            ctrl_target = self._grip_ctrl_min
+        else:
+            normalized = (clipped_qpos - self._grip_joint_min) / joint_span
+            ctrl_target = self._grip_ctrl_min + normalized * ctrl_span
+        self.data.ctrl[N_ARM] = float(np.clip(ctrl_target, self._grip_ctrl_min, self._grip_ctrl_max))
+
     # ── reset ────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):  # noqa: ARG002
         super().reset(seed=seed)
@@ -161,7 +179,8 @@ class URGazeboSingleArmEnv(gym.Env):
 
         self.data.qpos[:N_ARM] = start_pose
         self.data.ctrl[:N_ARM] = start_pose
-        self.data.ctrl[N_ARM]  = 0.0
+        self.data.qpos[self._grip_qpos] = self._grip_joint_min
+        self._set_gripper_target(self._grip_joint_min)
         s = self._obj_qpos_start
         self.data.qpos[s:s+3]   = [ox, oy, OBJ_Z]
         self.data.qpos[s+3:s+7] = [1.0, 0.0, 0.0, 0.0]
@@ -191,8 +210,7 @@ class URGazeboSingleArmEnv(gym.Env):
         grip_action = float(action[N_ARM])
         grip_scale = GRIPPER_CLOSE_DELTA_SCALE if grip_action > 0.0 else GRIPPER_OPEN_DELTA_SCALE
         grip_delta = grip_action * grip_scale
-        gl, gh = self.model.actuator_ctrlrange[N_ARM]
-        self.data.ctrl[N_ARM] = float(np.clip(self.data.ctrl[N_ARM] + grip_delta, gl, gh))
+        self._set_gripper_target(self._grip_target_qpos + grip_delta)
 
         for _ in range(5):
             mujoco.mj_step(self.model, self.data)

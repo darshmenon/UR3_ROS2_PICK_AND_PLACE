@@ -4,8 +4,10 @@ import numpy as np
 import rclpy
 from builtin_interfaces.msg import Duration
 from rclpy.node import Node
+from rclpy.time import Time
 from sensor_msgs.msg import JointState
 from stable_baselines3 import SAC
+from tf2_ros import Buffer, TransformException, TransformListener
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 ARM_JOINTS = [
@@ -36,6 +38,8 @@ def resolve_default_model_path():
 
 
 DEFAULT_MODEL_PATH = resolve_default_model_path()
+GRASP_CLOSE_THRESHOLD = 0.28
+LIFT_Z = 0.10
 
 
 class SharedArmPolicyNode(Node):
@@ -57,6 +61,8 @@ class SharedArmPolicyNode(Node):
         self.declare_parameter("gripper_close_scale", 0.20)
         self.declare_parameter("step_dt", 0.1)
         self.declare_parameter("publish_gripper", True)
+        self.declare_parameter("base_frame", "base_link")
+        self.declare_parameter("ee_frame", "robotiq_arg2f_base_link")
 
         self.declare_parameter("ee_x", 0.0)
         self.declare_parameter("ee_y", 0.0)
@@ -77,8 +83,11 @@ class SharedArmPolicyNode(Node):
         self._gripper_close_scale = float(self.get_parameter("gripper_close_scale").value)
         self._step_dt = float(self.get_parameter("step_dt").value)
         self._publish_gripper = bool(self.get_parameter("publish_gripper").value)
+        self._base_frame = str(self.get_parameter("base_frame").value)
+        self._ee_frame = str(self.get_parameter("ee_frame").value)
         self._warned_missing_arm_joints = set()
         self._warned_missing_gripper_joints = set()
+        self._warned_tf_lookup = False
 
         if len(self._arm_joint_names) != 6:
             raise ValueError("arm_joint_names must contain exactly 6 joints for the shared-arm policy.")
@@ -89,10 +98,15 @@ class SharedArmPolicyNode(Node):
         self._prev_pos = np.zeros(len(self._arm_joint_names), dtype=np.float32)
         self._prev_time = None
         self._have_joint_state = False
+        self._phase = float(self.get_parameter("phase").value)
+        self._latest_ee_pos = self._param_vec("ee")
 
         self.get_logger().info(f"Loading shared-arm SAC model from {model_path}")
         self.model = SAC.load(model_path)
         self.get_logger().info("Shared-arm model loaded.")
+
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self, spin_thread=True)
 
         joint_state_topic = str(self.get_parameter("joint_state_topic").value)
         arm_trajectory_topic = str(self.get_parameter("arm_trajectory_topic").value)
@@ -145,17 +159,82 @@ class SharedArmPolicyNode(Node):
         )
 
     def _obs(self):
+        ee_pos = self._lookup_ee_pos()
+        self._phase = self._infer_phase(ee_pos)
         return np.concatenate(
             [
                 self.qpos,
                 self.qvel,
-                self._param_vec("ee"),
+                ee_pos,
                 self._param_vec("object"),
                 self._param_vec("drop"),
                 np.array([self.gripper_qpos], dtype=np.float32),
-                np.array([float(self.get_parameter("phase").value)], dtype=np.float32),
+                np.array([self._phase], dtype=np.float32),
             ]
         ).astype(np.float32)
+
+    def _lookup_ee_pos(self):
+        try:
+            transform = self._tf_buffer.lookup_transform(
+                self._base_frame,
+                self._ee_frame,
+                Time(),
+            )
+            translation = transform.transform.translation
+            self._latest_ee_pos = np.array(
+                [translation.x, translation.y, translation.z],
+                dtype=np.float32,
+            )
+            self._warned_tf_lookup = False
+        except TransformException as exc:
+            if not self._warned_tf_lookup:
+                self.get_logger().warning(
+                    f"Falling back to ee_* parameters because TF lookup "
+                    f"{self._base_frame} -> {self._ee_frame} failed: {exc}"
+                )
+                self._warned_tf_lookup = True
+        return self._latest_ee_pos
+
+    def _infer_phase(self, ee_pos):
+        obj = self._param_vec("object")
+        drop = self._param_vec("drop")
+
+        ee_to_obj = float(np.linalg.norm(ee_pos - obj))
+        ee_to_obj_xy = float(np.linalg.norm(ee_pos[:2] - obj[:2]))
+        ee_height_err = float(abs(ee_pos[2] - (obj[2] + 0.03)))
+        drop_xy = float(np.linalg.norm(ee_pos[:2] - drop[:2]))
+        gripper_closed = float(self.gripper_qpos) > GRASP_CLOSE_THRESHOLD
+        near_grasp = ee_to_obj < 0.15 or (ee_to_obj_xy < 0.07 and ee_height_err < 0.035)
+        lifted = float(ee_pos[2]) >= float(obj[2] + LIFT_Z)
+
+        phase = self._phase
+        if phase < 0.5:
+            if near_grasp:
+                phase = 1.0
+            else:
+                phase = 0.0
+        elif phase < 1.5:
+            if gripper_closed:
+                phase = 2.0
+            elif near_grasp:
+                phase = 1.0
+            else:
+                phase = 0.0
+        elif phase < 2.5:
+            if not gripper_closed:
+                phase = 1.0
+            elif lifted:
+                phase = 3.0
+            else:
+                phase = 2.0
+        else:
+            if not gripper_closed:
+                phase = 1.0
+            elif lifted or drop_xy < 0.12:
+                phase = 3.0
+            else:
+                phase = 2.0
+        return np.float32(phase)
 
     def _step(self):
         if not self._have_joint_state:
