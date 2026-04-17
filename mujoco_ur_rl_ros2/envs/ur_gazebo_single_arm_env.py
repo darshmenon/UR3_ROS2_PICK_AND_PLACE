@@ -70,7 +70,7 @@ class URGazeboSingleArmEnv(gym.Env):
 
         ob = spec.worldbody.add_body(); ob.name = "object"; ob.pos = [0.35, 0.0, OBJ_Z]
         fj = ob.add_freejoint(); fj.name = "object_joint"
-        og = ob.add_geom(); og.type = mujoco.mjtGeom.mjGEOM_BOX
+        og = ob.add_geom(); og.name = "object_geom"; og.type = mujoco.mjtGeom.mjGEOM_BOX
         og.size = [0.025, 0.025, 0.025]; og.rgba = [0.9, 0.1, 0.1, 1.0]
         og.friction = [1.5, 0.005, 0.0001]; og.mass = 0.1
 
@@ -86,9 +86,7 @@ class URGazeboSingleArmEnv(gym.Env):
         self._ee_site   = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, "attachment_site")
         self._obj_body  = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "object")
         self._drop_body = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "drop_zone")
-        self._obj_geom  = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "object_geom" if
-                          mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "object_geom") >= 0
-                          else "object_geom")
+        self._obj_geom  = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, "object_geom")
 
         # gripper pad geoms for contact detection
         self._left_pad_geoms  = self._find_geoms(["gripper-left_pad1",  "gripper-left_pad2"])
