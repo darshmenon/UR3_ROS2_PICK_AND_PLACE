@@ -27,8 +27,11 @@ READY_POSE     = np.array([0.0,   -1.0,  1.5,   -1.57, -1.57, 0.0], dtype=np.flo
 GRASP_POSE     = np.array([0.492, -1.63, 3.668, -1.911, -1.254, 0.0], dtype=np.float64)
 # delta per env step — matches shared_arm_policy_node
 ARM_DELTA_SCALE = 0.12   # slightly faster arm motion per step for quicker reaches
-GRIPPER_OPEN_DELTA_SCALE = 0.05
-GRIPPER_CLOSE_DELTA_SCALE = 0.20
+# ctrl range is [0,255]; qpos changes ~0.0031 rad/ctrl_unit.
+# Scales chosen so joint angle delta per step matches Gazebo direct joint control:
+#   close: 64 → ~0.20 rad/step  open: 16 → ~0.05 rad/step
+GRIPPER_OPEN_DELTA_SCALE  = 16.0
+GRIPPER_CLOSE_DELTA_SCALE = 64.0
 
 OBJ_X_RANGE  = (0.28, 0.45)
 OBJ_Y_RANGE  = (-0.15, 0.15)
