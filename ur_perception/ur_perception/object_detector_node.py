@@ -302,7 +302,7 @@ class ObjectDetectorNode(Node):
                 bbox=det['bbox'],
                 depth_image=depth_image,
                 label=det['label'],
-                frame_id='camera_head_link',
+                frame_id=color_msg.header.frame_id,
                 stamp=stamp,
                 min_depth_m=self._min_depth_m,
                 max_depth_m=self._max_depth_m,

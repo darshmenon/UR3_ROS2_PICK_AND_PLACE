@@ -49,6 +49,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 
+import tf2_ros
+import tf2_geometry_msgs  # registers PoseStamped transforms
+
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import PointCloud2
 from std_srvs.srv import Trigger
@@ -95,6 +98,10 @@ class GraspNode(Node):
             self._find_objects_client = ActionClient(
                 self, FindObjects, "/find_objects_with_grasps"
             )
+
+        # ── TF ───────────────────────────────────────────────────────────────
+        self._tf_buffer   = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         # ── pub / sub / srv ──────────────────────────────────────────────────
         self._cloud_sub = self.create_subscription(
@@ -179,8 +186,9 @@ class GraspNode(Node):
             f"conf={candidate.confidence:.2f}  pts={candidate.n_points}"
         )
 
-        return self._make_pose(candidate.x, candidate.y, candidate.grasp_z,
-                               cloud_msg.header.frame_id)
+        pose_in_cloud = self._make_pose(candidate.x, candidate.y, candidate.grasp_z,
+                                        cloud_msg.header.frame_id)
+        return self._transform_to_base(pose_in_cloud)
 
     def _detect_simple_grasping(self) -> Optional[PoseStamped]:
         """Use simple_grasping FindObjects action server."""
@@ -232,9 +240,25 @@ class GraspNode(Node):
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
+    def _transform_to_base(self, pose: PoseStamped) -> Optional[PoseStamped]:
+        if pose.header.frame_id == "base_link":
+            return pose
+        try:
+            transform = self._tf_buffer.lookup_transform(
+                "base_link",
+                pose.header.frame_id,
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.5),
+            )
+            return tf2_geometry_msgs.do_transform_pose_stamped(pose, transform)
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException) as e:
+            self.get_logger().warn(f"TF {pose.header.frame_id}->base_link failed: {e}")
+            return None
+
     def _make_pose(self, x: float, y: float, z: float, frame: str) -> PoseStamped:
         pose = PoseStamped()
-        pose.header.frame_id = "base_link"
+        pose.header.frame_id = frame
         pose.header.stamp = self.get_clock().now().to_msg()
         pose.pose.position.x = x
         pose.pose.position.y = y
