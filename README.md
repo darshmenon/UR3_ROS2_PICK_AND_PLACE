@@ -281,6 +281,8 @@ This script launches the Gazebo simulation, MoveIt 2, the planning scene server,
 
 ## AI / ML Stack
 
+This workspace has four main AI-facing pieces: grasping, perception, language planning, and RL policy execution. The commands below are the shortest path to getting each one alive without digging through the repo.
+
 ### Grasp Detection (`ur_grasp`)
 
 Point-cloud grasp estimation for tabletop objects from the Intel D435 depth stream.
@@ -303,26 +305,33 @@ Trigger one detection:
 ros2 service call /ur_grasp/detect std_srvs/srv/Trigger {}
 ```
 
-What to expect if it is working:
+Healthy signs:
 
-- node starts and advertises `/ur_grasp/detect`
+- advertises `/ur_grasp/detect`
 - subscribes to `/camera_head/depth/color/points`
 - publishes `/ur_grasp/grasp_pose`
-- publishes `/ur_grasp/grasp_marker` for RViz visualization
-- if `simple_grasping` is not installed, it falls back to the built-in numpy centroid detector
-- if no point cloud is available yet, the node warns and returns no grasp
+- publishes `/ur_grasp/grasp_marker` for RViz
+- falls back to the built-in numpy centroid detector if `simple_grasping` is not installed
+- warns and returns no grasp if a point cloud has not arrived yet
 
 ### Vision-Based Perception (`ur_perception`)
 
-Color-based detection with optional YOLO and PCL cluster extraction from the Intel D435 camera.
+Color-based object detection with optional YOLO and PCL cluster extraction from the Intel D435 camera.
+
+Launch:
 
 ```bash
 source install/setup.bash
 ros2 launch ur_perception perception.launch.py
+```
+
+Watch detections:
+
+```bash
 ros2 topic echo /detected_objects
 ```
 
-Or run the node directly:
+Run the node directly:
 
 ```bash
 source install/setup.bash
@@ -334,24 +343,24 @@ Verified in this workspace:
 - package imports successfully after `source install/setup.bash`
 - installed executable: `ros2 run ur_perception object_detector_node.py`
 
-What to expect if it is working:
+Healthy signs:
 
-- detected objects are published on `/detected_objects`
-- annotated camera output is published on `/detection_image`
-- planning-scene collision objects are published on `/planning_scene`
-- the node waits for `/camera_head/color/image_raw`, `/camera_head/depth/image_rect_raw`, and `/camera_head/camera_info`
-- if `use_yolo:=true` is set but `ultralytics` is missing, it warns and continues with color detection only
+- publishes detected objects on `/detected_objects`
+- publishes annotated images on `/detection_image`
+- publishes collision objects on `/planning_scene`
+- waits for `/camera_head/color/image_raw`, `/camera_head/depth/image_rect_raw`, and `/camera_head/camera_info`
+- warns and keeps color detection enabled if `use_yolo:=true` is set but `ultralytics` is missing
 
 ### LLM Task Planner (`ur_llm_planner`)
 
-Natural-language task planning with a local Ollama model, connected to perception output and the MoveIt/gripper action pipeline.
+Natural-language task planning backed by a local Ollama model and connected to perception plus the MoveIt/gripper execution path.
 
 Verified in this workspace:
 
 - package imports successfully after `source install/setup.bash`
 - installed executable: `ros2 run ur_llm_planner llm_planner_node.py`
-- text-command topic exists in code: `/llm_planner/command`
-- the planner converts text into a JSON task list and sends it to `MotionExecutor`
+- command topic exists in code at `/llm_planner/command`
+- planner converts text into a JSON task list and passes it to `MotionExecutor`
 
 Launch:
 
@@ -360,7 +369,7 @@ source install/setup.bash
 ros2 run ur_llm_planner llm_planner_node.py
 ```
 
-Or with the launch file:
+Or use the launch file:
 
 ```bash
 source install/setup.bash
@@ -374,14 +383,14 @@ ros2 topic pub --once /llm_planner/command std_msgs/msg/String \
   "{data: 'pick up the red object and place it to the left of the robot'}"
 ```
 
-What to expect if it is working:
+Healthy signs:
 
-- the node subscribes to `/detected_objects`
-- it listens for text commands on `/llm_planner/command`
-- it asks Ollama for a JSON task plan
-- it executes actions such as `move_to_named_pose`, `pick`, `place`, `open_gripper`, and `close_gripper`
-- if Ollama is not running on `http://localhost:11434`, the node warns and returns an empty task list
-- if MoveIt or gripper action servers are not available, planning may succeed but execution will not complete
+- subscribes to `/detected_objects`
+- listens on `/llm_planner/command`
+- asks Ollama for a JSON task plan
+- executes actions like `move_to_named_pose`, `pick`, `place`, `open_gripper`, and `close_gripper`
+- warns and returns an empty task list if Ollama is not available at `http://localhost:11434`
+- may plan successfully but fail execution if MoveIt or gripper action servers are unavailable
 
 Ollama setup:
 
@@ -393,24 +402,20 @@ ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
 
 ### SAC RL Policy Runner (`mujoco_ur_rl_ros2`)
 
-Run a Soft Actor-Critic policy trained in MuJoCo on the simulated UR3.
-
-Main node:
-
-- `shared_arm_policy_node`: pick-and-place policy with arm + gripper
+This stack trains in MuJoCo and deploys the learned single-arm policy into Gazebo. The main runtime node is `shared_arm_policy_node`.
 
 Run the policy in Gazebo:
 
 ```bash
-# Terminal 1 — start simulation
+# Terminal 1
 ros2 launch ur_gazebo ur.gazebo.launch.py
 
-# Terminal 2 — run shared-arm SAC policy
+# Terminal 2
 ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
   --ros-args \
   -p model_path:=/path/to/best_model.zip \
   -p object_x:=0.45 -p object_y:=0.0 -p object_z:=0.045 \
-  -p drop_x:=0.45  -p drop_y:=0.2  -p drop_z:=0.025
+  -p drop_x:=0.45 -p drop_y:=0.2 -p drop_z:=0.025
 ```
 
 Or launch Gazebo and the policy together:
@@ -421,7 +426,7 @@ ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
   launch_policy:=true
 ```
 
-The policy reads `/joint_states` and publishes to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory`.
+The policy reads `/joint_states` and publishes trajectories to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory`.
 
 Train a Gazebo-aligned policy:
 
@@ -442,18 +447,29 @@ python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
   --resume models/gazebo_single_arm/<run>/best_model.zip
 ```
 
-Best checkpoint:
+Saved artifacts per run:
 
 - `models/gazebo_single_arm/<run>/best_model.zip`
+- `models/gazebo_single_arm/<run>/best_model_replay_buffer.pkl`
+- `models/gazebo_single_arm/<run>/ckpt_<steps>_steps.zip`
+- `models/gazebo_single_arm/<run>/ckpt_replay_buffer_<steps>_steps.pkl`
 
 Key notes:
 
-- `--curriculum grasp_focus` is the most important setting for grasp learning
-- checkpoints are saved every `100k` steps
-- `ur_gazebo_single_arm_env.py` is the main transfer env for Gazebo
-- keep spawned objects inside the UR3 reachable workspace for better transfer
+- `--curriculum grasp_focus` is the main setting to keep for grasp learning
+- checkpoints are written every `100k` steps
+- resume now works best from `best_model.zip` because a matching `best_model_replay_buffer.pkl` is saved beside it
+- `ur_gazebo_single_arm_env.py` is the main transfer environment for Gazebo
+- keeping spawned objects inside the UR3 reachable workspace improves transfer stability
 
-### Full Demo (all-in-one)
+Quick run summary:
+
+```bash
+python3 mujoco_ur_rl_ros2/summarize_single_arm_runs.py
+python3 mujoco_ur_rl_ros2/summarize_single_arm_runs.py gazebo_single_arm_20260418_0905 gazebo_single_arm_20260418_0928
+```
+
+### Full Demo
 
 ```bash
 ros2 launch ur_gazebo full_demo.launch.py
@@ -464,15 +480,15 @@ ros2 launch ur_gazebo full_demo.launch.py use_llm_planner:=true
 
 ## Contributing
 
-Feel free to open pull requests or issues for improvements or bug reports.
+Pull requests and issues are welcome, especially around simulation stability, transfer learning, and perception-to-action integration.
 
 ---
 
-## How To View Training And Gazebo
+## Training And Gazebo
 
-### View Training Live (MuJoCo)
+### Watch MuJoCo Training Live
 
-`train_gazebo_single_arm.py` trains in MuJoCo, not in Gazebo. To watch training live:
+`train_gazebo_single_arm.py` trains in MuJoCo, not in Gazebo.
 
 ```bash
 python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
@@ -485,9 +501,7 @@ python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
 
 Use `--render` only with `--n-envs 1`.
 
-### Run Training Headless
-
-For faster training without the MuJoCo viewer:
+### Run Headless Training
 
 ```bash
 python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
@@ -497,9 +511,9 @@ python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
   --resume models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip
 ```
 
-### View The Best Policy In Gazebo
+### Watch The Saved Policy In Gazebo
 
-Launch Gazebo and the saved policy together:
+Launch Gazebo and the policy together:
 
 ```bash
 ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
@@ -507,11 +521,11 @@ ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
   launch_policy:=true
 ```
 
-Important:
+Notes:
 
-- Use `launch_policy:=true` if you want the RL policy node to start automatically.
-- After launch, wait about `55` seconds before expecting arm motion.
-- That delay is intentional so Gazebo, `gz_ros2_control`, and the arm/gripper controllers have time to come up cleanly before the policy starts sending commands.
+- set `launch_policy:=true` if you want the RL node to start automatically
+- wait about `55` seconds before expecting motion
+- that delay gives Gazebo, `gz_ros2_control`, and the arm/gripper controllers time to settle before commands begin
 
 Or run Gazebo and the policy separately:
 
@@ -529,11 +543,9 @@ ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
   -p drop_x:=0.35 -p drop_y:=0.20 -p drop_z:=0.025
 ```
 
-The bundled Gazebo workflow uses `single_arm_transfer.world`, which is aligned with the single-arm MuJoCo training scene.
+The bundled Gazebo flow uses `single_arm_transfer.world`, which matches the single-arm MuJoCo training scene.
 
-### Launch Both Together
-
-Launch Gazebo and MuJoCo training from one command:
+### Launch Gazebo And Training Together
 
 ```bash
 ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py
@@ -542,7 +554,7 @@ ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py
 Useful variants:
 
 ```bash
-# Gazebo + live MuJoCo training viewer
+# Gazebo + live MuJoCo viewer
 ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
   launch_training:=true \
   training_render:=true
@@ -565,10 +577,10 @@ ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
 
 ### Quick Summary
 
-- MuJoCo viewer shows the live RL training environment.
-- Headless mode runs the same trainer without opening the viewer.
-- Gazebo shows the trained or best saved policy running on the ROS 2 simulation stack.
-- `train_gazebo_single_arm.py` is named for Gazebo transfer, but the RL loop itself runs in MuJoCo.
+- MuJoCo viewer shows the live RL training environment
+- headless mode runs the same trainer without opening the viewer
+- Gazebo shows the saved policy on the ROS 2 simulation stack
+- `train_gazebo_single_arm.py` is named for Gazebo transfer, but the RL loop itself runs in MuJoCo
 
 ---
 

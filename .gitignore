@@ -4,3 +4,10 @@ log/
 build/
 install/
 log/
+logs/
+models/gazebo_single_arm/
+*.pyc
+__pycache__/
+.vscode/
+.claude/
+.codex/

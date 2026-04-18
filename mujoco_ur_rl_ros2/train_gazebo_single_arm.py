@@ -28,6 +28,22 @@ LOG_ROOT   = "logs/gazebo_single_arm"
 MODEL_ROOT = "models/gazebo_single_arm"
 
 
+class EvalCallbackWithReplayBuffer(EvalCallback):
+    """Save a replay buffer alongside best_model.zip whenever eval finds a new best."""
+
+    def _on_step(self) -> bool:
+        previous_best = self.best_mean_reward
+        continue_training = super()._on_step()
+        if self.best_model_save_path and self.best_mean_reward > previous_best:
+            replay_buffer_path = os.path.join(
+                self.best_model_save_path,
+                "best_model_replay_buffer.pkl",
+            )
+            self.model.save_replay_buffer(replay_buffer_path)
+            print(f"Saved replay buffer: {replay_buffer_path}")
+        return continue_training
+
+
 def find_resume_replay_buffer(model_path):
     path = Path(model_path)
     stem = path.stem
@@ -99,7 +115,7 @@ def main():
     vec_env  = VecMonitor(DummyVecEnv(train_env_fns))
     eval_env = VecMonitor(DummyVecEnv([make_env(args.curriculum) for _ in range(4)]))
 
-    eval_cb = EvalCallback(
+    eval_cb = EvalCallbackWithReplayBuffer(
         eval_env,
         best_model_save_path=model_dir,
         log_path=log_dir,
