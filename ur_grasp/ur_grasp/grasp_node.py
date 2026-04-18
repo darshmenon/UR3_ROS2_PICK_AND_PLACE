@@ -219,7 +219,7 @@ class GraspNode(Node):
 
         # Pick the object with the most grasps (highest confidence)
         best_obj = max(result.result.objects.objects,
-                       key=lambda o: len(result.result.grasps.grasps))
+                       key=lambda o: len(o.grasps) if hasattr(o, 'grasps') else 0)
         grasps = result.result.grasps.grasps
         if not grasps:
             return self._detect_numpy()
