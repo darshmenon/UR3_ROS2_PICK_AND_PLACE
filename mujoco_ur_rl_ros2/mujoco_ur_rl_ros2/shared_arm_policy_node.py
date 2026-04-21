@@ -20,21 +20,16 @@ ARM_JOINTS = [
 ]
 GRIPPER_JOINT = "finger_joint"
 
-DEFAULT_MODEL_RELATIVE_PATH = (
-    Path("models")
-    / "gazebo_single_arm"
-    / "gazebo_single_arm_20260417_1153"
-    / "best_model.zip"
-)
-
-
 def resolve_default_model_path():
+    """Walk up from this file to find the workspace root, then pick the latest best_model.zip."""
     module_path = Path(__file__).resolve()
     for parent in module_path.parents:
-        candidate = parent / DEFAULT_MODEL_RELATIVE_PATH
-        if candidate.exists():
-            return str(candidate)
-    return str(module_path.parents[1] / DEFAULT_MODEL_RELATIVE_PATH)
+        runs_dir = parent / "models" / "gazebo_single_arm"
+        if runs_dir.is_dir():
+            candidates = sorted(runs_dir.glob("*/best_model.zip"), reverse=True)
+            if candidates:
+                return str(candidates[0])
+    return ""
 
 
 DEFAULT_MODEL_PATH = resolve_default_model_path()
@@ -76,6 +71,11 @@ class SharedArmPolicyNode(Node):
         self.declare_parameter("phase", 0.0)
 
         model_path = str(self.get_parameter("model_path").value) or DEFAULT_MODEL_PATH
+        if not model_path:
+            raise RuntimeError(
+                "No model found in models/gazebo_single_arm/. "
+                "Pass -p model_path:=/path/to/best_model.zip"
+            )
         self._arm_joint_names = [str(name) for name in self.get_parameter("arm_joint_names").value]
         self._gripper_joint_names = [str(name) for name in self.get_parameter("gripper_joint_names").value]
         self._action_scale = float(self.get_parameter("action_scale").value)

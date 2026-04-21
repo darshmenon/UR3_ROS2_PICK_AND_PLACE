@@ -10,13 +10,17 @@ Obs (23-dim, matches shared_arm_policy_node):
 Actions (7-dim): 6 arm joint deltas from the current commanded pose + 1 gripper delta
 """
 
+import os
+from pathlib import Path
+
 import mujoco
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 
-ARM_MODEL_PATH    = "/home/asimov/mujoco_menagerie/universal_robots_ur5e/ur5e.xml"
-GRIPPER_MODEL_PATH = "/home/asimov/mujoco_menagerie/robotiq_2f85/2f85.xml"
+_MENAGERIE = Path(os.environ.get("MUJOCO_MENAGERIE_PATH", Path.home() / "mujoco_menagerie"))
+ARM_MODEL_PATH    = str(_MENAGERIE / "universal_robots_ur5e" / "ur5e.xml")
+GRIPPER_MODEL_PATH = str(_MENAGERIE / "robotiq_2f85" / "2f85.xml")
 
 N_ARM  = 6
 N_GRIP = 1
