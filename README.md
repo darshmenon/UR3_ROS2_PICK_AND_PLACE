@@ -297,6 +297,9 @@ Launch:
 ```bash
 source install/setup.bash
 ros2 run ur_grasp grasp_node
+
+# Or with optional args (colour filter and backend):
+ros2 launch ur_grasp grasp_detection.launch.py colour:=red backend:=auto
 ```
 
 Trigger one detection:
@@ -414,6 +417,7 @@ ros2 launch ur_gazebo ur.gazebo.launch.py
 ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
   --ros-args \
   -p model_path:=/path/to/best_model.zip \
+  -p arm_trajectory_topic:=/arm_controller/joint_trajectory \
   -p object_x:=0.45 -p object_y:=0.0 -p object_z:=0.045 \
   -p drop_x:=0.45 -p drop_y:=0.2 -p drop_z:=0.025
 ```
@@ -426,7 +430,7 @@ ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
   launch_policy:=true
 ```
 
-The policy reads `/joint_states` and publishes trajectories to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory`.
+The policy reads `/joint_states` and publishes trajectories to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory` (Gazebo). For real UR hardware override with `-p arm_trajectory_topic:=/scaled_joint_trajectory_controller/joint_trajectory`.
 
 Train a Gazebo-aligned policy:
 
@@ -496,7 +500,7 @@ python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
   --n-envs 1 \
   --curriculum grasp_focus \
   --render \
-  --resume models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip
+  --resume models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip
 ```
 
 Use `--render` only with `--n-envs 1`.
@@ -508,7 +512,7 @@ python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
   --timesteps 2000000 \
   --n-envs 8 \
   --curriculum grasp_focus \
-  --resume models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip
+  --resume models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip
 ```
 
 ### Watch The Saved Policy In Gazebo
@@ -517,7 +521,7 @@ Launch Gazebo and the policy together:
 
 ```bash
 ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
-  model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip \
+  model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip \
   launch_policy:=true
 ```
 
@@ -536,7 +540,7 @@ ros2 launch ur_gazebo ur.gazebo.launch.py
 ```bash
 ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
   --ros-args \
-  -p model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_20260415_1430/best_model.zip \
+  -p model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip \
   -p arm_trajectory_topic:=/arm_controller/joint_trajectory \
   -p gripper_trajectory_topic:=/gripper_controller/joint_trajectory \
   -p object_x:=0.35 -p object_y:=0.0 -p object_z:=0.045 \
