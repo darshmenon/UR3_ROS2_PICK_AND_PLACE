@@ -403,6 +403,32 @@ ollama pull llama3.2:3b
 ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
 ```
 
+### Keyboard Teleoperation
+
+Manually jog the UR3 arm from the keyboard. Requires Gazebo to be running first.
+
+```bash
+source install/setup.bash
+ros2 launch ur_llm_planner keyboard_teleop.launch.py
+
+# or run directly:
+ros2 run ur_llm_planner keyboard_teleop.py
+```
+
+Controls:
+
+| Key | Action |
+|---|---|
+| `1`–`6` | select joint (shoulder_pan → wrist_3) |
+| `W` / `S` | jog selected joint + / − |
+| `C` | toggle joint ↔ Cartesian mode |
+| `W/S` `A/D` `Q/E` | (Cartesian) EE +X/−X, +Y/−Y, +Z/−Z |
+| `O` / `P` | gripper open / close |
+| `+` / `−` | step size (0.005 → 0.10 rad/m) |
+| `Esc` | quit |
+
+Cartesian mode gets the current EE pose from TF, applies the delta, calls `/compute_ik`, and sends the result to `arm_controller`.
+
 ### SAC RL Policy Runner (`mujoco_ur_rl_ros2`)
 
 This stack trains in MuJoCo and deploys the learned single-arm policy into Gazebo. The main runtime node is `shared_arm_policy_node`.

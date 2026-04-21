@@ -14,6 +14,7 @@ ament_python_install_package(${PROJECT_NAME})
 # Install scripts
 install(PROGRAMS
   scripts/llm_planner_node.py
+  scripts/keyboard_teleop.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

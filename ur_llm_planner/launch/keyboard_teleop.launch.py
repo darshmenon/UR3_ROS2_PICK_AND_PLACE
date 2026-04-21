@@ -9,6 +9,6 @@ def generate_launch_description():
             executable='keyboard_teleop.py',
             name='keyboard_teleop',
             output='screen',
-            prefix='xterm -e',
+
         ),
     ])
