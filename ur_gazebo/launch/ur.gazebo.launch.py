@@ -74,6 +74,7 @@ def generate_launch_description():
     world_path = PathJoinSubstitution([pkg_share_gazebo, gazebo_worlds_path, world_file])
     use_sim_time = LaunchConfiguration('use_sim_time')
     robot_name = LaunchConfiguration('robot_name')
+    gripper = LaunchConfiguration('gripper')
 
     # Declare launch arguments
     declared_arguments = [
@@ -82,6 +83,12 @@ def generate_launch_description():
         DeclareLaunchArgument("world_file", default_value=default_world_file, description="World file name"),
         DeclareLaunchArgument("ur_type", default_value="ur3", description="Type/series of UR robot",
                               choices=["ur3", "ur3e", "ur5", "ur5e", "ur10", "ur10e", "ur16e", "ur20", "ur30"]),
+        DeclareLaunchArgument(
+            "gripper",
+            default_value="robotiq_2f_85",
+            description="Gripper to attach to the robot",
+            choices=["robotiq_2f_85", "robotiq_2f_140"],
+        ),
         DeclareLaunchArgument("safety_limits", default_value="true", description="Enable safety limits controller"),
         DeclareLaunchArgument("safety_pos_margin", default_value="0.15", description="Safety controller position margin"),
         DeclareLaunchArgument("safety_k_position", default_value="20", description="Safety controller k-position factor"),
@@ -107,7 +114,10 @@ def generate_launch_description():
     robot_description_content = Command([
         PathJoinSubstitution([FindExecutable(name="xacro")]),
         " ",
-        urdf_xacro_path
+        urdf_xacro_path,
+        " ",
+        "gripper:=",
+        gripper,
     ])
 
     robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}

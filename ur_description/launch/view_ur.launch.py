@@ -67,6 +67,11 @@ def generate_launch_description():
             "use_sim_time",
             default_value="false",
             description="Use simulation clock",
+        ),
+        DeclareLaunchArgument(
+            "gripper",
+            default_value="robotiq_2f_85",
+            description="Gripper to attach to the robot",
         )
     ]
 
@@ -77,6 +82,7 @@ def generate_launch_description():
     safety_k_position = LaunchConfiguration("safety_k_position")
     tf_prefix = LaunchConfiguration("tf_prefix")
     use_sim_time = LaunchConfiguration("use_sim_time")
+    gripper = LaunchConfiguration("gripper")
 
     # Robot Description (from XACRO)
     robot_description_content = Command(
@@ -89,7 +95,8 @@ def generate_launch_description():
             " safety_k_position:=", safety_k_position,
             " name:=ur",
             " ur_type:=", ur_type,
-            " tf_prefix:=", tf_prefix
+            " tf_prefix:=", tf_prefix,
+            " gripper:=", gripper,
         ]
     )
     robot_description = {"robot_description": ParameterValue(robot_description_content, value_type=str)}
@@ -114,6 +121,7 @@ def generate_launch_description():
         )
         .to_moveit_configs()
     )
+    moveit_config.robot_description = robot_description
 
     # Nodes
     joint_state_publisher_node = Node(

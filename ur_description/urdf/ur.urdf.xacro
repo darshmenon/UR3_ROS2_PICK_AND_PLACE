@@ -14,6 +14,7 @@
    <xacro:arg name="safety_pos_margin" default="0.15"/>
    <xacro:arg name="safety_k_position" default="20"/>
    <xacro:arg name="force_abs_paths" default="false"/>
+   <xacro:arg name="gripper" default="robotiq_2f_85"/>
    <xacro:arg name="robot_name" default="ur"/>
    <xacro:arg name="use_gazebo" default="true"/> <!-- Added missing argument -->
 
@@ -35,7 +36,8 @@
      safety_limits="$(arg safety_limits)"
      safety_pos_margin="$(arg safety_pos_margin)"
      safety_k_position="$(arg safety_k_position)"
-     force_abs_paths="$(arg force_abs_paths)">
+     force_abs_paths="$(arg force_abs_paths)"
+     gripper="$(arg gripper)">
      <origin xyz="0 0 0" rpy="0 0 0" /> <!-- Position robot in the world -->
    </xacro:ur_robot>
 <!-- 

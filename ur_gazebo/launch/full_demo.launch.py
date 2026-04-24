@@ -91,6 +91,12 @@ def generate_launch_description():
         description='UR robot type (ur3, ur5, etc.).',
     )
 
+    gripper_arg = DeclareLaunchArgument(
+        'gripper',
+        default_value='robotiq_2f_85',
+        description='Gripper to attach to the robot.',
+    )
+
     # ------------------------------------------------------------------
     # Include ur.gazebo.launch.py (core simulation + MoveIt)
     # The 'world' argument maps to 'world_file' in ur.gazebo.launch.py
@@ -104,6 +110,7 @@ def generate_launch_description():
             'robot_name': LaunchConfiguration('robot_name'),
             'use_sim_time': LaunchConfiguration('use_sim_time'),
             'ur_type': LaunchConfiguration('ur_type'),
+            'gripper': LaunchConfiguration('gripper'),
         }.items(),
     )
 
@@ -187,6 +194,7 @@ def generate_launch_description():
         robot_name_arg,
         use_sim_time_arg,
         ur_type_arg,
+        gripper_arg,
         gazebo_launch,
     ])
 

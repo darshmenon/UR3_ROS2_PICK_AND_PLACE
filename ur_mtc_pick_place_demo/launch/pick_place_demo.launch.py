@@ -33,6 +33,7 @@ def generate_launch_description():
     # Launch configuration variables
     use_sim_time = LaunchConfiguration('use_sim_time')
     exe = LaunchConfiguration('exe')
+    gripper = LaunchConfiguration('gripper')
 
     # Get the package share directory
     pkg_share_moveit_config_temp = FindPackageShare(package=package_name_moveit_config)
@@ -49,6 +50,11 @@ def generate_launch_description():
         name='use_sim_time',
         default_value='true',
         description='Use simulation (Gazebo) clock if true')
+
+    declare_gripper_cmd = DeclareLaunchArgument(
+        name='gripper',
+        default_value='robotiq_2f_85',
+        description='Gripper to attach to the robot')
 
     declare_exe_cmd = DeclareLaunchArgument(
         name="exe",
@@ -85,6 +91,7 @@ def generate_launch_description():
             MoveItConfigsBuilder(robot_name_str, package_name=package_name_moveit_config)
             .trajectory_execution(file_path=moveit_controllers_file_path)
             .robot_description_semantic(file_path=srdf_model_path)
+            .robot_description(file_path=os.path.join(config_path, 'ur.urdf.xacro'), mappings={'gripper': gripper})
             .joint_limits(file_path=joint_limits_file_path)
             .robot_description_kinematics(file_path=kinematics_file_path)
             .planning_pipelines(
@@ -121,6 +128,7 @@ def generate_launch_description():
     # Add the launch arguments
     ld.add_action(declare_robot_name_cmd)
     ld.add_action(declare_use_sim_time_cmd)
+    ld.add_action(declare_gripper_cmd)
     ld.add_action(declare_exe_cmd)
 
     # Add the setup and node creation

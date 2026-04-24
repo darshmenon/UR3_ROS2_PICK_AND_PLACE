@@ -8,18 +8,6 @@ The blog dives into simulation setup, robotic control, MoveIt Task Constructor, 
 
 This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble** and **Gazebo Harmonic**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
 
-> **Gazebo version:** This project targets **Gazebo Harmonic (gz-sim 8)**, not Ignition Fortress (gz-sim 6). The world file, `ros_gz_bridge`, and `ros_gz_image` all use Harmonic-specific APIs (`gz::sim::systems::*`). Do **not** use `ign gazebo` to launch — use `gz sim` (via the launch file).
->
-> **Critical:** The ROS apt package `ros-humble-gz-ros2-control` must be version `≥ 0.7.18-1jammy.20260325` to include the `GzPluginHook` symbol required by Gazebo Harmonic. The February 2026 build was incorrectly compiled against Ignition Fortress; that version silently fails to load the `GazeboSimROS2ControlPlugin`, causing `controller_manager` to never start and all controllers to time out. If controllers don't load, run:
-> ```bash
-> sudo apt-get install --only-upgrade ros-humble-gz-ros2-control
-> dpkg -l ros-humble-gz-ros2-control   # should show ≥ 20260325
-> ```
-
-> **Note:** This setup uses **fixed mimic joint configuration** for the Robotiq gripper to support simulation in newer Gazebo (Harmonic). Only the primary `finger_joint` receives commands — mimic joints automatically follow.
->
-> **WIP:** other gripper variants are still work in progress. The Robotiq setup is the primary maintained path right now.
-
 ---
 
 ## Demo
@@ -138,6 +126,8 @@ Launches Gazebo + MoveIt + planning scene server + MTC demo in sequence.
 ```bash
 ros2 launch ur_gazebo ur.gazebo.launch.py
 ```
+
+You can swap the attached gripper with `gripper:=robotiq_2f_85` or `gripper:=robotiq_2f_140`.
 
 ### Launch Point Cloud Viewer (Gazebo + RViz)
 

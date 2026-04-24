@@ -1,7 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://wiki.ros.org/xacro">
   <xacro:include filename="$(find ur_description)/urdf/inc/ur_common.xacro" />
-   <xacro:include filename="$(find robotiq_2f_85_gripper_visualization)/urdf/robotiq_arg2f_85_model_macro.xacro"/>
+  <xacro:include filename="$(find robotiq_2f_85_gripper_visualization)/urdf/robotiq_arg2f_85_model_macro.xacro"/>
+  <xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_140_macro.urdf.xacro"/>
+  <xacro:include filename="$(find onrobot_description)/urdf/onrobot_rg.urdf.xacro"/>
 
   <xacro:macro name="ur_robot" params="
     name
@@ -16,6 +18,7 @@
     safety_pos_margin:=0.15
     safety_k_position:=20
     force_abs_paths:=false
+    gripper:=robotiq_2f_85
     ">
 
     <!-- Load configuration data from the provided .yaml files -->
@@ -345,23 +348,37 @@
   
   </joint>
 
-   <xacro:include filename="$(find robotiq_2f_85_gripper_visualization)/urdf/robotiq_arg2f_85_model_macro.xacro"/>
+  <!-- Robotiq 2F-85 -->
+  <xacro:if value="${gripper == 'robotiq_2f_85'}">
+    <xacro:robotiq_arg2f_85 prefix=""/>
+    <joint name="${tf_prefix}gripper_joint" type="fixed">
+      <parent link="${tf_prefix}tool0"/>
+      <child link="${tf_prefix}robotiq_arg2f_base_link"/>
+      <origin xyz="0 0 0.005" rpy="0 0 0"/>
+      <gazebo><disableFixedJointLumping>true</disableFixedJointLumping></gazebo>
+    </joint>
+  </xacro:if>
 
-  <!-- Include the gripper Xacro file  -->
-<xacro:robotiq_arg2f_85 prefix=""/>
+  <!-- Robotiq 2F-140 -->
+  <xacro:if value="${gripper == 'robotiq_2f_140'}">
+    <xacro:robotiq_gripper name="robotiq_140" prefix="" parent="${tf_prefix}tool0" include_ros2_control="false">
+      <origin xyz="0 0 0.005" rpy="0 0 0"/>
+    </xacro:robotiq_gripper>
+  </xacro:if>
 
-<!-- Attach the gripper to tool0 -->
-<!-- Attach gripper to wrist_3_link with corrected rotation -->
-<joint name="${tf_prefix}gripper_joint" type="fixed">
-  <parent link="${tf_prefix}tool0"/>
-  <child link="${tf_prefix}robotiq_arg2f_base_link"/> 
-  <origin xyz="0 0 0.005" rpy="0 0 0"/> 
-    <gazebo>
-    <disableFixedJointLumping>true</disableFixedJointLumping>
-  </gazebo>
-</joint>
+  <!-- OnRobot RG2 -->
+  <xacro:if value="${gripper == 'onrobot_rg2'}">
+    <xacro:onrobot_rg prefix="" model="rg2_v1" parent="${tf_prefix}tool0" standalone="false">
+      <origin xyz="0 0 0.01" rpy="0 0 ${pi/2}"/>
+    </xacro:onrobot_rg>
+  </xacro:if>
 
-<!-- Define the gripper with a meaningful prefix -->
+  <!-- OnRobot RG6 -->
+  <xacro:if value="${gripper == 'onrobot_rg6'}">
+    <xacro:onrobot_rg prefix="" model="rg6_v1" parent="${tf_prefix}tool0" standalone="false">
+      <origin xyz="0 0 0.01" rpy="0 0 ${pi/2}"/>
+    </xacro:onrobot_rg>
+  </xacro:if>
 
   </xacro:macro>
 </robot>

@@ -29,6 +29,7 @@ def generate_launch_description():
     rviz_config_file = LaunchConfiguration('rviz_config_file')
     rviz_config_package = LaunchConfiguration('rviz_config_package')
     robot_name = LaunchConfiguration('robot_name')
+    gripper = LaunchConfiguration('gripper')
 
     # Package names
     package_name_moveit_config = 'moveit_config'
@@ -49,6 +50,11 @@ def generate_launch_description():
         name='use_rviz',
         default_value='true',
         description='Whether to start RViz')
+
+    declare_gripper_cmd = DeclareLaunchArgument(
+        name='gripper',
+        default_value='robotiq_2f_85',
+        description='Gripper to attach to the robot')
 
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
@@ -81,7 +87,7 @@ def generate_launch_description():
             MoveItConfigsBuilder(robot_name_str, package_name=package_name_moveit_config)
             .trajectory_execution(file_path=moveit_controllers_file_path)
             .robot_description_semantic(file_path=srdf_file_path)
-            .robot_description(file_path=urdf_path_xacro)
+            .robot_description(file_path=urdf_path_xacro, mappings={'gripper': gripper})
             .joint_limits(file_path=joint_limits_file_path)
             .robot_description_kinematics(file_path=kinematics_file_path)
             .planning_pipelines(
@@ -151,6 +157,7 @@ def generate_launch_description():
     ld.add_action(declare_robot_name_cmd)
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_use_rviz_cmd)
+    ld.add_action(declare_gripper_cmd)
     ld.add_action(declare_rviz_config_file_cmd)
     ld.add_action(declare_rviz_config_package_cmd)
 
