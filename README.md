@@ -9,6 +9,8 @@ The blog dives into simulation setup, robotic control, MoveIt Task Constructor, 
 This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble / Jazzy** and **Ignition Gazebo**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
 
 > **Note:** This setup uses **fixed mimic joint configuration** for the Robotiq gripper to support simulation in newer Gazebo (Harmonic). Only the primary `finger_joint` receives commands — mimic joints automatically follow.
+>
+> **WIP:** other gripper variants are still work in progress. The Robotiq setup is the primary maintained path right now.
 
 ---
 
