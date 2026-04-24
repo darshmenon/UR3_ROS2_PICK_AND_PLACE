@@ -85,58 +85,68 @@
                 </state_interface>
             </joint>
 
-            <!-- Mimic joints — state_interface ONLY (no command_interface).
-                 Ignition Gazebo enforces the URDF <mimic> tags natively at the physics
-                 level when the robot is spawned from /robot_description. Adding a
-                 command_interface here fights physics and causes asymmetric finger motion.
-                 Per-joint initial_value keys prevent right-side joints from starting at limits. -->
-
-            <!-- left_outer_knuckle_joint (was missing — added) -->
-            <joint name="left_outer_knuckle_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-            </joint>
+            <!-- Gazebo Harmonic + DART does not enforce URDF mimic constraints reliably
+                 for this Robotiq model. Mirror the follower joints through
+                 gz_ros2_control instead so the linkage stays coherent at spawn time. -->
 
             <!-- right_outer_knuckle_joint -->
             <joint name="right_outer_knuckle_joint">
+                <param name="mimic">finger_joint</param>
+                <param name="multiplier">1</param>
+                <command_interface name="position"/>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['right_outer_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
+                <state_interface name="effort"/>
             </joint>
 
             <!-- right_inner_knuckle_joint -->
             <joint name="right_inner_knuckle_joint">
+                <param name="mimic">finger_joint</param>
+                <param name="multiplier">1</param>
+                <command_interface name="position"/>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['right_inner_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
+                <state_interface name="effort"/>
             </joint>
 
             <!-- left_inner_knuckle_joint -->
             <joint name="left_inner_knuckle_joint">
+                <param name="mimic">finger_joint</param>
+                <param name="multiplier">1</param>
+                <command_interface name="position"/>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['left_inner_knuckle_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
+                <state_interface name="effort"/>
             </joint>
 
             <!-- right_inner_finger_joint -->
             <joint name="right_inner_finger_joint">
+                <param name="mimic">finger_joint</param>
+                <param name="multiplier">-1</param>
+                <command_interface name="position"/>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['right_inner_finger_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
+                <state_interface name="effort"/>
             </joint>
 
             <!-- left_inner_finger_joint -->
             <joint name="left_inner_finger_joint">
+                <param name="mimic">finger_joint</param>
+                <param name="multiplier">-1</param>
+                <command_interface name="position"/>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['left_inner_finger_joint']}</param>
                 </state_interface>
                 <state_interface name="velocity"/>
+                <state_interface name="effort"/>
             </joint>
 
         </ros2_control>
