@@ -60,6 +60,11 @@ def generate_launch_description():
     pkg_share_description = FindPackageShare(package_name_description).find(package_name_description)
     pkg_share_moveit = FindPackageShare(package_name_moveit).find(package_name_moveit)
 
+    # Ensure the locally-built gz_ros2_control (compiled for Gazebo Harmonic) is found
+    # before the apt-installed version (which was compiled for Ignition Fortress).
+    local_gz_plugin_path = FindPackageShare('gz_ros2_control').find('gz_ros2_control')
+    local_gz_plugin_lib = os.path.join(os.path.dirname(local_gz_plugin_path), '..', 'lib')
+
     # Set paths
     gazebo_models_path = os.path.join(pkg_share_gazebo, gazebo_models_path)
     default_ros_gz_bridge_config_file_path = os.path.join(pkg_share_gazebo, ros_gz_bridge_config_file_path)
@@ -88,6 +93,13 @@ def generate_launch_description():
 
     # Create launch description
     ld = LaunchDescription(declared_arguments)
+
+    # Prepend local gz_ros2_control lib (Harmonic build) to GZ_SIM_SYSTEM_PLUGIN_PATH
+    ld.add_action(AppendEnvironmentVariable(
+        'GZ_SIM_SYSTEM_PLUGIN_PATH',
+        local_gz_plugin_lib,
+        prepend=True,
+    ))
     
     # Use pkg_share_description for the URDF xacro file
     urdf_xacro_path = os.path.join(moveit_config_share, "config", "ur.urdf.xacro")
