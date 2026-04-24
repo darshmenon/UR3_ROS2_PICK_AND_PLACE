@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="onrobot_rg_test">
+  <xacro:include filename="$(find onrobot_description)/urdf/onrobot_rg.urdf.xacro" />
+
+  <link name="world" />
+  <xacro:arg name="model" default="rg2_v1" />
+  <xacro:property name="model_prop" value="$(arg model)" />
+
+  <xacro:if value="${model_prop == 'rg2_v1'}">
+    <xacro:onrobot_rg parent="world" model='rg2_v1' prefix='rg2_' standalone='true' real_hardware='false'>
+      <origin xyz="2. 0.05 2." rpy="1.5708 -1.5708 0.0" />
+    </xacro:onrobot_rg>
+  </xacro:if>
+  <xacro:if value="${model_prop == 'rg6_v1'}">
+    <xacro:onrobot_rg parent="world" model='rg6' prefix='rg6_' standalone='true' real_hardware='false'>
+      <origin xyz="0.0 0.05 0.01" rpy="0.0 0.0 0.0" />
+    </xacro:onrobot_rg>
+  </xacro:if>
+  <xacro:if value="${model_prop == 'rg6_v2'}">
+    <xacro:onrobot_rg parent="world" model='rg6_v2' prefix='rg6_v2_' standalone='true' real_hardware='false'>
+      <origin xyz="0.0 0.05 0.01" rpy="0.0 0.0 0.0" />
+    </xacro:onrobot_rg>
+  </xacro:if>
+
+</robot>

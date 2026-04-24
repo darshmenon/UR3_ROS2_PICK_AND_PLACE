@@ -1,0 +1,109 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="rg_gazebo" params="prefix origin limit standalone:=True safety_shield:=False">
+
+    <!-- load "onrobot_gripper_plugin" plugin -->
+    <!-- <gazebo>
+      <plugin name="${prefix}_plugin" filename="libonrobot_gripper_plugin.so">
+        <robotNamespace>/${prefix}</robotNamespace>
+        <jointName>${prefix}_joint, ${prefix}_mirror_joint</jointName>
+        <tipName>${prefix}_finger_1_finger_tip, ${prefix}_finger_2_finger_tip</tipName>
+        <palmName>${prefix}_body</palmName>
+        <xacro:if value="${safety_shield}">
+          <mimicName>${prefix}_finger_1_safety_shield_joint, ${prefix}_finger_2_safety_shield_joint</mimicName>
+        </xacro:if>
+        <maxEffort>0.5</maxEffort>
+      </plugin>
+    </gazebo> -->
+    <xacro:if value="${standalone}">
+      <gazebo>
+        <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+            <parameters>$(find onrobot_control)/config/onrobot_rg_standalone.yaml</parameters>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+    
+
+    <!-- add close loop joints -->
+    <xacro:property name="x" value="${origin['moment_arm']['x']-origin['truss_arm']['x']}"/>
+    <xacro:property name="y" value="${origin['moment_arm']['y']-origin['truss_arm']['y']}"/>
+    <xacro:property name="z" value="${origin['moment_arm']['z']-origin['truss_arm']['z']}"/>
+
+    <xacro:macro name="close_loop_joint" params="name">
+      <joint name='${name}_close_loop_joint' type='revolute'>
+        <parent>${name}_moment_arm</parent>
+        <child>${name}_finger_tip</child>
+        <pose frame=''>${x} ${y} ${z} 0 0 0</pose>
+        <axis>
+          <xyz>0 -1 0</xyz>
+          <use_parent_model_frame>0</use_parent_model_frame>
+        </axis>
+      </joint>
+    </xacro:macro>
+
+    <!-- <gazebo>
+      <xacro:close_loop_joint name="${prefix}_finger_1"/>
+      <xacro:close_loop_joint name="${prefix}_finger_2"/>
+    </gazebo> -->
+
+    <!-- tune tip's friction/collison model -->
+    <xacro:macro name="grasp_friction" params="link_name">
+      <gazebo reference="${link_name}">
+        <mu1>100</mu1>
+        <mu2>100</mu2>
+        <fdir1>0 0 1</fdir1>
+        <kp>100000</kp>
+        <kd>10</kd>
+        <collision name="${link_name}_collision">
+          <surface>
+            <friction>
+              <torsional>
+                <coefficient>0.456</coefficient>
+                <use_patch_radius>true</use_patch_radius>
+                <patch_radius>0.05</patch_radius>
+              </torsional>
+            </friction>
+          </surface>
+        </collision>
+      </gazebo>
+    </xacro:macro>
+
+    <xacro:grasp_friction link_name="${prefix}_finger_1_flex_finger"/>
+    <xacro:grasp_friction link_name="${prefix}_finger_2_flex_finger"/>
+
+    <!-- enable self collision -->
+    <gazebo reference="${prefix}_bracket">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_body">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_1_truss_arm">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_1_moment_arm">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_1_finger_tip">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_1_flex_finger">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_2_truss_arm">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_2_moment_arm">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_2_finger_tip">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+    <gazebo reference="${prefix}_finger_2_flex_finger">
+      <selfCollide>true</selfCollide>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>

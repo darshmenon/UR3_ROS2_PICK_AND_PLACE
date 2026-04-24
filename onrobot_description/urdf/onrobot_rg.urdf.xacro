@@ -1,0 +1,314 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="onrobot_rg_macro">
+
+  <!-- materials -->
+  <xacro:include filename="$(find onrobot_description)/urdf/materials.urdf.xacro" />
+
+  <!-- transmission -->
+  <xacro:include filename="$(find onrobot_description)/urdf/onrobot_rg.transmission.xacro" />
+
+  <!-- gazebo -->
+  <xacro:include filename="$(find onrobot_description)/urdf/onrobot_rg.gazebo.xacro" />
+
+
+  <!-- onrobot gripper -->
+  <xacro:macro name="onrobot_rg" params="parent *origin prefix:=''
+    model:='rg2_v1' safety_shield:=False bracket:='single_bracket' mount_angle:=0.0 standalone:=false real_hardware:=false">
+    <xacro:property name="gripper_name" value="${prefix}gripper"/>
+    <!-- load config from file -->
+    <xacro:property name="config_file" value="$(find onrobot_description)/config/${model}.yaml"/>
+    <xacro:property name="config" value="${xacro.load_yaml(config_file)}"/>
+    <xacro:property name="limit" value="${config['limit']}"/>
+    <xacro:property name="origin" value="${config['origin']}"/>
+    <xacro:property name="inertial" value="${config['inertial']}"/>
+    <xacro:property name="offset" value="${config['kinematics']['offset']}"/>
+
+    <xacro:macro name="_limit" params="">
+      <limit lower="${limit['lower']}" upper="${limit['upper']}"
+             effort="${limit['effort']}" velocity="${limit['velocity']}"/>
+    </xacro:macro>
+
+    <xacro:macro name="_frame" params="id rpy">
+      <origin xyz="${origin[id]['x']} ${origin[id]['y']} ${origin[id]['z']}" rpy="${rpy}"/>
+    </xacro:macro>
+
+    <xacro:macro name="_inertial" params="id">
+      <inertial>
+        <mass value="${inertial[id]['mass']}"/>
+        <inertia ixx="${inertial[id]['ixx']}" iyy="${inertial[id]['iyy']}" izz="${inertial[id]['izz']}"
+                 ixy="${inertial[id]['ixy']}" ixz="${inertial[id]['ixz']}" iyz="${inertial[id]['iyz']}"/>
+      </inertial>
+    </xacro:macro>
+
+    <!-- bracket -->
+    <link name="${gripper_name}_bracket">
+      <visual>
+        <geometry>
+          <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/${bracket}.stl"/>
+        </geometry>
+        <material name="onrobot/grey"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/${bracket}.stl"/>
+        </geometry>
+      </collision>
+      <xacro:_inertial id="${bracket}"/>
+    </link>
+
+    <joint name="${gripper_name}_bracket_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link = "${gripper_name}_bracket"/>
+      <xacro:insert_block name="origin"/>
+    </joint>
+
+    <!-- body -->
+    <link name="${gripper_name}_body">
+      <visual>
+        <geometry>
+          <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/body.stl"/>
+        </geometry>
+        <material name="onrobot/light_grey"/>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/body.stl"/>
+        </geometry>
+      </collision>
+      <xacro:_inertial id="body"/>
+    </link>
+
+    <joint name="${gripper_name}_body_joint" type="fixed">
+      <parent link="${gripper_name}_bracket"/>
+      <child link = "${gripper_name}_body"/>
+      <xacro:_frame id="${bracket}" rpy="${mount_angle} 0.0 0.0"/>
+    </joint>
+
+    <!-- grasp frame -->
+    <link name="${gripper_name}_grasp_frame"/>
+
+    <joint name="${gripper_name}_grasp_frame_joint" type="fixed">
+      <parent link="${gripper_name}_body"/>
+      <child link = "${gripper_name}_grasp_frame"/>
+      <xacro:_frame id="grasp_frame" rpy="0.0 0.0 0.0"/>
+    </joint>
+
+    <!-- fingers -->
+    <xacro:macro name="finger" params="name is_master">
+
+      <!-- origin frame -->
+      <link name="${name}_origin">
+        <inertial>
+          <mass value="0.001"/>
+          <inertia ixx="0.00001" ixy="0.0" ixz="0.0" iyy="0.00001" iyz="0.0" izz="0.00001"/>
+        </inertial>
+      </link>
+
+      <joint name="${name}_origin_joint" type="fixed">
+        <parent link="${gripper_name}_body"/>
+        <child link = "${name}_origin"/>
+        <origin xyz="0 0 0" rpy="0 0 ${0 if is_master else pi}"/>
+      </joint>
+
+      <!-- moment bar -->
+      <link name="${name}_moment_arm">
+        <visual>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/moment_arm.stl"/>
+          </geometry>
+          <material name="onrobot/light_grey"/>
+        </visual>
+        <collision>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/moment_arm.stl"/>
+          </geometry>
+        </collision>
+        <xacro:_inertial id="moment_arm"/>
+      </link>
+
+      <joint name="${gripper_name + ('' if is_master else '_mirror')}_joint" type="revolute">
+        <parent link="${name}_origin"/>
+        <child link = "${name}_moment_arm"/>
+        <axis xyz="0 1 0"/>
+        <xacro:_frame id="moment_arm" rpy="0.0 ${offset} 0.0"/>
+        <xacro:_limit/>
+        <dynamics damping="0.17"/>
+        <xacro:unless value="${is_master}">
+          <mimic joint="${gripper_name}_joint" multiplier="1" offset="0"/>
+        </xacro:unless>
+      </joint>
+
+      <!-- truss bar -->
+      <link name="${name}_truss_arm">
+        <visual>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/truss_arm.stl"/>
+          </geometry>
+          <material name="onrobot/light_grey"/>
+        </visual>
+        <collision>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/truss_arm.stl"/>
+          </geometry>
+        </collision>
+        <xacro:_inertial id="truss_arm"/>
+      </link>
+
+      <joint name="${name}_truss_arm_joint" type="revolute">
+        <parent link="${name}_origin"/>
+        <child link = "${name}_truss_arm"/>
+        <axis xyz="0 1 0"/>
+        <xacro:_frame id="truss_arm" rpy="0.0 ${offset} 0.0"/>
+        <xacro:_limit/>
+        <mimic joint="${gripper_name}_joint" multiplier="1" offset="0"/>
+      </joint>
+
+      <!-- safety shield -->
+      <xacro:if value="${safety_shield}">
+        <link name="${name}_safety_shield">
+          <visual>
+            <geometry>
+              <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/safety_shield.stl"/>
+            </geometry>
+            <material name="onrobot/dark_grey"/>
+          </visual>
+          <collision>
+            <geometry>
+              <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/safety_shield.stl"/>
+              <box size="0.0 0.0 0.0"/>
+            </geometry>
+          </collision>
+          <xacro:_inertial id="safety_shield"/>
+        </link>
+
+        <joint name="${name}_safety_shield_joint" type="revolute">
+          <parent link="${name}_finger_tip"/>
+          <child link = "${name}_safety_shield"/>
+          <axis xyz="0 1 0"/>
+          <xacro:_frame id="safety_shield" rpy="0.0 ${offset} 0.0"/>
+          <xacro:_limit/>
+          <mimic joint="${gripper_name}_joint" multiplier="1" offset="0"/>
+        </joint>
+      </xacro:if>
+
+      <!-- finger tip -->
+      <link name="${name}_finger_tip">
+        <visual>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/finger_tip.stl"/>
+          </geometry>
+          <material name="onrobot/light_grey"/>
+        </visual>
+        <collision>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/finger_tip.stl"/>
+          </geometry>
+        </collision>
+        <collision>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/finger_tip.stl"/>
+          </geometry>
+        </collision>
+        <xacro:_inertial id="finger_tip"/>
+      </link>
+
+      <joint name="${name}_finger_tip_joint" type="revolute">
+        <parent link = "${name}_truss_arm"/>
+        <child link = "${name}_finger_tip"/>
+        <axis xyz="0 -1 0"/>
+        <xacro:_frame id="finger_tip" rpy="0.0 ${-offset} 0.0"/>
+        <xacro:_limit/>
+        <mimic joint="${gripper_name}_joint" multiplier="1" offset="0"/>
+      </joint>
+
+      <!-- flex finger -->
+      <link name="${name}_flex_finger">
+        <visual>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/flex_finger.stl"/>
+          </geometry>
+          <material name="onrobot/dark_grey"/>
+        </visual>
+        <collision>
+          <geometry>
+            <mesh filename="file://$(find onrobot_description)/meshes/${model}/visual/flex_finger.stl"/>
+          </geometry>
+        </collision>
+        <xacro:_inertial id="flex_finger"/>
+      </link>
+
+      <joint name="${name}_flex_finger_joint" type="fixed">
+        <parent link="${name}_finger_tip"/>
+        <child link = "${name}_flex_finger"/>
+        <xacro:_frame id="flex_finger" rpy="0.0 0.0 0.0"/>
+      </joint>
+
+    </xacro:macro>
+
+    <xacro:finger name="${gripper_name}_finger_1" is_master="true"/>
+    <xacro:finger name="${gripper_name}_finger_2" is_master="false"/>
+
+    <ros2_control name="${gripper_name}" type="system" is_async="true">
+          <xacro:unless value="${real_hardware}">
+            <hardware>
+                <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+            </hardware>
+            <joint name="${gripper_name}_joint">
+                <command_interface name="position"/>
+                <state_interface name="position">
+                      <param name="initial_value">0.01</param> # avoid to be stuck due to a pos under 0.0
+                </state_interface>
+                <state_interface name="velocity"/>
+                <state_interface name="effort"/>
+            </joint>
+            <joint name="${gripper_name}_finger_1_truss_arm_joint">
+              <state_interface name="position"/>
+            </joint>
+            <joint name="${gripper_name}_finger_1_finger_tip_joint">
+              <state_interface name="position"/>
+            </joint>
+            <xacro:if value="${safety_shield}">
+              <joint name="${gripper_name}_finger_1_safety_shield_joint">
+                <state_interface name="position"/>
+              </joint>
+            </xacro:if>
+            
+            <joint name="${gripper_name}_finger_2_truss_arm_joint">
+              <state_interface name="position"/>
+            </joint>
+            <joint name="${gripper_name}_finger_2_finger_tip_joint">
+              <state_interface name="position"/>
+            </joint>
+            <xacro:if value="${safety_shield}">
+              <joint name="${gripper_name}_finger_2_safety_shield_joint">
+                <state_interface name="position"/>
+              </joint>
+            </xacro:if>
+          </xacro:unless>
+
+          <xacro:if value="${real_hardware}">
+            <hardware>
+                <plugin>onrobot_interface::OnRobotHardwareInterface</plugin>
+                <param name="prefix">${prefix}</param>
+                <param name="model">${model}</param>
+            </hardware>
+            <joint name="${gripper_name}_joint">
+                <command_interface name="position"/>
+                <state_interface name="position"/>
+                <state_interface name="velocity"/>
+                <state_interface name="effort"/>
+            </joint>
+
+          </xacro:if>
+
+    </ros2_control>
+
+    <!-- si standalone alors mettre le plugin de ros2_control -->
+    <xacro:unless value="${real_hardware}">
+      <xacro:rg_gazebo prefix="${gripper_name}" origin="${origin}" limit="${limit}" standalone="${standalone}" safety_shield="${safety_shield}"/>
+    </xacro:unless>
+
+  </xacro:macro>
+
+</robot>

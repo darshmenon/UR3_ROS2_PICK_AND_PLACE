@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+
+<robot>
+  <material name="onrobot/grey">
+    <color rgba="0.65 0.62 0.58 1.0"/>
+  </material>
+  <material name="onrobot/light_grey">
+    <color rgba="0.9 0.92 0.93 1.0"/>
+  </material>
+ <material name="onrobot/dark_grey">
+   <color rgba="0.25 0.25 0.25 1.0"/>
+ </material>
+</robot>

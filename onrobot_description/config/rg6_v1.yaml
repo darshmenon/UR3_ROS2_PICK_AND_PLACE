@@ -1,0 +1,26 @@
+limit:
+  lower: 0.0
+  upper: 1.3
+  effort: 100.0
+  velocity: 50.
+
+origin:
+  single_bracket: { x: 0.0, y: 0.0, z: 0.051 }
+  moment_arm: { x: -0.0238, y: 0.0, z: 0.066 }
+  truss_arm: { x: -0.0105, y: 0.0, z: 0.0891 }
+  safety_shield: { x: -0.00665, y: 0.0, z: -0.01155 }
+  finger_tip: { x: -0.05503, y: 0.0, z: 0.05807 }
+  flex_finger: { x: 0.0098, y: 0.0, z: 0.0218 }
+  grasp_frame: { x: 0.0, y: 0.0, z: 0.19 }
+
+inertial:
+  body: {mass: 0.78, ixx: 0.001, iyy: 0.001, izz: 0.001, ixy: 0.0, ixz: 0.0, iyz: 0.0}
+  single_bracket: {mass: 0.001, ixx: 0.001, iyy: 0.001, izz: 0.001, ixy: 0.0, ixz: 0.0, iyz: 0.0}
+  moment_arm: {mass: 0.001, ixx: 0.001, iyy: 0.001, izz: 0.001, ixy: 0.0, ixz: 0.0, iyz: 0.0}
+  safety_shield: {mass: 0.001, ixx: 0.001, iyy: 0.001, izz: 0.001, ixy: 0.0, ixz: 0.0, iyz: 0.0}
+  truss_arm: {mass: 0.001, ixx: 0.001, iyy: 0.001, izz: 0.001, ixy: 0.0, ixz: 0.0, iyz: 0.0}
+  finger_tip: {mass: 0.001, ixx: 0.001, iyy: 0.001, izz: 0.001, ixy: 0.0, ixz: 0.0, iyz: 0.0}
+  flex_finger: {mass: 0.001, ixx: 0.001, iyy: 0.001, izz: 0.001, ixy: 0.0, ixz: 0.0, iyz: 0.0}
+
+kinematics:
+  offset: -0.49
