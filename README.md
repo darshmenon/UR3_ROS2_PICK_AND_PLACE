@@ -6,7 +6,15 @@ Related Blog Post: For behind-the-scenes details and the full development journe
 
 The blog dives into simulation setup, robotic control, MoveIt Task Constructor, and lessons learned — perfect if you're curious about the engineering side or want to replicate the project from scratch.
 
-This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble / Jazzy** and **Ignition Gazebo**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
+This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble** and **Gazebo Harmonic**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
+
+> **Gazebo version:** This project targets **Gazebo Harmonic (gz-sim 8)**, not Ignition Fortress (gz-sim 6). The world file, `ros_gz_bridge`, and `ros_gz_image` all use Harmonic-specific APIs (`gz::sim::systems::*`). Do **not** use `ign gazebo` to launch — use `gz sim` (via the launch file).
+>
+> **Critical:** The ROS apt package `ros-humble-gz-ros2-control` must be version `≥ 0.7.18-1jammy.20260325` to include the `GzPluginHook` symbol required by Gazebo Harmonic. The February 2026 build was incorrectly compiled against Ignition Fortress; that version silently fails to load the `GazeboSimROS2ControlPlugin`, causing `controller_manager` to never start and all controllers to time out. If controllers don't load, run:
+> ```bash
+> sudo apt-get install --only-upgrade ros-humble-gz-ros2-control
+> dpkg -l ros-humble-gz-ros2-control   # should show ≥ 20260325
+> ```
 
 > **Note:** This setup uses **fixed mimic joint configuration** for the Robotiq gripper to support simulation in newer Gazebo (Harmonic). Only the primary `finger_joint` receives commands — mimic joints automatically follow.
 >
@@ -24,7 +32,7 @@ This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3
 
 ## Installation
 
-Make sure you have [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) or [ROS 2 Jazzy](https://docs.ros.org/en/jazzy/index.html) and Ignition Gazebo installed.
+Make sure you have [ROS 2 Humble](https://docs.ros.org/en/humble/index.html) and **Gazebo Harmonic** (`gz-sim` 8.x) installed. Ignition Fortress (`ign gazebo` / gz-sim 6) will not work — the world file and bridge packages are Harmonic-specific.
 
 ### 1. Clone the Repository
 
