@@ -14,7 +14,7 @@ mtc_node:
     gripper_group_name: "gripper"
     gripper_frame: "robotiq_arg2f_base_link"
     gripper_open_pose: "open"
-    gripper_close_pose: "half_closed"
+    gripper_close_pose: "closed"
     arm_home_pose: "home"
 
     # Scene configuration
