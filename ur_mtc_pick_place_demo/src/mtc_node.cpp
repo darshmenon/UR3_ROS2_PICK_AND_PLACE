@@ -549,7 +549,7 @@ mtc::Task MTCTaskNode::createTask()
   stage_open_gripper->setGroup(gripper_group_name);
   stage_open_gripper->setGoal(gripper_open_pose);
   stage_open_gripper->properties().set("trajectory_execution_info",
-                      mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+                      mtc::TrajectoryExecutionInfo().set__controller_names({"gripper_controller"}));
   task.add(std::move(stage_open_gripper));
 
   /****************************************************
@@ -667,7 +667,7 @@ mtc::Task MTCTaskNode::createTask()
       stage->setGroup(gripper_group_name);
       stage->setGoal(gripper_close_pose);
       stage->properties().set("trajectory_execution_info",
-                      mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+                      mtc::TrajectoryExecutionInfo().set__controller_names({"gripper_controller"}));
       grasp->insert(std::move(stage));
     }
 
@@ -814,7 +814,7 @@ mtc::Task MTCTaskNode::createTask()
       stage->setGroup(gripper_group_name);
       stage->setGoal(gripper_open_pose);
       stage->properties().set("trajectory_execution_info",
-        mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+        mtc::TrajectoryExecutionInfo().set__controller_names({"gripper_controller"}));
       place->insert(std::move(stage));
     }
 
