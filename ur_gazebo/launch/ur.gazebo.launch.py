@@ -360,11 +360,14 @@ def generate_launch_description():
     move_group_parameters_onrobot = moveit_config_onrobot.to_dict()
     move_group_parameters_onrobot.update(robot_description)
 
+    # ExecuteTaskSolutionCapability is required for MTC pick-and-place execution
+    mtc_capabilities = {"capabilities": "move_group/ExecuteTaskSolutionCapability"}
+
     move_group_node_robotiq = Node(
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
-        parameters=[move_group_parameters_robotiq, {"use_sim_time": use_sim_time}],
+        parameters=[move_group_parameters_robotiq, {"use_sim_time": use_sim_time}, mtc_capabilities],
         condition=robotiq_move_group_condition,
     )
 
@@ -372,7 +375,7 @@ def generate_launch_description():
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
-        parameters=[move_group_parameters_onrobot, {"use_sim_time": use_sim_time}],
+        parameters=[move_group_parameters_onrobot, {"use_sim_time": use_sim_time}, mtc_capabilities],
         condition=onrobot_move_group_condition,
     )
 
