@@ -518,8 +518,6 @@ mtc::Task MTCTaskNode::createTask()
   RCLCPP_INFO(this->get_logger(), "Cartesian planner created");
 
   // Set task properties
-  task.setProperty("trajectory_execution_info",
-    mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
   task.setProperty("group", arm_group_name); // The main planning group
   task.setProperty("eef", gripper_group_name); // The end-effector group
   task.setProperty("ik_frame", gripper_frame); // The frame for inverse kinematics
@@ -860,19 +858,6 @@ mtc::Task MTCTaskNode::createTask()
     task.add(std::move(place));
   }
 
-  /******************************************************
-   *                                                    *
-   *          Move to Home                              *
-   *                                                    *
-   *****************************************************/
-  {
-    auto stage = std::make_unique<mtc::stages::MoveTo>("move home", ompl_planner_arm);
-    stage->properties().set("trajectory_execution_info",
-                      mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
-    stage->properties().configureInitFrom(mtc::Stage::PARENT, { "group" });
-    stage->setGoal(arm_home_pose);
-    task.add(std::move(stage));
-  }
   return task;
 }
 
