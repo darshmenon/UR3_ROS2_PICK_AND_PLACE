@@ -33,6 +33,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/qos.hpp>
+#include <thread>
 #include "ur_mtc_pick_place_demo/cluster_extraction.h"
 #include "ur_mtc_pick_place_demo/normals_curvature_and_rsd_estimation.h"
 #include "ur_mtc_pick_place_demo/object_segmentation.h"
@@ -849,6 +850,20 @@ class GetPlanningSceneServer : public rclcpp::Node {
   void handleService(
       const std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Request> request,
       std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Response> response) {
+    try {
+    handleServiceImpl(request, response);
+    } catch (const std::exception& e) {
+      RCLCPP_ERROR(this->get_logger(), "Unhandled exception in service handler: %s", e.what());
+      response->success = false;
+    } catch (...) {
+      RCLCPP_ERROR(this->get_logger(), "Unknown exception in service handler");
+      response->success = false;
+    }
+  }
+
+  void handleServiceImpl(
+      const std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Request> request,
+      std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Response> response) {
 
     /****************************************************
      *                                                  *
@@ -862,8 +877,13 @@ class GetPlanningSceneServer : public rclcpp::Node {
      * 2. Point cloud and RGB image data available?     *
      *                                                  *
      ***************************************************/
+    // Wait up to 10s for first camera frames to arrive
+    for (int i = 0; i < 50 && (!latest_point_cloud || !latest_rgb_image); ++i) {
+      RCLCPP_INFO(this->get_logger(), "Waiting for camera data... (%d/50)", i + 1);
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
     if (!latest_point_cloud || !latest_rgb_image) {
-      RCLCPP_ERROR(this->get_logger(), "Point cloud or RGB image data not available");
+      RCLCPP_ERROR(this->get_logger(), "Point cloud or RGB image data not available after waiting");
       return;
     }
 
