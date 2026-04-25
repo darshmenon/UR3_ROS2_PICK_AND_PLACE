@@ -51,6 +51,11 @@ def generate_launch_description():
         default_value='true',
         description='Whether to start RViz')
 
+    declare_use_move_group_cmd = DeclareLaunchArgument(
+        name='use_move_group',
+        default_value='true',
+        description='Whether to start the move_group node (set false for RViz-only)')
+
     declare_gripper_cmd = DeclareLaunchArgument(
         name='gripper',
         default_value='robotiq_2f_85',
@@ -100,7 +105,7 @@ def generate_launch_description():
             .joint_limits(file_path=joint_limits_file_path)
             .robot_description_kinematics(file_path=kinematics_file_path)
             .planning_pipelines(
-                pipelines=["ompl", "pilz_industrial_motion_planner", "stomp"],
+                pipelines=["ompl", "pilz_industrial_motion_planner"],
                 default_planning_pipeline="ompl"
             )
             .planning_scene_monitor(
@@ -117,6 +122,7 @@ def generate_launch_description():
 
         # Create move_group node
         start_move_group_node_cmd = Node(
+            condition=IfCondition(LaunchConfiguration('use_move_group')),
             package="moveit_ros_move_group",
             executable="move_group",
             output="screen",
@@ -166,6 +172,7 @@ def generate_launch_description():
     ld.add_action(declare_robot_name_cmd)
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_use_rviz_cmd)
+    ld.add_action(declare_use_move_group_cmd)
     ld.add_action(declare_gripper_cmd)
     ld.add_action(declare_rviz_config_file_cmd)
     ld.add_action(declare_rviz_config_package_cmd)
