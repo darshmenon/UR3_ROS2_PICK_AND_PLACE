@@ -237,7 +237,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments=[('gz_args', ['-r -v 4 ', world_path]), ('use_sim_time', 'true')],
+        launch_arguments=[('gz_args', ['-r -v 4 --physics-engine gz-physics-bullet-featherstone-plugin ', world_path]), ('use_sim_time', 'true')],
         condition=IfCondition(LaunchConfiguration("use_gazebo_gui")),
     )
 
@@ -245,7 +245,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments=[('gz_args', ['-s -r -v 4 ', world_path]), ('use_sim_time', 'true')],
+        launch_arguments=[('gz_args', ['-s -r -v 4 --physics-engine gz-physics-bullet-featherstone-plugin ', world_path]), ('use_sim_time', 'true')],
         condition=UnlessCondition(LaunchConfiguration("use_gazebo_gui")),
     )
 

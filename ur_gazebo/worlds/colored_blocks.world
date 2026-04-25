@@ -2,10 +2,9 @@
 <sdf version="1.7">
   <world name="default">
 
-    <physics name="dart_physics" type="dart">
+    <physics name="default_physics" type="bullet">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1</real_time_factor>
-      <gravity>0.0 0.0 -9.8</gravity>
     </physics>
 
     <!-- Plugin for simulating physics -->

@@ -354,7 +354,7 @@
     <joint name="${tf_prefix}gripper_joint" type="fixed">
       <parent link="${tf_prefix}tool0"/>
       <child link="${tf_prefix}robotiq_arg2f_base_link"/>
-      <origin xyz="0 0 0.005" rpy="0 0 0"/>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
       <gazebo><disableFixedJointLumping>true</disableFixedJointLumping></gazebo>
     </joint>
   </xacro:if>
@@ -362,7 +362,7 @@
   <!-- Robotiq 2F-140 -->
   <xacro:if value="${gripper == 'robotiq_2f_140'}">
     <xacro:robotiq_gripper name="robotiq_140" prefix="" parent="${tf_prefix}tool0" include_ros2_control="false">
-      <origin xyz="0 0 0.005" rpy="0 0 0"/>
+      <origin xyz="0 0 0.01" rpy="0 0 0"/>
     </xacro:robotiq_gripper>
   </xacro:if>
 
