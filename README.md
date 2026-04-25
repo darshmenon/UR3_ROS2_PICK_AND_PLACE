@@ -184,16 +184,6 @@ ros2 action send_goal /gripper_controller/gripper_cmd \
   "{command: {position: 0.65, max_effort: 50.0}}"
 ```
 
-### MTC Pick-and-Place with a Specific Gripper
-
-```bash
-# Terminal 1
-ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=onrobot_rg2
-
-# Terminal 2 — pass matching gripper arg
-ros2 launch ur_mtc_pick_place_demo pick_place_demo.launch.py gripper:=onrobot_rg2
-```
-
 ### Launch Point Cloud Viewer (Gazebo + RViz)
 
 ```bash

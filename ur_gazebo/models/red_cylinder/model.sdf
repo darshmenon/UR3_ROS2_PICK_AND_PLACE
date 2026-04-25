@@ -4,31 +4,31 @@
     <static>false</static>
     <link name="link">
       <inertial>
-        <mass>0.050</mass>
+        <mass>0.100</mass>
         <inertia>
-          <ixx>0.000000204</ixx>
+          <ixx>0.000675</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>0.000000204</iyy>
+          <iyy>0.000675</iyy>
           <iyz>0</iyz>
-          <izz>0.000000039</izz>
+          <izz>0.0000156</izz>
         </inertia>
       </inertial>
       <collision name="collision">
         <geometry>
           <cylinder>
-            <radius>0.015</radius>
-            <length>0.40</length>
+            <radius>0.025</radius>
+            <length>0.35</length>
           </cylinder>
         </geometry>
         <surface>
           <friction>
             <ode>
-              <mu>1.2</mu> <!-- Increased friction coefficient -->
-              <mu2>1.2</mu2> <!-- Increased friction coefficient -->
+              <mu>5.0</mu>
+              <mu2>5.0</mu2>
               <fdir1>0 0 1</fdir1>
-              <slip1>0.0005</slip1> <!-- Reduced slip -->
-              <slip2>0.0005</slip2> <!-- Reduced slip -->
+              <slip1>0.0001</slip1>
+              <slip2>0.0001</slip2>
             </ode>
             <torsional>
               <coefficient>0.1</coefficient>
@@ -55,8 +55,8 @@
       <visual name="visual">
         <geometry>
           <cylinder>
-            <radius>0.0125</radius>
-            <length>0.40</length>
+            <radius>0.025</radius>
+            <length>0.35</length>
           </cylinder>
         </geometry>
         <material>
