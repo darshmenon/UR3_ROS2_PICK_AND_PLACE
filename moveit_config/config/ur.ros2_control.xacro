@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:macro name="ur_ros2_control" params="name initial_positions_file">
+    <xacro:macro name="ur_ros2_control" params="name initial_positions_file gripper:=robotiq_2f_85">
         <xacro:property name="initial_positions" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}"/>
 
         <ros2_control name="${name}" type="system">
@@ -74,63 +74,96 @@
                 </state_interface>
             </joint>
 
-            <joint name="finger_joint">
-                <command_interface name="position"/>
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['finger_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-                <state_interface name="effort">
-                    <param name="effort_limit">100.0</param> <!-- Increased effort for finger strength -->
-                </state_interface>
-            </joint>
+            <xacro:if value="${gripper == 'robotiq_2f_85' or gripper == 'robotiq_2f_140'}">
+                <joint name="finger_joint">
+                    <command_interface name="position"/>
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['finger_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                    <state_interface name="effort">
+                        <param name="effort_limit">100.0</param>
+                    </state_interface>
+                </joint>
 
-            <!-- Mimic joints — state_interface ONLY (no command_interface).
-                 Gazebo Harmonic enforces URDF <mimic> constraints at the physics level.
-                 Adding command_interface to constrained joints causes GazeboSimSystem
-                 plugin init failure. -->
+                <!-- Mimic joints — state_interface ONLY (no command_interface).
+                     Gazebo Harmonic enforces URDF <mimic> constraints at the physics level.
+                     Adding command_interface to constrained joints causes GazeboSimSystem
+                     plugin init failure. -->
 
-            <joint name="left_outer_knuckle_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-            </joint>
+                <joint name="left_outer_knuckle_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
 
-            <joint name="right_outer_knuckle_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['right_outer_knuckle_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-            </joint>
+                <joint name="right_outer_knuckle_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['right_outer_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
 
-            <joint name="right_inner_knuckle_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['right_inner_knuckle_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-            </joint>
+                <joint name="right_inner_knuckle_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['right_inner_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
 
-            <joint name="left_inner_knuckle_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['left_inner_knuckle_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-            </joint>
+                <joint name="left_inner_knuckle_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['left_inner_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
 
-            <joint name="right_inner_finger_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['right_inner_finger_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-            </joint>
+                <joint name="right_inner_finger_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['right_inner_finger_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
 
-            <joint name="left_inner_finger_joint">
-                <state_interface name="position">
-                    <param name="initial_value">${initial_positions['left_inner_finger_joint']}</param>
-                </state_interface>
-                <state_interface name="velocity"/>
-            </joint>
+                <joint name="left_inner_finger_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['left_inner_finger_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
+            </xacro:if>
+
+            <xacro:if value="${gripper == 'onrobot_rg2' or gripper == 'onrobot_rg6'}">
+                <joint name="gripper_joint">
+                    <command_interface name="position"/>
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['gripper_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                    <state_interface name="effort"/>
+                </joint>
+
+                <joint name="gripper_finger_1_truss_arm_joint">
+                    <state_interface name="position"/>
+                </joint>
+
+                <joint name="gripper_finger_1_finger_tip_joint">
+                    <state_interface name="position"/>
+                </joint>
+
+                <joint name="gripper_mirror_joint">
+                    <state_interface name="position"/>
+                </joint>
+
+                <joint name="gripper_finger_2_truss_arm_joint">
+                    <state_interface name="position"/>
+                </joint>
+
+                <joint name="gripper_finger_2_finger_tip_joint">
+                    <state_interface name="position"/>
+                </joint>
+            </xacro:if>
 
         </ros2_control>
     </xacro:macro>

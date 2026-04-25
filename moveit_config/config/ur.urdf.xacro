@@ -20,6 +20,12 @@
     <xacro:include filename="$(find moveit_config)/config/ur.ros2_control.xacro" />
     <xacro:include filename="$(find ur_description)/urdf/gazebo_sim_ros2_control.urdf.xacro" />
 
+    <xacro:property name="selected_gripper" value="$(arg gripper)"/>
+    <xacro:property name="controllers_file" value="$(find moveit_config)/config/ros2_controllers.yaml"/>
+    <xacro:if value="${selected_gripper == 'onrobot_rg2' or selected_gripper == 'onrobot_rg6'}">
+      <xacro:property name="controllers_file" value="$(find moveit_config)/config/ros2_controllers_onrobot.yaml"/>
+    </xacro:if>
+
     <link name="world" />
 
     <xacro:ur_robot
@@ -42,10 +48,14 @@
       <disableFixedJointLumping>true</disableFixedJointLumping>
     </gazebo>
 
-    <xacro:ur_ros2_control name="ur" initial_positions_file="$(find moveit_config)/config/initial_positions.yaml"/>
+    <xacro:ur_ros2_control
+      name="ur"
+      initial_positions_file="$(find moveit_config)/config/initial_positions.yaml"
+      gripper="$(arg gripper)"/>
     <xacro:load_gazebo_sim_ros2_control_plugin
       robot_name="$(arg robot_name)"
-      use_gazebo="$(arg use_gazebo)"/>
+      use_gazebo="$(arg use_gazebo)"
+      controllers_file="${controllers_file}"/>
 
     <xacro:include filename="$(find ur_description)/urdf/intel_rgbd_cam_d435.urdf.xacro"/>
 </robot>

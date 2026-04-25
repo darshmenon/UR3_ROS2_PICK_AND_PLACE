@@ -1,10 +1,10 @@
 <?xml version="1.0" ?>
 <robot xmlns:xacro="http://wiki.ros.org/xacro">
-    <xacro:macro name="load_gazebo_sim_ros2_control_plugin" params="robot_name use_gazebo">
+    <xacro:macro name="load_gazebo_sim_ros2_control_plugin" params="robot_name use_gazebo controllers_file:='$(find moveit_config)/config/ros2_controllers.yaml'">
         <xacro:if value="${use_gazebo}">
             <gazebo>
                 <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
-                    <parameters>$(find moveit_config)/config/ros2_controllers.yaml</parameters>
+                    <parameters>${controllers_file}</parameters>
                     <ros>
                         <remapping>/controller_manager/robot_description:=/robot_description</remapping>
                     </ros>

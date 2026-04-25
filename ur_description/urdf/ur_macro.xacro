@@ -368,14 +368,14 @@
 
   <!-- OnRobot RG2 -->
   <xacro:if value="${gripper == 'onrobot_rg2'}">
-    <xacro:onrobot_rg prefix="" model="rg2_v1" parent="${tf_prefix}tool0" standalone="false">
+    <xacro:onrobot_rg prefix="" model="rg2_v1" parent="${tf_prefix}tool0" standalone="false" include_ros2_control="false">
       <origin xyz="0 0 0.01" rpy="0 0 ${pi/2}"/>
     </xacro:onrobot_rg>
   </xacro:if>
 
   <!-- OnRobot RG6 -->
   <xacro:if value="${gripper == 'onrobot_rg6'}">
-    <xacro:onrobot_rg prefix="" model="rg6_v1" parent="${tf_prefix}tool0" standalone="false">
+    <xacro:onrobot_rg prefix="" model="rg6_v1" parent="${tf_prefix}tool0" standalone="false" include_ros2_control="false">
       <origin xyz="0 0 0.01" rpy="0 0 ${pi/2}"/>
     </xacro:onrobot_rg>
   </xacro:if>
@@ -383,4 +383,3 @@
   </xacro:macro>
 </robot>
   
-

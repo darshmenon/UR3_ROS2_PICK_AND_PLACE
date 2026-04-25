@@ -14,7 +14,7 @@
 
   <!-- onrobot gripper -->
   <xacro:macro name="onrobot_rg" params="parent *origin prefix:=''
-    model:='rg2_v1' safety_shield:=False bracket:='single_bracket' mount_angle:=0.0 standalone:=false real_hardware:=false">
+    model:='rg2_v1' safety_shield:=False bracket:='single_bracket' mount_angle:=0.0 standalone:=false real_hardware:=false include_ros2_control:=true">
     <xacro:property name="gripper_name" value="${prefix}gripper"/>
     <!-- load config from file -->
     <xacro:property name="config_file" value="$(find onrobot_description)/config/${model}.yaml"/>
@@ -249,6 +249,7 @@
     <xacro:finger name="${gripper_name}_finger_1" is_master="true"/>
     <xacro:finger name="${gripper_name}_finger_2" is_master="false"/>
 
+    <xacro:if value="${include_ros2_control}">
     <ros2_control name="${gripper_name}" type="system" is_async="true">
           <xacro:unless value="${real_hardware}">
             <hardware>
@@ -303,6 +304,7 @@
           </xacro:if>
 
     </ros2_control>
+    </xacro:if>
 
     <!-- si standalone alors mettre le plugin de ros2_control -->
     <xacro:unless value="${real_hardware}">

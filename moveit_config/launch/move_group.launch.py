@@ -54,7 +54,8 @@ def generate_launch_description():
     declare_gripper_cmd = DeclareLaunchArgument(
         name='gripper',
         default_value='robotiq_2f_85',
-        description='Gripper to attach to the robot')
+        description='Gripper to attach to the robot',
+        choices=['robotiq_2f_85', 'robotiq_2f_140', 'onrobot_rg2', 'onrobot_rg6'])
 
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
@@ -69,24 +70,32 @@ def generate_launch_description():
     def configure_setup(context):
         # Convert robot name from LaunchConfiguration to string
         robot_name_str = robot_name.perform(context)
+        gripper_str = gripper.perform(context)
 
         # Locate package shares
         moveit_config_share = FindPackageShare(package=package_name_moveit_config).find(package_name_moveit_config)
 
         # File paths from MoveIt config package
         urdf_path_xacro = os.path.join(moveit_config_share, "config", "ur.urdf.xacro")
-        srdf_file_path = os.path.join(moveit_config_share, "config", f"{robot_name_str}.srdf")
+        srdf_file_path = os.path.join(moveit_config_share, "config", "ur.srdf.xacro")
         joint_limits_file_path = os.path.join(moveit_config_share, "config", "joint_limits.yaml")
         kinematics_file_path = os.path.join(moveit_config_share, "config", "kinematics.yaml")
         pilz_cartesian_limits_file_path = os.path.join(moveit_config_share, "config", "pilz_cartesian_limits.yaml")
-        moveit_controllers_file_path = os.path.join(moveit_config_share, "config", "moveit_controllers.yaml")
+        if gripper_str in ("onrobot_rg2", "onrobot_rg6"):
+            moveit_controllers_file_path = os.path.join(
+                moveit_config_share, "config", "moveit_controllers_onrobot.yaml"
+            )
+        else:
+            moveit_controllers_file_path = os.path.join(
+                moveit_config_share, "config", "moveit_controllers.yaml"
+            )
         initial_positions_file_path = os.path.join(moveit_config_share, "config", "initial_positions.yaml")
 
         # Create MoveIt configuration
         moveit_config = (
             MoveItConfigsBuilder(robot_name_str, package_name=package_name_moveit_config)
             .trajectory_execution(file_path=moveit_controllers_file_path)
-            .robot_description_semantic(file_path=srdf_file_path)
+            .robot_description_semantic(file_path=srdf_file_path, mappings={'gripper': gripper})
             .robot_description(file_path=urdf_path_xacro, mappings={'gripper': gripper})
             .joint_limits(file_path=joint_limits_file_path)
             .robot_description_kinematics(file_path=kinematics_file_path)

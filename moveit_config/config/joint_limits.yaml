@@ -50,6 +50,12 @@ joint_limits:
     has_acceleration_limits: true
     max_acceleration: 5.0
 
+  gripper_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+
   left_inner_finger_joint:
     has_velocity_limits: true
     max_velocity: 2.0

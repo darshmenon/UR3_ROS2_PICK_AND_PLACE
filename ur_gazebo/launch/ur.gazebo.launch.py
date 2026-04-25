@@ -18,7 +18,7 @@ from launch.conditions import IfCondition
 from launch.conditions import UnlessCondition
 from launch.event_handlers import OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -47,8 +47,9 @@ def generate_launch_description():
     moveit_config_share = FindPackageShare(package=moveit_config_pkg).find(moveit_config_pkg)
 
     # File Path Configuration
-    srdf_path = os.path.join(moveit_config_share, "config", "ur.srdf")
+    srdf_path = os.path.join(moveit_config_share, "config", "ur.srdf.xacro")
     moveit_controllers_path = os.path.join(moveit_config_share, "config", "moveit_controllers.yaml")
+    moveit_controllers_onrobot_path = os.path.join(moveit_config_share, "config", "moveit_controllers_onrobot.yaml")
     joint_limits_path = os.path.join(moveit_config_share, "config", "joint_limits.yaml")
     pilz_cartesian_limits_path = os.path.join(moveit_config_share, "config", "pilz_cartesian_limits.yaml")
     rviz_config_path = os.path.join(moveit_config_share, "rviz", "moveit.rviz")
@@ -87,7 +88,7 @@ def generate_launch_description():
             "gripper",
             default_value="robotiq_2f_85",
             description="Gripper to attach to the robot",
-            choices=["robotiq_2f_85", "robotiq_2f_140"],
+            choices=["robotiq_2f_85", "robotiq_2f_140", "onrobot_rg2", "onrobot_rg6"],
         ),
         DeclareLaunchArgument("safety_limits", default_value="true", description="Enable safety limits controller"),
         DeclareLaunchArgument("safety_pos_margin", default_value="0.15", description="Safety controller position margin"),
@@ -146,10 +147,10 @@ def generate_launch_description():
     )
 
     # MoveIt Configuration
-    moveit_config = (
+    moveit_config_robotiq = (
         MoveItConfigsBuilder("ur", package_name=moveit_config_pkg)
         .trajectory_execution(file_path=moveit_controllers_path)
-        .robot_description_semantic(file_path=srdf_path)
+        .robot_description_semantic(file_path=srdf_path, mappings={'gripper': gripper})
         .joint_limits(file_path=joint_limits_path)
         .robot_description_kinematics(file_path=kinematics_path)
         .pilz_cartesian_limits(file_path=pilz_cartesian_limits_path)
@@ -164,9 +165,27 @@ def generate_launch_description():
         )
         .to_moveit_configs()
       )
-    # Keep MoveIt, RViz, and TF on the exact same robot description. Using the
-    # live xacro here avoids camera-frame drift when a generated URDF copy goes stale.
-    moveit_config.robot_description = robot_description
+    moveit_config_robotiq.robot_description = robot_description
+
+    moveit_config_onrobot = (
+        MoveItConfigsBuilder("ur", package_name=moveit_config_pkg)
+        .trajectory_execution(file_path=moveit_controllers_onrobot_path)
+        .robot_description_semantic(file_path=srdf_path, mappings={'gripper': gripper})
+        .joint_limits(file_path=joint_limits_path)
+        .robot_description_kinematics(file_path=kinematics_path)
+        .pilz_cartesian_limits(file_path=pilz_cartesian_limits_path)
+        .planning_pipelines(
+        pipelines=["ompl", "pilz_industrial_motion_planner"],
+        default_planning_pipeline="ompl"
+     )
+        .planning_scene_monitor(
+            publish_robot_description=True,
+            publish_robot_description_semantic=True,
+            publish_planning_scene=True
+        )
+        .to_moveit_configs()
+      )
+    moveit_config_onrobot.robot_description = robot_description
 
     # Set environment variables
     set_env_vars_resources = AppendEnvironmentVariable(
@@ -183,9 +202,8 @@ def generate_launch_description():
     #     }.items()
     # )
 
-    
     controllers = ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
-    delays = [15.0, 20.0, 25.0]
+    delays = [20.0, 30.0, 40.0]
 
     for controller, delay in zip(controllers, delays):
         ld.add_action(
@@ -199,6 +217,12 @@ def generate_launch_description():
                             controller,
                             "--controller-manager",
                             "/controller_manager",
+                            "--controller-manager-timeout",
+                            "60.0",
+                            "--switch-timeout",
+                            "60.0",
+                            "--service-call-timeout",
+                            "60.0",
                         ],
                         parameters=[{'use_sim_time': True}],
                         output='screen'
@@ -261,7 +285,45 @@ def generate_launch_description():
         ]
     )
 
-    rviz_node = Node(
+    robotiq_condition = IfCondition(
+        PythonExpression([
+            "'",
+            gripper,
+            "' in ['robotiq_2f_85', 'robotiq_2f_140'] and '",
+            LaunchConfiguration("use_rviz"),
+            "' == 'true'",
+        ])
+    )
+    onrobot_condition = IfCondition(
+        PythonExpression([
+            "'",
+            gripper,
+            "' in ['onrobot_rg2', 'onrobot_rg6'] and '",
+            LaunchConfiguration("use_rviz"),
+            "' == 'true'",
+        ])
+    )
+
+    robotiq_move_group_condition = IfCondition(
+        PythonExpression([
+            "'",
+            gripper,
+            "' in ['robotiq_2f_85', 'robotiq_2f_140'] and '",
+            LaunchConfiguration("use_move_group"),
+            "' == 'true'",
+        ])
+    )
+    onrobot_move_group_condition = IfCondition(
+        PythonExpression([
+            "'",
+            gripper,
+            "' in ['onrobot_rg2', 'onrobot_rg6'] and '",
+            LaunchConfiguration("use_move_group"),
+            "' == 'true'",
+        ])
+    )
+
+    rviz_node_robotiq = Node(
         package="rviz2",
         executable="rviz2",
         name="rviz2",
@@ -269,38 +331,49 @@ def generate_launch_description():
         arguments=["-d", rviz_config_path],
         parameters=[
             robot_description,
-            moveit_config.robot_description_semantic,
-            moveit_config.robot_description_kinematics,
-            moveit_config.planning_pipelines,
+            moveit_config_robotiq.robot_description_semantic,
+            moveit_config_robotiq.robot_description_kinematics,
+            moveit_config_robotiq.planning_pipelines,
             {"use_sim_time": use_sim_time}
         ],
-        condition=IfCondition(LaunchConfiguration("use_rviz")),
+        condition=robotiq_condition,
     )
-    # config_dict = moveit_config.to_dict()
-    # config_dict.update(use_sim_time)
-    # move_group_node = Node(
-    #     package="moveit_ros_move_group",
-    #     executable="move_group",
-    #     output="screen",
-    #     parameters=[config_dict],
-    # )
-    # ld.add_action(joint_state_publisher_node)
 
-    # Add actions to launch description
-    # joint_state_publisher_node = Node(
-    #     package="joint_state_publisher_gui",
-    #     executable="joint_state_publisher_gui",
-    # )
+    rviz_node_onrobot = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", rviz_config_path],
+        parameters=[
+            robot_description,
+            moveit_config_onrobot.robot_description_semantic,
+            moveit_config_onrobot.robot_description_kinematics,
+            moveit_config_onrobot.planning_pipelines,
+            {"use_sim_time": use_sim_time}
+        ],
+        condition=onrobot_condition,
+    )
 
-    move_group_parameters = moveit_config.to_dict()
-    move_group_parameters.update(robot_description)
+    move_group_parameters_robotiq = moveit_config_robotiq.to_dict()
+    move_group_parameters_robotiq.update(robot_description)
+    move_group_parameters_onrobot = moveit_config_onrobot.to_dict()
+    move_group_parameters_onrobot.update(robot_description)
 
-    move_group_node = Node(
+    move_group_node_robotiq = Node(
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
-        parameters=[move_group_parameters, {"use_sim_time": use_sim_time}],
-        condition=IfCondition(LaunchConfiguration("use_move_group")),
+        parameters=[move_group_parameters_robotiq, {"use_sim_time": use_sim_time}],
+        condition=robotiq_move_group_condition,
+    )
+
+    move_group_node_onrobot = Node(
+        package="moveit_ros_move_group",
+        executable="move_group",
+        output="screen",
+        parameters=[move_group_parameters_onrobot, {"use_sim_time": use_sim_time}],
+        condition=onrobot_move_group_condition,
     )
 
     ld.add_action(set_env_vars_resources)
@@ -310,7 +383,9 @@ def generate_launch_description():
     ld.add_action(start_gazebo_ros_bridge_cmd)
     ld.add_action(start_gazebo_ros_image_bridge_cmd)
     ld.add_action(start_gazebo_ros_spawner_cmd)
-    ld.add_action(move_group_node)
-    ld.add_action(rviz_node)
+    ld.add_action(move_group_node_robotiq)
+    ld.add_action(move_group_node_onrobot)
+    ld.add_action(rviz_node_robotiq)
+    ld.add_action(rviz_node_onrobot)
 
     return ld
