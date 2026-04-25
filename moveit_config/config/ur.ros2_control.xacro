@@ -87,16 +87,8 @@
                 </joint>
 
                 <!-- Mimic joints — state_interface ONLY (no command_interface).
-                     Gazebo Harmonic enforces URDF <mimic> constraints at the physics level.
                      Adding command_interface to constrained joints causes GazeboSimSystem
                      plugin init failure. -->
-
-                <joint name="left_outer_knuckle_joint">
-                    <state_interface name="position">
-                        <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
-                    </state_interface>
-                    <state_interface name="velocity"/>
-                </joint>
 
                 <joint name="right_outer_knuckle_joint">
                     <state_interface name="position">

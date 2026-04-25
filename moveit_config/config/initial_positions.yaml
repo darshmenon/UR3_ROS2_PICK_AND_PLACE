@@ -9,7 +9,6 @@ initial_positions:
   wrist_1_joint: 1.8251
   wrist_2_joint: 0
   wrist_3_joint: 1.2844
-  left_outer_knuckle_joint: 0.0
   right_outer_knuckle_joint: 0.0
   left_inner_knuckle_joint: 0.0
   right_inner_knuckle_joint: 0.0
