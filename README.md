@@ -124,10 +124,75 @@ Launches Gazebo + MoveIt + planning scene server + MTC demo in sequence.
 ### Launch Full Simulation in Gazebo
 
 ```bash
+# Default — Robotiq 2F-85
 ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Robotiq 2F-140
+ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=robotiq_2f_140
+
+# OnRobot RG2
+ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=onrobot_rg2
+
+# OnRobot RG6
+ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=onrobot_rg6
 ```
 
-You can swap the attached gripper with `gripper:=robotiq_2f_85` or `gripper:=robotiq_2f_140`.
+---
+
+## Supported Grippers
+
+| Gripper | Arg | Actuated joint | Mimic joints |
+|---|---|---|---|
+| Robotiq 2F-85 | `robotiq_2f_85` | `finger_joint` | 5 |
+| Robotiq 2F-140 | `robotiq_2f_140` | `finger_joint` | 5 |
+| OnRobot RG2 | `onrobot_rg2` | `gripper_joint` | 5 |
+| OnRobot RG6 | `onrobot_rg6` | `gripper_joint` | 5 |
+
+All four grippers use `position_controllers/GripperActionController` for the single commanded joint. Mimic joints are state-only — Gazebo Harmonic enforces the `<mimic>` constraints at the physics level.
+
+### Verify Controllers After Launch
+
+Controllers take ~40 s to spawn. Run this to confirm all three are `active`:
+
+```bash
+ros2 control list_controllers
+```
+
+Expected output (same for all grippers):
+
+```
+arm_controller[joint_trajectory_controller/JointTrajectoryController] active
+gripper_controller[position_controllers/GripperActionController] active
+joint_state_broadcaster[joint_state_broadcaster/JointStateBroadcaster] active
+```
+
+### Command the Gripper from CLI
+
+**Robotiq (2F-85 / 2F-140)** — `finger_joint` range `0.0` (open) → `0.8` (closed):
+
+```bash
+ros2 action send_goal /gripper_controller/gripper_cmd \
+  control_msgs/action/GripperCommand \
+  "{command: {position: 0.5, max_effort: 50.0}}"
+```
+
+**OnRobot (RG2 / RG6)** — `gripper_joint` range `0.0` (open) → `1.3` (closed):
+
+```bash
+ros2 action send_goal /gripper_controller/gripper_cmd \
+  control_msgs/action/GripperCommand \
+  "{command: {position: 0.65, max_effort: 50.0}}"
+```
+
+### MTC Pick-and-Place with a Specific Gripper
+
+```bash
+# Terminal 1
+ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=onrobot_rg2
+
+# Terminal 2 — pass matching gripper arg
+ros2 launch ur_mtc_pick_place_demo pick_place_demo.launch.py gripper:=onrobot_rg2
+```
 
 ### Launch Point Cloud Viewer (Gazebo + RViz)
 
