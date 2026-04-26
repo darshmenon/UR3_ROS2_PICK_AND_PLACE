@@ -1,0 +1,80 @@
+<?xml version="1.0" ?>
+<!-- Gazebo world matching the MuJoCo ur_gazebo_single_arm_env training setup.
+     Table top at z=0.02, cube centre at z=0.045, drop zone at x=0.35 y=0.20.
+     Designed for RL policy deployment via shared_arm_policy_node. -->
+<sdf version="1.7">
+  <world name="default">
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <gravity>0.0 0.0 -9.8</gravity>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <!-- Manipulation table — top surface at z=0.02, matching MuJoCo table -->
+    <model name="table">
+      <static>true</static>
+      <pose>0.35 0.0 0.01 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.60 0.60 0.02</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.60 0.60 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0.7 0.55 0.35 1</ambient>
+            <diffuse>0.7 0.55 0.35 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Red cube — 0.05x0.05x0.05m, centre at z=0.045 (resting on table top).
+         Matches MuJoCo og.size=[0.025,0.025,0.025] (half-extents). -->
+    <include>
+      <uri>model://red_cube</uri>
+      <name>red_cube</name>
+      <pose>0.35 0.0 0.045 0 0 0</pose>
+    </include>
+
+    <!-- Drop zone visual marker — green disc at x=0.35 y=0.20 -->
+    <model name="drop_zone">
+      <static>true</static>
+      <pose>0.35 0.20 0.021 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.06</radius><length>0.002</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.0 0.9 0.0 0.5</ambient>
+            <diffuse>0.0 0.9 0.0 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <scene>
+      <shadows>false</shadows>
+    </scene>
+  </world>
+</sdf>
