@@ -2,8 +2,8 @@
 ROS 2 deployment node — runs a trained SAC policy on the real UR3 in Gazebo.
 
 Subscribes: /joint_states
-Publishes:  /arm_controller/joint_trajectory
-            /gripper_controller/joint_trajectory
+Publishes:  /arm_controller/joint_trajectory   (JointTrajectory)
+Actions:    /gripper_controller/gripper_cmd    (GripperCommand — matches GripperActionController)
 
 Observation (23-dim, matches UR3PickPlaceEnv):
   qpos[6] + qvel[6] + ee_pos[3] + obj_pos[3] + drop_pos[3] + gripper[1] + phase[1]
@@ -17,7 +17,8 @@ from pathlib import Path
 import numpy as np
 import rclpy
 import tf2_ros
-from builtin_interfaces.msg import Duration
+from control_msgs.action import GripperCommand
+from rclpy.action import ActionClient
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from stable_baselines3 import SAC
@@ -90,12 +91,13 @@ class PolicyNode(Node):
 
         js_topic  = str(self.get_parameter("joint_state_topic").value)
         arm_topic = str(self.get_parameter("arm_trajectory_topic").value)
-        grp_topic = str(self.get_parameter("gripper_trajectory_topic").value)
-        hz        = float(self.get_parameter("control_rate_hz").value)
+        grp_action = str(self.get_parameter("gripper_trajectory_topic").value).replace(
+            "joint_trajectory", "gripper_cmd")
+        hz = float(self.get_parameter("control_rate_hz").value)
 
         self.create_subscription(JointState, js_topic, self._joint_cb, 10)
-        self._arm_pub  = self.create_publisher(JointTrajectory, arm_topic,  10)
-        self._grp_pub  = self.create_publisher(JointTrajectory, grp_topic,  10)
+        self._arm_pub    = self.create_publisher(JointTrajectory, arm_topic, 10)
+        self._grp_client = ActionClient(self, GripperCommand, grp_action)
         self.create_timer(1.0 / hz, self._step)
 
     # ── joint state callback ─────────────────────────────────────────────────
@@ -173,29 +175,26 @@ class PolicyNode(Node):
             self._publish_gripper(grip_target)
 
     # ── publishers ───────────────────────────────────────────────────────────
-    def _duration(self):
-        ns = max(int(self._step_dt * 1e9), 1)
-        return Duration(sec=ns // 1_000_000_000, nanosec=ns % 1_000_000_000)
-
     def _publish_arm(self, positions):
+        from builtin_interfaces.msg import Duration
+        ns = max(int(self._step_dt * 1e9), 1)
+        dur = Duration(sec=ns // 1_000_000_000, nanosec=ns % 1_000_000_000)
         msg = JointTrajectory()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.joint_names  = self._arm_joints
         pt = JointTrajectoryPoint()
         pt.positions = [float(v) for v in positions]
-        pt.time_from_start = self._duration()
+        pt.time_from_start = dur
         msg.points = [pt]
         self._arm_pub.publish(msg)
 
     def _publish_gripper(self, position):
-        msg = JointTrajectory()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.joint_names  = self._gripper_joints
-        pt = JointTrajectoryPoint()
-        pt.positions = [position] * len(self._gripper_joints)
-        pt.time_from_start = self._duration()
-        msg.points = [pt]
-        self._grp_pub.publish(msg)
+        if not self._grp_client.server_is_ready():
+            return
+        goal = GripperCommand.Goal()
+        goal.command.position   = float(np.clip(position, 0.0, 0.8))
+        goal.command.max_effort = 50.0
+        self._grp_client.send_goal_async(goal)
 
 
 def main(args=None):
