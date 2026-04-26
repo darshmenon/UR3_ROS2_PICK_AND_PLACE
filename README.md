@@ -328,10 +328,6 @@ This script launches the Gazebo simulation, MoveIt 2, the planning scene server,
 
 ![loop](assets/looponline-video-cutter.com-ezgif.com-video-to-gif-converter.gif)
 
-### Colour Pick
-
-![colour pick](assets/colour_pick.png)
-
 ---
 
 ## AI / ML Stack

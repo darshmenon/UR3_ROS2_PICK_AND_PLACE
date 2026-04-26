@@ -1,0 +1,87 @@
+<mujoco model="ur3">
+  <!-- UR3 robot — capsule collision geometry, no visual meshes (fast training).
+       Kinematics from UR3 DH parameters: d1=151.9 a2=-243.65 a3=-213.25
+       d4=112.35 d5=85.35 d6=81.9 (all mm). -->
+
+  <compiler angle="radian" autolimits="true"/>
+  <option integrator="implicitfast"/>
+
+  <default>
+    <default class="ur3">
+      <joint axis="0 1 0" range="-6.28319 6.28319" armature="0.1" damping="10"/>
+      <!-- position PD controller — same pattern as ur5e menagerie -->
+      <general gaintype="fixed" biastype="affine"
+               ctrlrange="-6.28319 6.28319"
+               gainprm="1500" biasprm="0 -1500 -300"
+               forcerange="-56 56"/>
+      <default class="size1">
+        <general gainprm="500" biasprm="0 -500 -100" forcerange="-28 28"/>
+      </default>
+      <default class="collision">
+        <geom type="capsule" rgba="0.5 0.5 0.5 1" group="3"/>
+      </default>
+    </default>
+  </default>
+
+  <worldbody>
+    <body name="base" childclass="ur3">
+      <inertial mass="2.0" pos="0 0 0"
+                diaginertia="0.00183333 0.00183333 0.003"/>
+      <geom type="cylinder" size="0.05 0.04" rgba="0.3 0.3 0.3 1" contype="0" conaffinity="0"/>
+      <body name="shoulder_link" pos="0 0 0.1519">
+        <inertial mass="2.0" pos="0 0 0"
+                  diaginertia="0.00373333 0.00373333 0.00243333"/>
+        <joint name="shoulder_pan_joint" class="ur3" axis="0 0 1"/>
+        <geom class="collision" size="0.04 0.04" pos="0 0 -0.03"/>
+        <body name="upper_arm_link" pos="0 0 0" quat="1 0 1 0">
+          <inertial mass="3.42" pos="0 0 0.122"
+                    diaginertia="0.0254427 0.0254427 0.00378"/>
+          <joint name="shoulder_lift_joint" class="ur3"/>
+          <geom class="collision" size="0.035 0.12" pos="0 0 0.12"/>
+          <body name="forearm_link" pos="0 0 0.24365">
+            <inertial mass="1.26" pos="0 0 0.105"
+                      diaginertia="0.00778 0.00778 0.000983"/>
+            <joint name="elbow_joint" class="ur3" range="-3.14159 3.14159"/>
+            <geom class="collision" size="0.028 0.105" pos="0 0 0.105"/>
+            <body name="wrist_1_link" pos="0 0 0.21325" quat="1 0 1 0">
+              <inertial mass="0.8" pos="0 0.05 0"
+                        diaginertia="0.00065 0.00065 0.000562"/>
+              <joint name="wrist_1_joint" class="size1"/>
+              <geom class="collision" pos="0 0.025 0" quat="1 1 0 0" size="0.025 0.035"/>
+              <body name="wrist_2_link" pos="0 0.11235 0">
+                <inertial mass="0.8" pos="0 0 0.04"
+                          diaginertia="0.00065 0.00065 0.000562"/>
+                <joint name="wrist_2_joint" class="size1" axis="0 0 1"/>
+                <geom class="collision" size="0.025 0.035" pos="0 0 0.02"/>
+                <geom class="collision" pos="0 0.01 0.04" quat="1 1 0 0" size="0.025 0.02"/>
+                <body name="wrist_3_link" pos="0 0 0.08535">
+                  <inertial mass="0.35" pos="0 0.03 0"
+                            diaginertia="0.0000503 0.0000383 0.0000383"/>
+                  <joint name="wrist_3_joint" class="size1"/>
+                  <geom class="collision" pos="0 0.04 0" quat="1 1 0 0" size="0.022 0.02"/>
+                  <!-- attachment_site matches tool0 orientation -->
+                  <site name="attachment_site" pos="0 0.0819 0" quat="-1 1 0 0"/>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <general class="ur3"   name="shoulder_pan"  joint="shoulder_pan_joint"/>
+    <general class="ur3"   name="shoulder_lift" joint="shoulder_lift_joint"/>
+    <general class="ur3"   name="elbow"         joint="elbow_joint"/>
+    <general class="size1" name="wrist_1"       joint="wrist_1_joint"/>
+    <general class="size1" name="wrist_2"       joint="wrist_2_joint"/>
+    <general class="size1" name="wrist_3"       joint="wrist_3_joint"/>
+  </actuator>
+
+  <keyframe>
+    <key name="home"
+         qpos="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0"
+         ctrl="-1.5708 -1.5708 1.5708 -1.5708 -1.5708 0"/>
+  </keyframe>
+</mujoco>
