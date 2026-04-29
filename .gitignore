@@ -3,6 +3,7 @@ install/
 log/
 logs/
 models/gazebo_single_arm/
+ur_rl_training/models/checkpoints/
 *.pyc
 __pycache__/
 .vscode/
