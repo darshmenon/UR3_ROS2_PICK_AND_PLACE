@@ -38,6 +38,8 @@ def parse_args():
                    help="Path to .zip checkpoint to resume")
     p.add_argument("--lr",           type=float, default=None,
                    help="Learning rate (default: 3e-4 fresh, 1e-4 when resuming)")
+    p.add_argument("--ent-coef",     type=str,   default=None,
+                   help="Entropy coef: 'auto' or float (default: auto fresh, 0.1 when resuming)")
     p.add_argument("--buffer-size",  type=int,   default=1_000_000)
     p.add_argument("--no-domain-rand", action="store_true",
                    help="Disable domain randomisation (for debugging)")
@@ -62,8 +64,12 @@ def main():
 
     dom = not args.no_domain_rand
     lr  = args.lr if args.lr is not None else (1e-4 if args.resume else 3e-4)
+    ent = args.ent_coef if args.ent_coef is not None else (0.1 if args.resume else "auto")
+    if ent != "auto":
+        try: ent = float(ent)
+        except ValueError: ent = "auto"
     print(f"Run: {run_name}")
-    print(f"Steps: {args.timesteps:,}  envs: {args.n_envs}  lr: {lr}  "
+    print(f"Steps: {args.timesteps:,}  envs: {args.n_envs}  lr: {lr}  ent_coef: {ent}  "
           f"curriculum: {args.curriculum}  domain_rand: {dom}")
 
     vec_env  = VecMonitor(DummyVecEnv([make_env(args.curriculum, dom)] * args.n_envs))
@@ -90,6 +96,7 @@ def main():
                          custom_objects={"learning_rate": lr,
                                          "n_steps": args.buffer_size})
         model.learning_rate = lr
+        model.ent_coef = ent
     else:
         model = SAC(
             "MlpPolicy", vec_env,
@@ -100,7 +107,7 @@ def main():
             batch_size=512,
             gamma=0.99,
             tau=0.005,
-            ent_coef="auto",
+            ent_coef=ent,
             learning_starts=10_000,
             train_freq=4,
             gradient_steps=4,
