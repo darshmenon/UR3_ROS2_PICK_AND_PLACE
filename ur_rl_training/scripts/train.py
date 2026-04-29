@@ -30,12 +30,15 @@ MODEL_ROOT = str(REPO_ROOT / "models" / "checkpoints")
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--timesteps",    type=int,   default=2_000_000)
+    p.add_argument("--timesteps",    type=int,   default=3_000_000)
     p.add_argument("--n-envs",       type=int,   default=8)
     p.add_argument("--curriculum",   type=str,   default="grasp_focus",
                    choices=["none", "grasp_focus"])
     p.add_argument("--resume",       type=str,   default=None,
                    help="Path to .zip checkpoint to resume")
+    p.add_argument("--lr",           type=float, default=None,
+                   help="Learning rate (default: 3e-4 fresh, 1e-4 when resuming)")
+    p.add_argument("--buffer-size",  type=int,   default=1_000_000)
     p.add_argument("--no-domain-rand", action="store_true",
                    help="Disable domain randomisation (for debugging)")
     return p.parse_args()
@@ -58,8 +61,9 @@ def main():
     os.makedirs(mdl_dir, exist_ok=True)
 
     dom = not args.no_domain_rand
+    lr  = args.lr if args.lr is not None else (1e-4 if args.resume else 3e-4)
     print(f"Run: {run_name}")
-    print(f"Steps: {args.timesteps:,}  envs: {args.n_envs}  "
+    print(f"Steps: {args.timesteps:,}  envs: {args.n_envs}  lr: {lr}  "
           f"curriculum: {args.curriculum}  domain_rand: {dom}")
 
     vec_env  = VecMonitor(DummyVecEnv([make_env(args.curriculum, dom)] * args.n_envs))
@@ -82,21 +86,24 @@ def main():
 
     if args.resume:
         print(f"Resuming from {args.resume}")
-        model = SAC.load(args.resume, env=vec_env)
+        model = SAC.load(args.resume, env=vec_env,
+                         custom_objects={"learning_rate": lr,
+                                         "n_steps": args.buffer_size})
+        model.learning_rate = lr
     else:
         model = SAC(
             "MlpPolicy", vec_env,
             verbose=1,
             tensorboard_log=log_dir,
-            learning_rate=3e-4,
-            buffer_size=500_000,
+            learning_rate=lr,
+            buffer_size=args.buffer_size,
             batch_size=512,
             gamma=0.99,
             tau=0.005,
             ent_coef="auto",
             learning_starts=10_000,
             train_freq=4,
-            gradient_steps=2,
+            gradient_steps=4,
             policy_kwargs={"net_arch": [256, 256, 256]},
         )
 
