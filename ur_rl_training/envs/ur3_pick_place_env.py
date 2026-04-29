@@ -51,7 +51,7 @@ STEP_PENALTY           = 0.01
 REACH_DELTA_GAIN       = 360.0
 GRASP_DELTA_GAIN       = 420.0
 LIFT_DELTA_GAIN        = 420.0
-CARRY_DELTA_GAIN       = 280.0
+CARRY_DELTA_GAIN       = 360.0
 REWARD_SCALE           = 100.0
 GRASP_CLOSE_THRESHOLD  = 0.28
 GRASP_LIFT_THRESHOLD   = 0.005   # lowered from 0.015 for easier streak entry
@@ -261,7 +261,9 @@ class UR3PickPlaceEnv(gym.Env):
         self.data.ctrl[:N_ARM] = np.clip(arm_target, arm_range[:, 0], arm_range[:, 1])
 
         gl, gh = self.model.actuator_ctrlrange[N_ARM]
-        grip_delta = float(action[N_ARM]) * 0.05
+        # scale by (gh-gl)/20 so full action sweep = 5% of range per step,
+        # reaching full close in ~20 steps — matches the [0,255] 2f85 actuator
+        grip_delta = float(action[N_ARM]) * ((gh - gl) / 20.0)
         self.data.ctrl[N_ARM] = float(np.clip(self.data.ctrl[N_ARM] + grip_delta, gl, gh))
 
         for _ in range(5):
@@ -388,14 +390,17 @@ class UR3PickPlaceEnv(gym.Env):
             if carrying:
                 reward += 10.0 / (1.0 + obj_to_drop_xy * 10.0)
                 if obj_to_drop_xy < 0.10: reward += 40.0 * (1.0 - obj_to_drop_xy / 0.10)
-                if obj_to_drop_xy < 0.08 and grip < 0.2: reward += 70.0
+                if obj_to_drop_xy < 0.08:
+                    reward += 120.0           # strong signal for being over drop zone
+                    if grip < 0.35: reward += 80.0 * (1.0 - grip / 0.35)  # reward releasing
             else:
-                reward -= 20.0
+                reward -= 8.0
             if not carrying and obj_lift < GRASP_LIFT_THRESHOLD and obj_to_drop_xy > 0.12:
                 reward -= 60.0
                 self._grasped = False; self._grasp_streak = 0
                 self._phase = 1; self._prev_dist = None
-            if obj_to_drop_xy < 0.08 and grip < 0.1 and obj[2] < init[2] + 0.015:
+            # loosened grip threshold: 0.35 (was 0.1) so partial release counts
+            if obj_to_drop_xy < 0.08 and grip < 0.35 and obj[2] < init[2] + 0.03:
                 self._grasped = False
                 reward += 1800.0
                 terminated = True
