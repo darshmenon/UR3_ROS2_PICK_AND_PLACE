@@ -33,7 +33,8 @@ def generate_launch_description():
         DeclareLaunchArgument("phase",       default_value="1.0", description="Curriculum phase (0-3)"),
         DeclareLaunchArgument("base_frame",  default_value="base_link"),
         DeclareLaunchArgument("ee_frame",    default_value="tool0"),
-        DeclareLaunchArgument("control_rate_hz", default_value="10.0"),
+        DeclareLaunchArgument("control_rate_hz", default_value="100.0"),
+        DeclareLaunchArgument("step_dt",         default_value="0.01"),
 
         Node(
             package="ur_rl_training",
@@ -52,6 +53,8 @@ def generate_launch_description():
                 "base_frame":               LaunchConfiguration("base_frame"),
                 "ee_frame":                 LaunchConfiguration("ee_frame"),
                 "control_rate_hz":          LaunchConfiguration("control_rate_hz"),
+                "step_dt":                  LaunchConfiguration("step_dt"),
+                "use_sim_time":             True,
                 "arm_trajectory_topic":     "/arm_controller/joint_trajectory",
                 "gripper_trajectory_topic": "/gripper_controller/joint_trajectory",
             }],

@@ -332,7 +332,73 @@ This script launches the Gazebo simulation, MoveIt 2, the planning scene server,
 
 ## AI / ML Stack
 
-This workspace has four main AI-facing pieces: grasping, perception, language planning, and RL policy execution. The commands below are the shortest path to getting each one alive without digging through the repo.
+### SAC RL Pick-and-Place Policy (`ur_rl_training`)
+
+Trains a Soft Actor-Critic (SAC) policy in MuJoCo and deploys it to Gazebo. The policy learns to reach, grasp, lift, and place a cube using the UR3 + Robotiq 2F-85.
+
+**Train:**
+
+```bash
+cd ur_rl_training
+python3 scripts/train.py --timesteps 3000000
+# Resume from checkpoint:
+python3 scripts/train.py --resume models/checkpoints/<run>/best_model.zip --ent-coef 0.1 --lr 1e-4
+```
+
+Best model saved to `ur_rl_training/models/checkpoints/<run>/best_model.zip`.
+
+**View policy in Gazebo:**
+
+```bash
+# Terminal 1 — Gazebo + MoveIt:
+source install/setup.bash
+ros2 launch ur_gazebo ur.gazebo.launch.py world_file:=rl_policy_demo.world
+
+# Terminal 2 — RL policy node:
+source install/setup.bash
+ros2 launch ur_rl_training rl_policy.launch.py \
+  model_path:=ur_rl_training/models/checkpoints/<run>/best_model.zip
+```
+
+Optional launch parameters:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `action_scale` | `0.1` | Joint delta per step (increase for faster motion, e.g. `0.4`) |
+| `step_dt` | `0.01` | Trajectory point duration in seconds |
+| `control_rate_hz` | `100.0` | Policy inference rate |
+| `object_x/y/z` | `0.35/0.0/0.045` | Object position in `base_link` frame |
+| `drop_x/y/z` | `0.35/0.20/0.02` | Drop zone position |
+| `phase` | `1.0` | Curriculum phase (0=reach, 1=grasp, 2=lift, 3=place) |
+
+**Headless evaluation:**
+
+```bash
+python3 ur_rl_training/scripts/eval_headless.py \
+  --model ur_rl_training/models/checkpoints/<run>/best_model.zip \
+  --episodes 20
+```
+
+---
+
+## Contributing
+
+Pull requests and issues are welcome, especially around simulation stability, transfer learning, and perception-to-action integration.
+
+---
+
+## Future Scope
+
+- Add a vision-language-action pipeline for task-conditioned robot control.
+- Bring back LLM task planning as a stable feature for high-level commands such as pick, place, sort, and multi-step tabletop tasks.
+- Connect perception, RL, and language planning more tightly so detected objects can be selected and manipulated from natural-language instructions.
+- Improve MuJoCo-to-Gazebo transfer so learned grasping policies behave more consistently on the UR3 with the Robotiq gripper.
+
+---
+
+## Work in Progress
+
+The following features are actively being developed and are not yet fully integrated.
 
 ### Grasp Detection (`ur_grasp`)
 
@@ -453,221 +519,3 @@ ollama serve
 ollama pull llama3.2:3b
 ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
 ```
-
-### Keyboard Teleoperation
-
-Manually jog the UR3 arm from the keyboard. Requires Gazebo to be running first.
-
-```bash
-source install/setup.bash
-ros2 launch ur_llm_planner keyboard_teleop.launch.py
-
-# or run directly:
-ros2 run ur_llm_planner keyboard_teleop.py
-```
-
-Controls:
-
-| Key | Action |
-|---|---|
-| `1`–`6` | select joint (shoulder_pan → wrist_3) |
-| `W` / `S` | jog selected joint + / − |
-| `C` | toggle joint ↔ Cartesian mode |
-| `W/S` `A/D` `Q/E` | (Cartesian) EE +X/−X, +Y/−Y, +Z/−Z |
-| `O` / `P` | gripper open / close |
-| `+` / `−` | step size (0.005 → 0.10 rad/m) |
-| `Esc` | quit |
-
-Cartesian mode gets the current EE pose from TF, applies the delta, calls `/compute_ik`, and sends the result to `arm_controller`.
-
-### SAC RL Policy Runner (`mujoco_ur_rl_ros2`)
-
-This stack trains in MuJoCo and deploys the learned single-arm policy into Gazebo. The main runtime node is `shared_arm_policy_node`.
-
-Run the policy in Gazebo:
-
-```bash
-# Terminal 1
-ros2 launch ur_gazebo ur.gazebo.launch.py
-
-# Terminal 2
-ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
-  --ros-args \
-  -p model_path:=/path/to/best_model.zip \
-  -p arm_trajectory_topic:=/arm_controller/joint_trajectory \
-  -p object_x:=0.45 -p object_y:=0.0 -p object_z:=0.045 \
-  -p drop_x:=0.45 -p drop_y:=0.2 -p drop_z:=0.025
-```
-
-Or launch Gazebo and the policy together:
-
-```bash
-ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
-  model_path:=/path/to/best_model.zip \
-  launch_policy:=true
-```
-
-The policy reads `/joint_states` and publishes trajectories to `/arm_controller/joint_trajectory` and `/gripper_controller/joint_trajectory` (Gazebo). For real UR hardware override with `-p arm_trajectory_topic:=/scaled_joint_trajectory_controller/joint_trajectory`.
-
-Train a Gazebo-aligned policy:
-
-```bash
-python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
-  --timesteps 2000000 \
-  --n-envs 8 \
-  --curriculum grasp_focus
-```
-
-Resume training:
-
-```bash
-python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
-  --timesteps 2000000 \
-  --n-envs 8 \
-  --curriculum grasp_focus \
-  --resume models/gazebo_single_arm/<run>/best_model.zip
-```
-
-Saved artifacts per run:
-
-- `models/gazebo_single_arm/<run>/best_model.zip`
-- `models/gazebo_single_arm/<run>/best_model_replay_buffer.pkl`
-- `models/gazebo_single_arm/<run>/ckpt_<steps>_steps.zip`
-- `models/gazebo_single_arm/<run>/ckpt_replay_buffer_<steps>_steps.pkl`
-
-Key notes:
-
-- `--curriculum grasp_focus` is the main setting to keep for grasp learning
-- checkpoints are written every `100k` steps
-- resume now works best from `best_model.zip` because a matching `best_model_replay_buffer.pkl` is saved beside it
-- `ur_gazebo_single_arm_env.py` is the main transfer environment for Gazebo
-- keeping spawned objects inside the UR3 reachable workspace improves transfer stability
-
-Quick run summary:
-
-```bash
-python3 mujoco_ur_rl_ros2/summarize_single_arm_runs.py
-python3 mujoco_ur_rl_ros2/summarize_single_arm_runs.py gazebo_single_arm_20260418_0905 gazebo_single_arm_20260418_0928
-```
-
-### Full Demo
-
-```bash
-ros2 launch ur_gazebo full_demo.launch.py
-ros2 launch ur_gazebo full_demo.launch.py use_llm_planner:=true
-```
-
----
-
-## Contributing
-
-Pull requests and issues are welcome, especially around simulation stability, transfer learning, and perception-to-action integration.
-
----
-
-## Training And Gazebo
-
-### Watch MuJoCo Training Live
-
-`train_gazebo_single_arm.py` trains in MuJoCo, not in Gazebo.
-
-```bash
-python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
-  --timesteps 2000000 \
-  --n-envs 1 \
-  --curriculum grasp_focus \
-  --render \
-  --resume models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip
-```
-
-Use `--render` only with `--n-envs 1`.
-
-### Run Headless Training
-
-```bash
-python3 mujoco_ur_rl_ros2/train_gazebo_single_arm.py \
-  --timesteps 2000000 \
-  --n-envs 8 \
-  --curriculum grasp_focus \
-  --resume models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip
-```
-
-### Watch The Saved Policy In Gazebo
-
-Launch Gazebo and the policy together:
-
-```bash
-ros2 launch mujoco_ur_rl_ros2 gazebo_shared_arm_policy.launch.py \
-  model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip \
-  launch_policy:=true
-```
-
-Notes:
-
-- set `launch_policy:=true` if you want the RL node to start automatically
-- wait about `55` seconds before expecting motion
-- that delay gives Gazebo, `gz_ros2_control`, and the arm/gripper controllers time to settle before commands begin
-
-Or run Gazebo and the policy separately:
-
-```bash
-ros2 launch ur_gazebo ur.gazebo.launch.py
-```
-
-```bash
-ros2 run mujoco_ur_rl_ros2 shared_arm_policy_node \
-  --ros-args \
-  -p model_path:=/home/asimov/UR3_ROS2_PICK_AND_PLACE/models/gazebo_single_arm/gazebo_single_arm_<run>/best_model.zip \
-  -p arm_trajectory_topic:=/arm_controller/joint_trajectory \
-  -p gripper_trajectory_topic:=/gripper_controller/joint_trajectory \
-  -p object_x:=0.35 -p object_y:=0.0 -p object_z:=0.045 \
-  -p drop_x:=0.35 -p drop_y:=0.20 -p drop_z:=0.025
-```
-
-The bundled Gazebo flow uses `single_arm_transfer.world`, which matches the single-arm MuJoCo training scene.
-
-### Launch Gazebo And Training Together
-
-```bash
-ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py
-```
-
-Useful variants:
-
-```bash
-# Gazebo + live MuJoCo viewer
-ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
-  launch_training:=true \
-  training_render:=true
-```
-
-```bash
-# Training only
-ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
-  launch_gazebo:=false \
-  launch_training:=true \
-  training_render:=true
-```
-
-```bash
-# Gazebo only with a specific checkpoint
-ros2 launch mujoco_ur_rl_ros2 dual_view_single_arm.launch.py \
-  launch_training:=false \
-  model_path:=/absolute/path/to/best_model.zip
-```
-
-### Quick Summary
-
-- MuJoCo viewer shows the live RL training environment
-- headless mode runs the same trainer without opening the viewer
-- Gazebo shows the saved policy on the ROS 2 simulation stack
-- `train_gazebo_single_arm.py` is named for Gazebo transfer, but the RL loop itself runs in MuJoCo
-
----
-
-## Future Scope
-
-- Add a vision-language-action pipeline for task-conditioned robot control.
-- Bring back LLM task planning as a stable feature for high-level commands such as pick, place, sort, and multi-step tabletop tasks.
-- Connect perception, RL, and language planning more tightly so detected objects can be selected and manipulated from natural-language instructions.
-- Improve MuJoCo-to-Gazebo transfer so learned grasping policies behave more consistently on the UR3 with the Robotiq gripper.
