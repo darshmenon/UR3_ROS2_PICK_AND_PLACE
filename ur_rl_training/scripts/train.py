@@ -22,6 +22,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from envs.ur3_pick_place_env import UR3PickPlaceEnv
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import CallbackList, CheckpointCallback, EvalCallback
+from stable_baselines3.common.save_util import load_from_zip_file
 from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
 LOG_ROOT   = str(REPO_ROOT / "logs")
@@ -92,11 +93,23 @@ def main():
 
     if args.resume:
         print(f"Resuming from {args.resume}")
-        model = SAC.load(args.resume, env=vec_env,
-                         custom_objects={"learning_rate": lr,
-                                         "n_steps": args.buffer_size})
-        model.learning_rate = lr
-        model.ent_coef = ent
+        _, params, _ = load_from_zip_file(args.resume, device="auto")
+        model = SAC(
+            "MlpPolicy", vec_env,
+            verbose=1,
+            tensorboard_log=log_dir,
+            learning_rate=lr,
+            buffer_size=args.buffer_size,
+            batch_size=512,
+            gamma=0.99,
+            tau=0.005,
+            ent_coef=ent,
+            learning_starts=0,
+            train_freq=4,
+            gradient_steps=4,
+            policy_kwargs={"net_arch": [256, 256, 256]},
+        )
+        model.set_parameters({"policy": params["policy"]}, exact_match=False)
     else:
         model = SAC(
             "MlpPolicy", vec_env,

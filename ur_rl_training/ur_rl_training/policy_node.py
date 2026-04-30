@@ -22,6 +22,7 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from stable_baselines3 import SAC
+from stable_baselines3.common.save_util import load_from_zip_file
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 ARM_JOINTS = [
@@ -83,7 +84,20 @@ class PolicyNode(Node):
         self._warned      = set()
 
         self.get_logger().info(f"Loading model: {model_path}")
-        self.model = SAC.load(model_path)
+        from gymnasium import spaces as _spaces
+        from stable_baselines3.common.vec_env import DummyVecEnv
+        import gymnasium as _gym
+
+        class _DummyEnv(_gym.Env):
+            observation_space = _spaces.Box(-np.inf, np.inf, shape=(23,), dtype=np.float32)
+            action_space      = _spaces.Box(-1.0, 1.0,      shape=(7,),  dtype=np.float32)
+            def reset(self, **kw): return self.observation_space.sample(), {}
+            def step(self, _a):   return self.observation_space.sample(), 0.0, False, False, {}
+
+        _, params, _ = load_from_zip_file(model_path, device="cpu")
+        self.model = SAC("MlpPolicy", DummyVecEnv([_DummyEnv]),
+                         policy_kwargs={"net_arch": [256, 256, 256]})
+        self.model.set_parameters({"policy": params["policy"]}, exact_match=False)
         self.get_logger().info("Model loaded — starting control loop.")
 
         self._tf_buffer   = tf2_ros.Buffer()
