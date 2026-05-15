@@ -7,7 +7,7 @@ Matches the rl_policy_demo.world Gazebo scene exactly:
   - Drop zone at x≈0.35, y≈0.20
 
 Domain randomisation (every episode):
-  - Object mass, friction (±20 %)
+  - Object mass, friction, size (±20 %)
   - Observation noise (1 % std)
   - Initial joint jitter (±0.05 rad)
 
@@ -78,6 +78,7 @@ class UR3PickPlaceEnv(gym.Env):
         self._prev_dist    = None
         self._grasp_streak = 0
         self._grasped      = False
+        self._obj_half     = OBJ_HALF
         self._drop_pos     = np.array([0.35, 0.20, TABLE_Z], dtype=np.float64)
         self._obj_init_pos = np.array([0.35, 0.0, OBJ_Z],    dtype=np.float64)
         self._viewer       = None
@@ -167,10 +168,10 @@ class UR3PickPlaceEnv(gym.Env):
     def _randomise(self, rng):
         if not self.domain_randomisation:
             return
-        # object mass
         self.model.body_mass[self._obj_body] = rng.uniform(0.05, 0.18)
-        # object friction
         self.model.geom_friction[self._obj_geom_id] = [rng.uniform(1.0, 6.0), 0.005, 0.0001]
+        self._obj_half = float(rng.uniform(OBJ_HALF * 0.8, OBJ_HALF * 1.2))
+        self.model.geom_size[self._obj_geom_id, :] = self._obj_half
 
     # ── obs ──────────────────────────────────────────────────────────────────
     def _get_obs(self, noise=True):
@@ -224,9 +225,10 @@ class UR3PickPlaceEnv(gym.Env):
         self.data.ctrl[N_ARM]  = 0.0
 
         s = self._obj_qpos_start
-        self.data.qpos[s:s+3]   = [ox, oy, OBJ_Z]
+        obj_z = TABLE_Z + self._obj_half
+        self.data.qpos[s:s+3]   = [ox, oy, obj_z]
         self.data.qpos[s+3:s+7] = [1.0, 0.0, 0.0, 0.0]
-        self._obj_init_pos = np.array([ox, oy, OBJ_Z], dtype=np.float64)
+        self._obj_init_pos = np.array([ox, oy, obj_z], dtype=np.float64)
 
         dx = float(self.np_random.uniform(*DROP_X_RANGE))
         dy = float(self.np_random.uniform(*DROP_Y_RANGE))
