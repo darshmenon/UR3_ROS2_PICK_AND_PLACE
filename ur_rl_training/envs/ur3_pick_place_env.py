@@ -272,7 +272,8 @@ class UR3PickPlaceEnv(gym.Env):
             self.data.qpos[s:s+3]   = self._obj_init_pos
             self.data.qpos[s+3:s+7] = [1.0, 0.0, 0.0, 0.0]
             mujoco.mj_forward(self.model, self.data)
-            self._phase = 0; self._prev_dist = None; self._grasp_streak = 0
+            self._phase = 1 if self.curriculum_mode == "grasp_focus" else 0
+            self._prev_dist = None; self._grasp_streak = 0
 
         truncated = bool(self.data.time > 20.0)
         if self.render_mode == "human":
