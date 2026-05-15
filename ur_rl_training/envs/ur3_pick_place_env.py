@@ -7,7 +7,7 @@ Matches the rl_policy_demo.world Gazebo scene exactly:
   - Drop zone at x≈0.35, y≈0.20
 
 Domain randomisation (every episode):
-  - Object mass, friction, size (±20 %)
+  - Object mass, friction (±20 %)
   - Observation noise (1 % std)
   - Initial joint jitter (±0.05 rad)
 
