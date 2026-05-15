@@ -51,10 +51,10 @@ class PolicyNode(Node):
         self.declare_parameter("gripper_joint_names",     [GRIPPER_JOINT])
         self.declare_parameter("base_frame",              "base_link")
         self.declare_parameter("ee_frame",                "tool0")
-        self.declare_parameter("control_rate_hz",         10.0)
+        self.declare_parameter("control_rate_hz",         100.0)
         self.declare_parameter("action_scale",            0.1)
         self.declare_parameter("gripper_scale",           0.04)
-        self.declare_parameter("step_dt",                 0.1)
+        self.declare_parameter("step_dt",                 0.01)
 
         # Object / drop zone positions — update these to match your scene
         self.declare_parameter("object_x",  0.35)
