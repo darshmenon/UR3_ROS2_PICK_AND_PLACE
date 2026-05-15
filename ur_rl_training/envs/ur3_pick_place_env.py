@@ -162,13 +162,6 @@ class UR3PickPlaceEnv(gym.Env):
         grip_jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "gripper-right_driver_joint")
         self._grip_qpos = int(self.model.jnt_qposadr[grip_jid]) if grip_jid >= 0 else N_ARM
 
-    def _find_geoms(self, names):
-        ids = set()
-        for name in names:
-            gid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, name)
-            if gid >= 0:
-                ids.add(gid)
-        return ids
 
     # ── domain randomisation ─────────────────────────────────────────────────
     def _randomise(self, rng):
