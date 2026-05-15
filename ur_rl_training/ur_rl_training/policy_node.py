@@ -53,7 +53,7 @@ class PolicyNode(Node):
         self.declare_parameter("ee_frame",                "tool0")
         self.declare_parameter("control_rate_hz",         10.0)
         self.declare_parameter("action_scale",            0.1)
-        self.declare_parameter("gripper_scale",           0.05)
+        self.declare_parameter("gripper_scale",           0.04)
         self.declare_parameter("step_dt",                 0.1)
 
         # Object / drop zone positions — update these to match your scene
