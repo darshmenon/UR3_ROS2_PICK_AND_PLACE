@@ -133,12 +133,6 @@ class UR3PickPlaceEnv(gym.Env):
         self._drop_body = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "drop_zone")
 
         # gripper pad geoms for contact detection
-        self._left_pads  = self._find_geoms([
-            "gripper-left_pad1", "gripper-left_pad2",
-            "gripper-right_pad1", "gripper-right_pad2",   # follower naming in 2f85
-        ])
-        self._right_pads = self._left_pads  # 2f85 symmetric — treat both as "pads"
-
         all_pads = set()
         for name in ["gripper-right_pad1", "gripper-right_pad2"]:
             gid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_GEOM, name)
