@@ -6,6 +6,7 @@ Usage:
 """
 
 import argparse
+import pickle
 import sys
 from pathlib import Path
 
@@ -34,6 +35,13 @@ def main():
     env   = UR3PickPlaceEnv(curriculum_mode=args.curriculum,
                             domain_randomisation=False)
 
+    obs_rms = None
+    norm_path = Path(args.model).parent / "vecnormalize.pkl"
+    if norm_path.exists():
+        with open(norm_path, "rb") as f:
+            obs_rms = pickle.load(f).obs_rms
+        print(f"VecNormalize loaded from {norm_path}")
+
     rewards        = []
     ep_lengths     = []
     max_phase      = []
@@ -48,6 +56,9 @@ def main():
         done    = False
 
         while not done:
+            if obs_rms is not None:
+                obs = np.clip((obs - obs_rms.mean) / np.sqrt(obs_rms.var + 1e-8),
+                              -10.0, 10.0).astype(np.float32)
             action, _ = model.predict(obs, deterministic=True)
             obs, r, terminated, truncated, info = env.step(action)
             total_r += r

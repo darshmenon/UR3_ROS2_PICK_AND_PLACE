@@ -83,6 +83,14 @@ class PolicyNode(Node):
         self._have_joints = False
         self._warned      = set()
 
+        import pickle
+        norm_path = Path(model_path).parent / "vecnormalize.pkl"
+        self._obs_rms = None
+        if norm_path.exists():
+            with open(norm_path, "rb") as f:
+                self._obs_rms = pickle.load(f).obs_rms
+            self.get_logger().info("VecNormalize stats loaded.")
+
         self.get_logger().info(f"Loading model: {model_path}")
         from gymnasium import spaces as _spaces
         from stable_baselines3.common.vec_env import DummyVecEnv
@@ -176,6 +184,12 @@ class PolicyNode(Node):
             np.array([self.gripper_qpos], dtype=np.float32),
             np.array([float(self.get_parameter("phase").value)], dtype=np.float32),
         ]).astype(np.float32)
+
+        if self._obs_rms is not None:
+            obs = np.clip(
+                (obs - self._obs_rms.mean) / np.sqrt(self._obs_rms.var + 1e-8),
+                -10.0, 10.0,
+            ).astype(np.float32)
 
         action, _ = self.model.predict(obs, deterministic=True)
         action = np.asarray(action, dtype=np.float32)
