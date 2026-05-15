@@ -336,16 +336,22 @@ This script launches the Gazebo simulation, MoveIt 2, the planning scene server,
 
 Trains a Soft Actor-Critic (SAC) policy in MuJoCo and deploys it to Gazebo. The policy learns to reach, grasp, lift, and place a cube using the UR3 + Robotiq 2F-85.
 
+**Features:**
+- VecNormalize observation and reward normalisation for stable training
+- 4-phase curriculum: reach → grasp → lift → place; auto-advances to full task once eval reward ≥ 400
+- Phase-distribution and success-rate metrics logged to TensorBoard every eval interval
+- Domain randomisation: object mass, friction, size (±20%), observation noise, joint jitter
+
 **Train:**
 
 ```bash
 cd ur_rl_training
 python3 scripts/train.py --timesteps 3000000
-# Resume from checkpoint:
-python3 scripts/train.py --resume models/checkpoints/<run>/best_model.zip --ent-coef 0.1 --lr 1e-4
+# Resume from checkpoint (loads vecnormalize.pkl automatically):
+python3 scripts/train.py --resume models/checkpoints/<run>/best_model
 ```
 
-Best model saved to `ur_rl_training/models/checkpoints/<run>/best_model.zip`.
+Best model and normalisation stats saved to `ur_rl_training/models/checkpoints/<run>/`.
 
 **View policy in Gazebo:**
 
