@@ -1,18 +1,24 @@
 """
-Full demo launch file: Gazebo + MoveIt + optional perception and LLM planner.
+Full pipeline launch: Gazebo + MoveIt + Perception + Grasp + selectable brain.
 
-Includes ur.gazebo.launch.py (full simulation stack), then optionally launches
-the perception node and LLM planner after appropriate startup delays.
+brain options:
+  llm      — LLM planner (Ollama, natural-language commands via /llm_planner/command)
+  rl       — Trained SAC policy node (needs model_path)
+  openvla  — OpenVLA/SmolVLA end-to-end VLA inference
+  none     — Perception + grasp only, no autonomous brain
 
 Usage:
-    # Default (colored_blocks world, no LLM planner):
-    ros2 launch ur_gazebo full_demo.launch.py
+    # LLM planner (default):
+    ros2 launch ur_gazebo full_demo.launch.py brain:=llm
 
-    # With LLM planner:
-    ros2 launch ur_gazebo full_demo.launch.py use_llm_planner:=true
+    # RL policy:
+    ros2 launch ur_gazebo full_demo.launch.py brain:=rl model_path:=/path/to/best_model.zip
 
-    # Custom world:
-    ros2 launch ur_gazebo full_demo.launch.py world:=pick_and_place_demo.world
+    # OpenVLA:
+    ros2 launch ur_gazebo full_demo.launch.py brain:=openvla task:="pick the red block"
+
+    # Perception + grasp only:
+    ros2 launch ur_gazebo full_demo.launch.py brain:=none
 """
 
 import os
@@ -21,184 +27,180 @@ from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
     TimerAction,
+    LogInfo,
 )
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.actions import Node
+
+
+def _pkg(name: str) -> str:
+    return FindPackageShare(name).find(name)
+
+
+def _launch(pkg: str, file: str) -> str:
+    return os.path.join(_pkg(pkg), "launch", file)
 
 
 def generate_launch_description():
-    # ------------------------------------------------------------------
-    # Package share directories
-    # ------------------------------------------------------------------
-    pkg_ur_gazebo = FindPackageShare('ur_gazebo').find('ur_gazebo')
-
-    # Optional packages (may not be installed yet)
-    try:
-        from launch_ros.substitutions import FindPackageShare as FPS
-        pkg_ur_perception = FPS('ur_perception').find('ur_perception')
-        perception_launch_path = os.path.join(
-            pkg_ur_perception, 'launch', 'perception.launch.py'
-        )
-        perception_available = os.path.isfile(perception_launch_path)
-    except Exception:
-        perception_available = False
-        perception_launch_path = None
-
-    try:
-        from launch_ros.substitutions import FindPackageShare as FPS
-        pkg_ur_llm = FPS('ur_llm_planner').find('ur_llm_planner')
-        llm_launch_path = os.path.join(
-            pkg_ur_llm, 'launch', 'llm_planner.launch.py'
-        )
-        llm_available = os.path.isfile(llm_launch_path)
-    except Exception:
-        llm_available = False
-        llm_launch_path = None
-
-    # ------------------------------------------------------------------
-    # Launch arguments
-    # ------------------------------------------------------------------
-    world_arg = DeclareLaunchArgument(
-        'world',
-        default_value='colored_blocks.world',
-        description='Gazebo world file name (must exist in ur_gazebo/worlds/).',
-    )
-
-    use_llm_planner_arg = DeclareLaunchArgument(
-        'use_llm_planner',
-        default_value='false',
-        description='Set to true to launch the LLM planner after startup.',
-    )
-
-    # Forward all ur.gazebo.launch.py arguments so they can be overridden
-    robot_name_arg = DeclareLaunchArgument(
-        'robot_name',
-        default_value='ur',
-        description='Name for the spawned robot.',
-    )
-
-    use_sim_time_arg = DeclareLaunchArgument(
-        'use_sim_time',
-        default_value='true',
-        description='Use simulation clock.',
-    )
-
-    ur_type_arg = DeclareLaunchArgument(
-        'ur_type',
-        default_value='ur3',
-        description='UR robot type (ur3, ur5, etc.).',
-    )
-
-    gripper_arg = DeclareLaunchArgument(
-        'gripper',
-        default_value='robotiq_2f_85',
-        description='Gripper to attach to the robot.',
-    )
-
-    # ------------------------------------------------------------------
-    # Include ur.gazebo.launch.py (core simulation + MoveIt)
-    # The 'world' argument maps to 'world_file' in ur.gazebo.launch.py
-    # ------------------------------------------------------------------
-    gazebo_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(pkg_ur_gazebo, 'launch', 'ur.gazebo.launch.py')
+    # ── Arguments ────────────────────────────────────────────────────────────
+    args = [
+        DeclareLaunchArgument("world",       default_value="colored_blocks.world",
+                              description="Gazebo world file name."),
+        DeclareLaunchArgument("robot_name",  default_value="ur"),
+        DeclareLaunchArgument("use_sim_time",default_value="true"),
+        DeclareLaunchArgument("ur_type",     default_value="ur3"),
+        DeclareLaunchArgument("gripper",     default_value="robotiq_2f_85"),
+        DeclareLaunchArgument(
+            "brain",
+            default_value="llm",
+            description="Which controller brain to use: llm | rl | openvla | none",
         ),
+        # RL-specific
+        DeclareLaunchArgument("model_path",  default_value="",
+                              description="Path to SAC .zip (required if brain:=rl)"),
+        DeclareLaunchArgument("drop_x",      default_value="0.35"),
+        DeclareLaunchArgument("drop_y",      default_value="0.20"),
+        DeclareLaunchArgument("drop_z",      default_value="0.02"),
+        DeclareLaunchArgument("phase",       default_value="1.0"),
+        # LLM-specific
+        DeclareLaunchArgument("ollama_model",    default_value="llama2:latest"),
+        DeclareLaunchArgument("ollama_base_url", default_value="http://localhost:11434"),
+        DeclareLaunchArgument("auto_demo",       default_value="false"),
+        DeclareLaunchArgument(
+            "auto_demo_command",
+            default_value="pick up the red object and place it to the left of the robot",
+        ),
+        # OpenVLA-specific
+        DeclareLaunchArgument("checkpoint",  default_value="openvla/openvla-7b"),
+        DeclareLaunchArgument("task",        default_value="pick the red block and place it in the bin"),
+        DeclareLaunchArgument("action_scale",default_value="0.05"),
+        # Grasp node
+        DeclareLaunchArgument("grasp_colour",  default_value="any"),
+        DeclareLaunchArgument("grasp_backend", default_value="auto"),
+    ]
+
+    # ── Conditions ───────────────────────────────────────────────────────────
+    brain = LaunchConfiguration("brain")
+    use_sim = LaunchConfiguration("use_sim_time")
+
+    is_llm    = IfCondition(PythonExpression(["'", brain, "' == 'llm'"]))
+    is_rl     = IfCondition(PythonExpression(["'", brain, "' == 'rl'"]))
+    is_openvla= IfCondition(PythonExpression(["'", brain, "' == 'openvla'"]))
+
+    # ── Core simulation (Gazebo + MoveIt) ────────────────────────────────────
+    gazebo_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(_launch("ur_gazebo", "ur.gazebo.launch.py")),
         launch_arguments={
-            'world_file': LaunchConfiguration('world'),
-            'robot_name': LaunchConfiguration('robot_name'),
-            'use_sim_time': LaunchConfiguration('use_sim_time'),
-            'ur_type': LaunchConfiguration('ur_type'),
-            'gripper': LaunchConfiguration('gripper'),
+            "world_file":  LaunchConfiguration("world"),
+            "robot_name":  LaunchConfiguration("robot_name"),
+            "use_sim_time":use_sim,
+            "ur_type":     LaunchConfiguration("ur_type"),
+            "gripper":     LaunchConfiguration("gripper"),
         }.items(),
     )
 
-    # ------------------------------------------------------------------
-    # Perception node (delayed 60s to let Gazebo + MoveIt fully start)
-    # Only launched if the package is available
-    # ------------------------------------------------------------------
-    delayed_actions = []
-
-    if perception_available:
+    # ── Perception node (delayed 60 s) ───────────────────────────────────────
+    try:
         perception_launch = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(perception_launch_path),
-            launch_arguments={
-                'use_sim_time': LaunchConfiguration('use_sim_time'),
-            }.items(),
+            PythonLaunchDescriptionSource(_launch("ur_perception", "perception.launch.py")),
+            launch_arguments={"use_sim_time": use_sim}.items(),
         )
+        delayed_perception = TimerAction(period=60.0, actions=[perception_launch])
+    except Exception:
         delayed_perception = TimerAction(
             period=60.0,
-            actions=[perception_launch],
-        )
-        delayed_actions.append(delayed_perception)
-    else:
-        # Emit a warning at launch time if perception package not found
-        from launch.actions import LogInfo
-        delayed_actions.append(
-            TimerAction(
-                period=60.0,
-                actions=[
-                    LogInfo(
-                        msg=(
-                            'ur_perception package not found. '
-                            'Skipping perception node launch. '
-                            'Build ur_perception and rebuild to enable.'
-                        )
-                    )
-                ],
-            )
+            actions=[LogInfo(msg="ur_perception not found — skipping perception node.")]
         )
 
-    # ------------------------------------------------------------------
-    # LLM planner node (delayed 65s, only if use_llm_planner:=true)
-    # ------------------------------------------------------------------
-    if llm_available:
+    # ── Grasp node (delayed 62 s, always on) ────────────────────────────────
+    grasp_node = Node(
+        package="ur_grasp",
+        executable="grasp_node",
+        name="grasp_node",
+        output="screen",
+        parameters=[{
+            "colour":      LaunchConfiguration("grasp_colour"),
+            "backend":     LaunchConfiguration("grasp_backend"),
+            "use_sim_time":use_sim,
+        }],
+    )
+    delayed_grasp = TimerAction(period=62.0, actions=[grasp_node])
+
+    # ── Brain nodes (delayed 65 s each) ──────────────────────────────────────
+
+    # LLM planner
+    try:
         llm_launch = IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(llm_launch_path),
+            PythonLaunchDescriptionSource(_launch("ur_llm_planner", "llm_planner.launch.py")),
             launch_arguments={
-                'use_sim_time': LaunchConfiguration('use_sim_time'),
+                "use_sim_time":       use_sim,
+                "ollama_model":       LaunchConfiguration("ollama_model"),
+                "ollama_base_url":    LaunchConfiguration("ollama_base_url"),
+                "auto_demo":          LaunchConfiguration("auto_demo"),
+                "auto_demo_command":  LaunchConfiguration("auto_demo_command"),
             }.items(),
-            condition=IfCondition(LaunchConfiguration('use_llm_planner')),
+            condition=is_llm,
         )
+        delayed_llm = TimerAction(period=65.0, actions=[llm_launch])
+    except Exception:
         delayed_llm = TimerAction(
             period=65.0,
-            actions=[llm_launch],
-        )
-        delayed_actions.append(delayed_llm)
-    else:
-        from launch.actions import LogInfo
-        from launch.conditions import IfCondition as IC
-        delayed_actions.append(
-            TimerAction(
-                period=65.0,
-                actions=[
-                    LogInfo(
-                        msg=(
-                            'ur_llm_planner package not found. '
-                            'Skipping LLM planner launch. '
-                            'Build ur_llm_planner and rebuild to enable.'
-                        ),
-                        condition=IfCondition(LaunchConfiguration('use_llm_planner')),
-                    )
-                ],
-            )
+            actions=[LogInfo(msg="ur_llm_planner not found — skipping LLM planner.")]
         )
 
-    # ------------------------------------------------------------------
-    # Assemble launch description
-    # ------------------------------------------------------------------
-    ld = LaunchDescription([
-        world_arg,
-        use_llm_planner_arg,
-        robot_name_arg,
-        use_sim_time_arg,
-        ur_type_arg,
-        gripper_arg,
-        gazebo_launch,
-    ])
+    # RL policy node
+    rl_node = Node(
+        package="ur_rl_training",
+        executable="policy_node",
+        name="ur3_rl_policy_node",
+        output="screen",
+        condition=is_rl,
+        parameters=[{
+            "model_path":               LaunchConfiguration("model_path"),
+            "drop_x":                   LaunchConfiguration("drop_x"),
+            "drop_y":                   LaunchConfiguration("drop_y"),
+            "drop_z":                   LaunchConfiguration("drop_z"),
+            "phase":                    LaunchConfiguration("phase"),
+            "use_sim_time":             use_sim,
+            "arm_trajectory_topic":     "/arm_controller/joint_trajectory",
+            "gripper_trajectory_topic": "/gripper_controller/joint_trajectory",
+        }],
+    )
+    delayed_rl = TimerAction(period=65.0, actions=[rl_node])
 
-    for action in delayed_actions:
-        ld.add_action(action)
+    # OpenVLA node
+    openvla_node = Node(
+        package="ur_smolvla",
+        executable="inference_node.py",
+        name="openvla_inference",
+        output="screen",
+        condition=is_openvla,
+        parameters=[{
+            "checkpoint":   LaunchConfiguration("checkpoint"),
+            "task":         LaunchConfiguration("task"),
+            "action_scale": LaunchConfiguration("action_scale"),
+            "use_sim_time": use_sim,
+            "enabled":      True,
+        }],
+    )
+    delayed_openvla = TimerAction(period=65.0, actions=[openvla_node])
 
+    # ── Brain selection info log ──────────────────────────────────────────────
+    brain_log = TimerAction(
+        period=64.0,
+        actions=[LogInfo(msg=["Starting brain: ", brain])],
+    )
+
+    # ── Assemble ─────────────────────────────────────────────────────────────
+    ld = LaunchDescription(args)
+    ld.add_action(gazebo_launch)
+    ld.add_action(delayed_perception)
+    ld.add_action(delayed_grasp)
+    ld.add_action(brain_log)
+    ld.add_action(delayed_llm)
+    ld.add_action(delayed_rl)
+    ld.add_action(delayed_openvla)
     return ld
