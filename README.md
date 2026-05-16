@@ -239,6 +239,41 @@ python3 ~/UR3_ROS2_PICK_AND_PLACE/ur_system_tests/scripts/arm_gripper_loop_contr
 
 ---
 
+## Full Autonomous Pipeline
+
+`full_demo.launch.py` brings up the entire stack — Gazebo, MoveIt, perception, grasp detection, and a selectable autonomous brain — in a single command.
+
+```bash
+source install/setup.bash
+
+# LLM planner (Ollama, send commands via /llm_planner/command):
+ros2 launch ur_gazebo full_demo.launch.py brain:=llm
+
+# Trained SAC policy (auto-reads object position from perception):
+ros2 launch ur_gazebo full_demo.launch.py brain:=rl \
+  model_path:=ur_rl_training/models/checkpoints/<run>/best_model.zip
+
+# OpenVLA end-to-end vision-language-action:
+ros2 launch ur_gazebo full_demo.launch.py brain:=openvla \
+  task:="pick the red block and place it in the bin"
+
+# Perception + grasp only (no autonomous control):
+ros2 launch ur_gazebo full_demo.launch.py brain:=none
+```
+
+Startup sequence: Gazebo + MoveIt → perception (60 s) → grasp (62 s) → brain (65 s).
+
+### Pipeline Data Flow
+
+```
+Camera/Depth  →  ur_perception  →  /detected_objects  →  LLM planner
+                                                       →  RL policy (auto object tracking)
+PointCloud2   →  ur_grasp       →  /ur_grasp/grasp_pose → RL policy (overrides perception)
+Camera        →  OpenVLA        →  /arm_controller/joint_trajectory
+```
+
+---
+
 ## Grasp Detection (ur_grasp)
 
 Estimates grasp poses from the Intel D435 point cloud. Two backends:
@@ -258,82 +293,7 @@ python3 testing/test_grasp.py --colour red --execute
 ## Standalone Robot Control GUI
 
 ```bash
-source install/setup.bash
-python3 ur_llm_planner/scripts/robot_gui.py
-```
-
-Features: live camera feed, preset poses, gripper control (Open/Half/Close), per-joint sliders, Pilz PTP execution.
-
----
-
-## Custom Zig-Zag Motion Demo
-
-```bash
-ros2 run ur_moveit_demos custom_zigzag_motion
-```
-
-Wait at least 45 seconds after launching the simulation before running this.
-
----
-
-## MTC Demo Script
-
-### Make the Script Executable
-
-```bash
-chmod +x ~/UR3_ROS2_PICK_AND_PLACE/ur_mtc_pick_place_demo/scripts/robot.sh
-```
-
-### Run the Script
-
-```bash
-~/UR3_ROS2_PICK_AND_PLACE/ur_mtc_pick_place_demo/scripts/robot.sh
-```
-
-This script launches the Gazebo simulation, MoveIt 2, the planning scene server, and the MTC pick-and-place demo.
-
----
-
-## Screenshots
-
-### UR3 with Robotiq Gripper in RViz
-
-![Arm with Gripper](/assets/arm_with_gripper.png)
-
-### Robotiq Gripper Close-up
-
-![Gripper](/assets/gripper.png)
-
-### Simulation in Gazebo
-
-![Gazebo View](/assets/image.png)
-
-### RViz Overview
-
-![RViz 1](/assets/rviz1.png)
-
-### MTC Overview
-
-![MTC](/assets/mtc.png)
-
-### Pick Error
-
-![pick error](assets/pick_error.png)
-
-### MTC Pipeline
-
-![MTC Pipeline](assets/mtc_pp.png)
-
-### Loop Demo
-
-![loop](assets/looponline-video-cutter.com-ezgif.com-video-to-gif-converter.gif)
-
----
-
-## AI / ML Stack
-
-### SAC RL Pick-and-Place Policy (`ur_rl_training`)
-
+a
 Trains a Soft Actor-Critic (SAC) policy in MuJoCo and deploys it to Gazebo. The policy learns to reach, grasp, lift, and place a cube using the UR3 + Robotiq 2F-85.
 
 **Features:**
@@ -373,7 +333,7 @@ Optional launch parameters:
 | `action_scale` | `0.1` | Joint delta per step (increase for faster motion, e.g. `0.4`) |
 | `step_dt` | `0.01` | Trajectory point duration in seconds |
 | `control_rate_hz` | `100.0` | Policy inference rate |
-| `object_x/y/z` | `0.35/0.0/0.045` | Object position in `base_link` frame |
+| `object_x/y/z` | `0.35/0.0/0.045` | Object position fallback (auto-overridden by `/detected_objects` or `/ur_grasp/grasp_pose` when running) |
 | `drop_x/y/z` | `0.35/0.20/0.02` | Drop zone position |
 | `phase` | `1.0` | Curriculum phase (0=reach, 1=grasp, 2=lift, 3=place) |
 
@@ -395,10 +355,10 @@ Pull requests and issues are welcome, especially around simulation stability, tr
 
 ## Future Scope
 
-- Add a vision-language-action pipeline for task-conditioned robot control.
-- Bring back LLM task planning as a stable feature for high-level commands such as pick, place, sort, and multi-step tabletop tasks.
-- Connect perception, RL, and language planning more tightly so detected objects can be selected and manipulated from natural-language instructions.
 - Improve MuJoCo-to-Gazebo transfer so learned grasping policies behave more consistently on the UR3 with the Robotiq gripper.
+- Fine-tune OpenVLA on collected UR3 demonstrations for better sim-to-real performance.
+- Add multi-object handling so the RL policy and LLM planner can sequence picks across several targets.
+- Real robot deployment — swap Gazebo hardware interface for the live UR3 driver and test trained policies on hardware.
 
 ---
 
@@ -515,6 +475,7 @@ Healthy signs:
 - listens on `/llm_planner/command`
 - asks Ollama for a JSON task plan
 - executes actions like `move_to_named_pose`, `pick`, `place`, `open_gripper`, and `close_gripper`
+- retries up to 2 times on execution failure, sending failure context back to the LLM for a simpler re-plan
 - warns and returns an empty task list if Ollama is not available at `http://localhost:11434`
 - may plan successfully but fail execution if MoveIt or gripper action servers are unavailable
 
