@@ -197,11 +197,14 @@ class LLMPlannerNode(Node):
         finally:
             self._is_executing = False
 
-    def _do_plan_and_execute(self, command: str) -> None:
+    _MAX_RETRIES = 2
+
+    def _do_plan_and_execute(self, command: str, _retry: int = 0) -> None:
         detected_objects = list(self._latest_objects)  # snapshot
 
         self.get_logger().info(
             f"Planning for command: '{command}' "
+            f"[attempt {_retry + 1}/{self._MAX_RETRIES + 1}] "
             f"with {len(detected_objects)} detected object(s)."
         )
 
@@ -219,9 +222,7 @@ class LLMPlannerNode(Node):
         self.get_logger().info(f"LLM explanation: {explanation}")
 
         if not tasks:
-            self.get_logger().warn(
-                "LLM returned an empty task list — nothing to execute."
-            )
+            self.get_logger().warn("LLM returned an empty task list — nothing to execute.")
             return
 
         self.get_logger().info(f"LLM produced {len(tasks)} task(s):")
@@ -234,8 +235,21 @@ class LLMPlannerNode(Node):
 
         if success:
             self.get_logger().info("Task list executed successfully.")
+        elif _retry < self._MAX_RETRIES:
+            self.get_logger().warn(
+                f"Execution failed (attempt {_retry + 1}/{self._MAX_RETRIES + 1}). "
+                "Re-planning with failure context..."
+            )
+            recovery_command = (
+                f"{command}. "
+                f"NOTE: a previous {len(tasks)}-step plan failed. "
+                "Generate a simpler, more conservative plan with fewer steps."
+            )
+            self._do_plan_and_execute(recovery_command, _retry=_retry + 1)
         else:
-            self.get_logger().error("Task list execution failed.")
+            self.get_logger().error(
+                f"Task execution failed after {self._MAX_RETRIES + 1} attempts — giving up."
+            )
 
 
 # ------------------------------------------------------------------
