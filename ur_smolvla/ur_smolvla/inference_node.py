@@ -84,12 +84,14 @@ class OpenVLAInferenceNode(Node):
         self.declare_parameter("control_hz",   10.0)
         self.declare_parameter("action_scale", 0.05)
         self.declare_parameter("use_sim_time", True)
+        self.declare_parameter("enabled",      True)
 
-        checkpoint  = self.get_parameter("checkpoint").value
-        self._task  = self.get_parameter("task").value
-        cam_topic   = self.get_parameter("camera_topic").value
-        hz          = float(self.get_parameter("control_hz").value)
-        self._scale = float(self.get_parameter("action_scale").value)
+        checkpoint    = self.get_parameter("checkpoint").value
+        self._task    = self.get_parameter("task").value
+        cam_topic     = self.get_parameter("camera_topic").value
+        hz            = float(self.get_parameter("control_hz").value)
+        self._scale   = float(self.get_parameter("action_scale").value)
+        self._enabled = bool(self.get_parameter("enabled").value)
 
         if not CV_BRIDGE_AVAILABLE:
             self.get_logger().error("cv_bridge not available")
@@ -158,7 +160,7 @@ class OpenVLAInferenceNode(Node):
 
     # ── inference ────────────────────────────────────────────────────────
     def _step(self):
-        if not self._have_joints:
+        if not self._enabled or not self._have_joints:
             return
         with self._lock:
             img = self._latest_image
@@ -182,6 +184,10 @@ class OpenVLAInferenceNode(Node):
 
             action = np.array(action, dtype=np.float32).flatten()
             if len(action) < 7:
+                self.get_logger().warn("Inference returned fewer than 7 dims — skipping.")
+                return
+            if np.any(np.isnan(action)) or np.any(np.isinf(action)):
+                self.get_logger().warn("Inference returned NaN/Inf — skipping step.")
                 return
 
             arm_target  = self._qpos + np.clip(action[:6], -1.0, 1.0) * self._scale
