@@ -13,11 +13,13 @@ Object position is passed as ROS parameters (update via rqt or your perception n
 """
 
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import rclpy
 import tf2_ros
 from control_msgs.action import GripperCommand
+from geometry_msgs.msg import PoseStamped
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
@@ -90,6 +92,8 @@ class PolicyNode(Node):
         self._warned      = set()
         self._phase        = int(self.get_parameter("phase").value)
         self._grasp_streak = 0
+        # Live object position from perception/grasp (overrides ROS params when set)
+        self._obj_pos_live: Optional[np.ndarray] = None
 
         import pickle
         norm_path = Path(model_path).parent / "vecnormalize.pkl"
@@ -129,6 +133,37 @@ class PolicyNode(Node):
         self._arm_pub    = self.create_publisher(JointTrajectory, arm_topic, 10)
         self._grp_client = ActionClient(self, GripperCommand, grp_action)
         self.create_timer(1.0 / hz, self._step)
+
+        # Perception integration — auto-update object position from live detections
+        try:
+            from ur_interfaces.msg import DetectedObjectArray
+            self.create_subscription(
+                DetectedObjectArray, "/detected_objects", self._detected_objects_cb, 10
+            )
+            self.get_logger().info("Subscribed to /detected_objects for auto object tracking.")
+        except ImportError:
+            self.get_logger().warn("ur_interfaces not found — object position from ROS params only.")
+
+        # Grasp node integration — update object position from grasp detector
+        self.create_subscription(PoseStamped, "/ur_grasp/grasp_pose", self._grasp_pose_cb, 10)
+        self.get_logger().info("Subscribed to /ur_grasp/grasp_pose.")
+
+    # ── perception callbacks ─────────────────────────────────────────────────
+    def _detected_objects_cb(self, msg) -> None:
+        if msg.objects:
+            best = max(msg.objects, key=lambda o: o.confidence)
+            self._obj_pos_live = np.array(
+                [best.position.x, best.position.y, best.position.z], dtype=np.float32
+            )
+
+    def _grasp_pose_cb(self, msg: PoseStamped) -> None:
+        self._obj_pos_live = np.array(
+            [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z],
+            dtype=np.float32,
+        )
+        self.get_logger().info(
+            f"Object position updated from grasp: {self._obj_pos_live}", throttle_duration_sec=2.0
+        )
 
     # ── joint state callback ─────────────────────────────────────────────────
     def _joint_cb(self, msg: JointState):
@@ -171,6 +206,8 @@ class PolicyNode(Node):
             pass
 
     def _param_vec(self, prefix):
+        if prefix == "object" and self._obj_pos_live is not None:
+            return self._obj_pos_live
         return np.array([
             float(self.get_parameter(f"{prefix}_x").value),
             float(self.get_parameter(f"{prefix}_y").value),
