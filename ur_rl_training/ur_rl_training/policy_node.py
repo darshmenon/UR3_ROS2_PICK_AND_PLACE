@@ -35,6 +35,12 @@ ARM_JOINTS = [
 ]
 GRIPPER_JOINT = "finger_joint"
 
+# Must match UR3PickPlaceEnv constants
+_GRASP_CLOSE_THRESHOLD = 0.28
+_TABLE_Z               = 0.02
+_LIFT_Z                = 0.10
+_GRASP_STREAK_ADVANCE  = 5   # consecutive closed-gripper steps before phase 1→2
+
 _PKG = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL_PATH = str(_PKG / "models" / "checkpoints" / "best_model.zip")
 
@@ -82,6 +88,8 @@ class PolicyNode(Node):
         self._prev_time   = None
         self._have_joints = False
         self._warned      = set()
+        self._phase        = int(self.get_parameter("phase").value)
+        self._grasp_streak = 0
 
         import pickle
         norm_path = Path(model_path).parent / "vecnormalize.pkl"
@@ -182,7 +190,7 @@ class PolicyNode(Node):
             self._param_vec("object"),
             self._param_vec("drop"),
             np.array([self.gripper_qpos], dtype=np.float32),
-            np.array([float(self.get_parameter("phase").value)], dtype=np.float32),
+            np.array([float(self._phase)], dtype=np.float32),
         ]).astype(np.float32)
 
         if self._obs_rms is not None:
@@ -201,6 +209,29 @@ class PolicyNode(Node):
         if action.shape[0] >= 7:
             grip_target = float(self.gripper_qpos + np.clip(action[6], -1.0, 1.0) * self._gripper_scale)
             self._publish_gripper(grip_target)
+
+        self._advance_phase()
+
+    # ── phase auto-advance ───────────────────────────────────────────────────
+    def _advance_phase(self):
+        grip = float(self.gripper_qpos)
+        ee_z = float(self._ee_pos[2])
+        prev = self._phase
+
+        if self._phase == 1:
+            if grip > _GRASP_CLOSE_THRESHOLD:
+                self._grasp_streak += 1
+                if self._grasp_streak >= _GRASP_STREAK_ADVANCE:
+                    self._phase = 2
+            else:
+                self._grasp_streak = 0
+
+        elif self._phase == 2:
+            if ee_z > _TABLE_Z + _LIFT_Z * 0.7:
+                self._phase = 3
+
+        if self._phase != prev:
+            self.get_logger().info(f"Phase {prev} → {self._phase}")
 
     # ── publishers ───────────────────────────────────────────────────────────
     def _publish_arm(self, positions):
