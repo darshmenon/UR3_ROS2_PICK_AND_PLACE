@@ -19,6 +19,8 @@ import threading
 import numpy as np
 import rclpy
 from builtin_interfaces.msg import Duration
+from control_msgs.action import GripperCommand
+from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image, JointState
@@ -137,9 +139,7 @@ class OpenVLAInferenceNode(Node):
         self._arm_pub = self.create_publisher(
             JointTrajectory, "/arm_controller/joint_trajectory", 10
         )
-        self._gripper_pub = self.create_publisher(
-            JointTrajectory, "/gripper_controller/joint_trajectory", 10
-        )
+        self._grp_client = ActionClient(self, GripperCommand, "/gripper_controller/gripper_cmd")
         self.create_timer(1.0 / hz, self._step)
 
     # ── callbacks ────────────────────────────────────────────────────────
@@ -211,14 +211,12 @@ class OpenVLAInferenceNode(Node):
         self._arm_pub.publish(msg)
 
     def _publish_gripper(self, position: float):
-        msg = JointTrajectory()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.joint_names  = [GRIPPER_JOINT_NAME]
-        pt = JointTrajectoryPoint()
-        pt.positions = [position]
-        pt.time_from_start = Duration(sec=0, nanosec=100_000_000)
-        msg.points = [pt]
-        self._gripper_pub.publish(msg)
+        if not self._grp_client.server_is_ready():
+            return
+        goal = GripperCommand.Goal()
+        goal.command.position   = float(np.clip(position, 0.0, 0.8))
+        goal.command.max_effort = 50.0
+        self._grp_client.send_goal_async(goal)
 
 
 def main(args=None):
