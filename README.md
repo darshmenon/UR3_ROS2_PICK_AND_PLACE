@@ -347,6 +347,47 @@ python3 ur_rl_training/scripts/eval_headless.py \
 
 ---
 
+## ACT — Action Chunking Transformers (`ur_act`)
+
+`ur_act` trains an [ACT policy](https://github.com/tonyzhaozh/act) on demonstrations recorded by `ur_data_collector`. Instead of predicting one action at a time (like the BC policy), ACT predicts a **chunk** of future actions per step and blends overlapping predictions with temporal ensemble — giving smoother, more temporally consistent motion.
+
+**Architecture:**
+- ResNet18 visual backbone → spatial image tokens
+- CVAE encoder (training only) → style latent `z`
+- Transformer decoder (image tokens + joint token + `z`) → action chunk of length `k`
+- At inference: `z = 0`, temporal ensemble blends overlapping chunks
+
+**Train:**
+
+```bash
+# Record demonstrations first with ur_data_collector, then:
+python3 ur_act/scripts/train_act.py \
+  --data_dir ~/ur3_demos \
+  --output_dir ~/act_policy \
+  --chunk_size 10 \
+  --epochs 100
+```
+
+| Arg | Default | Description |
+|-----|---------|-------------|
+| `chunk_size` | `10` | Actions predicted per step (2 s at 5 Hz) |
+| `kl_weight`  | `10.0` | CVAE KL term weight |
+| `d_model`    | `256` | Transformer hidden dim |
+| `freeze_backbone` | off | Freeze ResNet18 during training |
+
+**Deploy in Gazebo:**
+
+```bash
+# Terminal 1 — Gazebo + MoveIt:
+ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Terminal 2 — ACT policy:
+ros2 launch ur_act act_policy.launch.py \
+  model_path:=~/act_policy/best_act_policy.pt
+```
+
+---
+
 ## Contributing
 
 Pull requests and issues are welcome, especially around simulation stability, transfer learning, and perception-to-action integration.
