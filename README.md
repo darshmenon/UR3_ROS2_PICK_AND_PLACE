@@ -375,15 +375,28 @@ python3 ur_act/scripts/train_act.py \
 | `d_model`    | `256` | Transformer hidden dim |
 | `freeze_backbone` | off | Freeze ResNet18 during training |
 
-**Deploy in Gazebo:**
+**Full Gazebo workflow — collect → train → deploy:**
 
 ```bash
-# Terminal 1 — Gazebo + MoveIt:
+# Step 1: Launch Gazebo + MoveIt + data collector
 ros2 launch ur_gazebo ur.gazebo.launch.py
+ros2 launch ur_data_collector data_collector.launch.py
 
-# Terminal 2 — ACT policy:
-ros2 launch ur_act act_policy.launch.py \
-  model_path:=~/act_policy/best_act_policy.pt
+# Step 2: Record demos using the MTC pick-place script (repeat N times)
+ros2 service call /data_collector/start_recording std_srvs/srv/Trigger {}
+bash ur_mtc_pick_place_demo/scripts/robot.sh          # runs one pick-place
+ros2 service call /data_collector/stop_recording  std_srvs/srv/Trigger {}
+
+# Step 3: Train
+python3 ur_act/scripts/train_act.py \
+  --data_dir ~/ur3_demos \
+  --output_dir ~/act_policy \
+  --chunk_size 10 --epochs 100
+
+# Step 4: Deploy via full_demo (ACT as the brain)
+ros2 launch ur_gazebo full_demo.launch.py \
+  brain:=act \
+  act_model_path:=~/act_policy/best_act_policy.pt
 ```
 
 ---
