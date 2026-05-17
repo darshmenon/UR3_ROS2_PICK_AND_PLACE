@@ -1,8 +1,26 @@
+import os
+from pathlib import Path
+
 import numpy as np
 import mujoco
 import mujoco.viewer
 import gymnasium as gym
 from gymnasium import spaces
+
+
+def _menagerie() -> Path:
+    env = os.environ.get("MUJOCO_MENAGERIE_PATH")
+    if env:
+        p = Path(env)
+    else:
+        p = Path.home() / "mujoco_menagerie"
+    if not p.exists():
+        raise FileNotFoundError(
+            f"mujoco_menagerie not found at {p}. "
+            "Clone it with: git clone https://github.com/google-deepmind/mujoco_menagerie ~/mujoco_menagerie "
+            "or set the MUJOCO_MENAGERIE_PATH environment variable."
+        )
+    return p
 
 
 class URPickPlaceEnv(gym.Env):
@@ -17,12 +35,9 @@ class URPickPlaceEnv(gym.Env):
     def __init__(self, render_mode=None):
         self.render_mode = render_mode
 
-        arm = mujoco.MjSpec.from_file(
-            "/home/asimov/mujoco_menagerie/universal_robots_ur5e/ur5e.xml"
-        )
-        gripper_spec = mujoco.MjSpec.from_file(
-            "/home/asimov/mujoco_menagerie/robotiq_2f85/2f85.xml"
-        )
+        _m = _menagerie()
+        arm = mujoco.MjSpec.from_file(str(_m / "universal_robots_ur5e" / "ur5e.xml"))
+        gripper_spec = mujoco.MjSpec.from_file(str(_m / "robotiq_2f85" / "2f85.xml"))
         arm.sites[0].attach_body(gripper_spec.worldbody.first_body(), "gripper-", "")
 
         # Table

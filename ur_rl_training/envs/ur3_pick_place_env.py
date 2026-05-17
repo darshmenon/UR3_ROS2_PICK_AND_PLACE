@@ -25,7 +25,7 @@ from gymnasium import spaces
 # ── paths ────────────────────────────────────────────────────────────────────
 _PKG = Path(__file__).resolve().parents[1]
 ARM_XML     = str(_PKG / "models" / "ur3" / "ur3.xml")
-GRIPPER_XML = "/home/asimov/mujoco_menagerie/robotiq_2f85/2f85.xml"
+GRIPPER_XML = str(_PKG / "models" / "robotiq_2f85" / "2f85.xml")
 
 # ── kinematics ───────────────────────────────────────────────────────────────
 N_ARM  = 6

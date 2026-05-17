@@ -2,6 +2,8 @@ build/
 install/
 log/
 logs/
+*.pid
+*.log
 models/gazebo_single_arm/
 ur_rl_training/models/checkpoints/
 *.pyc

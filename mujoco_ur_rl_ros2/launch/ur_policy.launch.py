@@ -9,7 +9,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "model_path",
-                default_value="/home/asimov/mujoco-ur-arm-rl/models/best_model.zip",
+                default_value="",
             ),
             DeclareLaunchArgument("target_x", default_value="0.4"),
             DeclareLaunchArgument("target_y", default_value="0.0"),
