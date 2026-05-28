@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>UR3 Robot Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", Arial, sans-serif; background: #0f1117; color: #e2e8f0; }
+
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 24px; background: #1a1d27; border-bottom: 1px solid #2d3148;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 600; color: #a78bfa; }
+    #conn-badge {
+      margin-left: auto; padding: 4px 12px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; background: #dc2626; color: #fff;
+    }
+    #conn-badge.connected { background: #16a34a; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 16px; padding: 16px;
+    }
+
+    .card {
+      background: #1a1d27; border: 1px solid #2d3148;
+      border-radius: 10px; padding: 16px;
+    }
+    .card h2 { font-size: 0.85rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* Camera */
+    #camera-card { grid-column: 1; grid-row: 1 / 3; }
+    #camera-stream {
+      width: 100%; border-radius: 6px; background: #0a0c14;
+      min-height: 240px; object-fit: contain;
+    }
+    #camera-status { font-size: 0.72rem; color: #64748b; margin-top: 6px; }
+
+    /* Joint bars */
+    #joints-card { grid-column: 2; grid-row: 1; }
+    .joint-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .joint-label { width: 130px; font-size: 0.78rem; color: #94a3b8; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 10px; background: #2d3148; border-radius: 4px; overflow: hidden; }
+    .bar-fill  { height: 100%; background: #6366f1; border-radius: 4px; transition: width 0.2s; }
+    .joint-val { width: 52px; text-align: right; font-size: 0.75rem; color: #c4b5fd; font-family: monospace; }
+
+    /* Objects */
+    #objects-card { grid-column: 2; grid-row: 2; }
+    #objects-list { font-size: 0.78rem; }
+    .obj-row {
+      display: flex; justify-content: space-between;
+      padding: 5px 0; border-bottom: 1px solid #1e2230;
+      gap: 8px;
+    }
+    .obj-id  { color: #f472b6; font-weight: 600; min-width: 80px; }
+    .obj-pos { font-family: monospace; color: #7dd3fc; }
+    .obj-conf { color: #86efac; }
+
+    /* Command */
+    #cmd-card { grid-column: 1 / 3; }
+    .cmd-row { display: flex; gap: 10px; }
+    #cmd-input {
+      flex: 1; padding: 10px 14px; border-radius: 8px;
+      background: #0f1117; border: 1px solid #2d3148; color: #e2e8f0;
+      font-size: 0.9rem;
+    }
+    #cmd-input:focus { outline: none; border-color: #6366f1; }
+    #cmd-btn {
+      padding: 10px 22px; background: #6366f1; color: #fff; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+    }
+    #cmd-btn:hover { background: #4f46e5; }
+    #cmd-log {
+      margin-top: 10px; max-height: 120px; overflow-y: auto;
+      font-size: 0.75rem; font-family: monospace; color: #64748b;
+    }
+    .log-entry { padding: 2px 0; border-bottom: 1px solid #1e2230; }
+    .log-entry.sent { color: #a78bfa; }
+    .log-entry.error { color: #f87171; }
+
+    #voice-btn {
+      padding: 10px 16px; background: #1a1d27; border: 1px solid #2d3148;
+      border-radius: 8px; color: #94a3b8; cursor: pointer; font-size: 0.9rem;
+    }
+    #voice-btn.active { border-color: #f87171; color: #f87171; }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+    <circle cx="14" cy="14" r="13" stroke="#6366f1" stroke-width="2"/>
+    <path d="M8 14 L14 8 L20 14 L14 20 Z" fill="#6366f1"/>
+  </svg>
+  <h1>UR3 Robot Dashboard</h1>
+  <div id="conn-badge">● Disconnected</div>
+</header>
+
+<div class="grid">
+
+  <!-- Camera feed -->
+  <div class="card" id="camera-card">
+    <h2>Camera Feed</h2>
+    <img id="camera-stream" src="" alt="camera stream" />
+    <div id="camera-status">Connecting to web_video_server…</div>
+  </div>
+
+  <!-- Joint states -->
+  <div class="card" id="joints-card">
+    <h2>Joint States (rad)</h2>
+    <div id="joints-list"></div>
+  </div>
+
+  <!-- Detected objects -->
+  <div class="card" id="objects-card">
+    <h2>Detected Objects</h2>
+    <div id="objects-list"><span style="color:#64748b">Waiting for /detected_objects…</span></div>
+  </div>
+
+  <!-- Command input -->
+  <div class="card" id="cmd-card">
+    <h2>LLM Planner Command</h2>
+    <div class="cmd-row">
+      <input id="cmd-input" type="text" placeholder="e.g. pick the red object and place it to the left" />
+      <button id="voice-btn" title="Voice input">🎤</button>
+      <button id="cmd-btn">Send</button>
+    </div>
+    <div id="cmd-log"></div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+<script>
+// ── config ──────────────────────────────────────────────────────────────────
+const ROS_WS_URL     = "ws://" + location.hostname + ":9090";
+const VIDEO_URL      = "http://" + location.hostname + ":8080/stream?topic=/detection_image&type=ros_compressed";
+const VIDEO_FALLBACK = "http://" + location.hostname + ":8080/stream?topic=/camera_head/color/image_raw";
+
+const JOINT_NAMES = [
+  "shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
+  "wrist_1_joint",      "wrist_2_joint",       "wrist_3_joint",
+  "finger_joint",
+];
+const JOINT_LIMITS = [
+  [-6.28, 6.28], [-6.28, 6.28], [-3.14, 3.14],
+  [-6.28, 6.28], [-6.28, 6.28], [-6.28, 6.28],
+  [0, 0.8],
+];
+
+// ── ROS connection ───────────────────────────────────────────────────────────
+const ros = new ROSLIB.Ros({ url: ROS_WS_URL });
+const badge = document.getElementById("conn-badge");
+
+ros.on("connection", () => {
+  badge.textContent = "● Connected";
+  badge.classList.add("connected");
+  log("Connected to rosbridge at " + ROS_WS_URL, "");
+});
+ros.on("error",      () => { badge.textContent = "● Error"; badge.classList.remove("connected"); });
+ros.on("close",      () => { badge.textContent = "● Disconnected"; badge.classList.remove("connected"); });
+
+// ── joint states ─────────────────────────────────────────────────────────────
+buildJointRows();
+
+const jointSub = new ROSLIB.Topic({
+  ros, name: "/joint_states",
+  messageType: "sensor_msgs/JointState",
+  throttle_rate: 100,
+});
+jointSub.subscribe(msg => {
+  JOINT_NAMES.forEach((jname, i) => {
+    const idx = msg.name.indexOf(jname);
+    if (idx === -1) return;
+    const val = msg.position[idx];
+    const [lo, hi] = JOINT_LIMITS[i];
+    const pct = ((val - lo) / (hi - lo)) * 100;
+    const fill = document.getElementById("bar-" + i);
+    const lbl  = document.getElementById("val-" + i);
+    if (fill) fill.style.width = Math.max(0, Math.min(100, pct)) + "%";
+    if (lbl)  lbl.textContent  = val.toFixed(3);
+  });
+});
+
+function buildJointRows() {
+  const list = document.getElementById("joints-list");
+  JOINT_NAMES.forEach((jname, i) => {
+    list.innerHTML += `
+      <div class="joint-row">
+        <span class="joint-label">${jname.replace("_joint","")}</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-${i}" style="width:50%"></div></div>
+        <span class="joint-val" id="val-${i}">0.000</span>
+      </div>`;
+  });
+}
+
+// ── detected objects ──────────────────────────────────────────────────────────
+const objSub = new ROSLIB.Topic({
+  ros, name: "/detected_objects",
+  messageType: "ur_interfaces/DetectedObjectArray",
+  throttle_rate: 500,
+});
+objSub.subscribe(msg => {
+  const list = document.getElementById("objects-list");
+  if (!msg.objects || msg.objects.length === 0) {
+    list.innerHTML = '<span style="color:#64748b">No objects detected</span>';
+    return;
+  }
+  list.innerHTML = msg.objects.map(o => `
+    <div class="obj-row">
+      <span class="obj-id">${o.id}</span>
+      <span class="obj-pos">(${o.position.x.toFixed(3)}, ${o.position.y.toFixed(3)}, ${o.position.z.toFixed(3)})</span>
+      <span class="obj-conf">${(o.confidence * 100).toFixed(0)}%</span>
+    </div>`).join("");
+});
+
+// ── camera stream ─────────────────────────────────────────────────────────────
+const img = document.getElementById("camera-stream");
+img.src = VIDEO_URL;
+img.onerror = () => {
+  img.src = VIDEO_FALLBACK;
+  document.getElementById("camera-status").textContent =
+    "Using raw camera stream (detection image unavailable)";
+};
+img.onload = () => {
+  document.getElementById("camera-status").textContent = "Live";
+};
+
+// ── command input ─────────────────────────────────────────────────────────────
+const cmdPub = new ROSLIB.Topic({
+  ros, name: "/llm_planner/command",
+  messageType: "std_msgs/String",
+});
+
+document.getElementById("cmd-btn").onclick = sendCmd;
+document.getElementById("cmd-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") sendCmd();
+});
+
+function sendCmd() {
+  const input = document.getElementById("cmd-input");
+  const text = input.value.trim();
+  if (!text) return;
+  cmdPub.publish(new ROSLIB.Message({ data: text }));
+  log("Sent: " + text, "sent");
+  input.value = "";
+}
+
+// ── voice input ───────────────────────────────────────────────────────────────
+let recognition = null;
+const voiceBtn = document.getElementById("voice-btn");
+
+if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = "en-US";
+
+  recognition.onresult = e => {
+    const transcript = e.results[0][0].transcript;
+    document.getElementById("cmd-input").value = transcript;
+    log("Voice: " + transcript, "sent");
+    voiceBtn.classList.remove("active");
+  };
+  recognition.onerror = e => {
+    log("Voice error: " + e.error, "error");
+    voiceBtn.classList.remove("active");
+  };
+  recognition.onend = () => voiceBtn.classList.remove("active");
+
+  voiceBtn.onclick = () => {
+    if (voiceBtn.classList.contains("active")) {
+      recognition.stop();
+    } else {
+      recognition.start();
+      voiceBtn.classList.add("active");
+    }
+  };
+} else {
+  voiceBtn.title = "Web Speech API not available in this browser";
+  voiceBtn.style.opacity = "0.4";
+}
+
+// ── log ───────────────────────────────────────────────────────────────────────
+function log(msg, cls) {
+  const logDiv = document.getElementById("cmd-log");
+  const ts = new Date().toLocaleTimeString();
+  const el = document.createElement("div");
+  el.className = "log-entry " + (cls || "");
+  el.textContent = `[${ts}] ${msg}`;
+  logDiv.prepend(el);
+  while (logDiv.children.length > 50) logDiv.removeChild(logDiv.lastChild);
+}
+</script>
+</body>
+</html>

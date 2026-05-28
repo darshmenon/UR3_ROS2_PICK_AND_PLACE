@@ -293,7 +293,13 @@ python3 testing/test_grasp.py --colour red --execute
 ## Standalone Robot Control GUI
 
 ```bash
-a
+python3 ur_system_tests/scripts/gui.py
+```
+
+---
+
+## UR3 Reinforcement Learning (SAC)
+
 Trains a Soft Actor-Critic (SAC) policy in MuJoCo and deploys it to Gazebo. The policy learns to reach, grasp, lift, and place a cube using the UR3 + Robotiq 2F-85.
 
 **Features:**
