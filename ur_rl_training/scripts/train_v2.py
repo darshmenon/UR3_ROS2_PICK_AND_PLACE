@@ -27,7 +27,7 @@ from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import (
     CallbackList, CheckpointCallback, EvalCallback,
 )
-from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor, VecNormalize
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor, VecNormalize
 
 LOG_ROOT   = str(REPO_ROOT / "logs")
 MODEL_ROOT = str(REPO_ROOT / "models" / "checkpoints")
@@ -44,9 +44,9 @@ def make_env(curriculum_mode="grasp_focus", seed=0):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--timesteps",   type=int,   default=1_000_000)
-    p.add_argument("--n_envs",      type=int,   default=8)
-    p.add_argument("--eval_freq",   type=int,   default=20_000)
-    p.add_argument("--n_eval_ep",   type=int,   default=20)
+    p.add_argument("--n_envs",      type=int,   default=16)
+    p.add_argument("--eval_freq",   type=int,   default=50_000)
+    p.add_argument("--n_eval_ep",   type=int,   default=5)
     p.add_argument("--curriculum",  default="grasp_focus",
                    choices=["none", "grasp_focus"])
     p.add_argument("--resume",      default="",
@@ -61,12 +61,12 @@ def main():
     print(f"Envs: {args.n_envs}  Timesteps: {args.timesteps:,}  Curriculum: {args.curriculum}")
 
     # ── training env ─────────────────────────────────────────────────────────
-    train_raw = DummyVecEnv([make_env(args.curriculum, seed=i) for i in range(args.n_envs)])
+    train_raw = SubprocVecEnv([make_env(args.curriculum, seed=i) for i in range(args.n_envs)])
     train_env = VecNormalize(VecMonitor(train_raw), norm_obs=True, norm_reward=True, clip_obs=10.0)
 
     # ── eval env (no normalise update, no reward norm) ────────────────────────
     eval_raw = DummyVecEnv([make_env("none", seed=9999)])
-    eval_env = VecNormalize(eval_raw, norm_obs=True, norm_reward=False, training=False)
+    eval_env = VecNormalize(VecMonitor(eval_raw), norm_obs=True, norm_reward=False, training=False)
     eval_env.obs_rms = train_env.obs_rms
 
     # ── model ─────────────────────────────────────────────────────────────────
@@ -87,17 +87,17 @@ def main():
             learning_rate=3e-4,
             buffer_size=500_000,
             learning_starts=5_000,
-            batch_size=256,
+            batch_size=512,
             tau=0.005,
             gamma=0.99,
             train_freq=1,
-            gradient_steps=1,
+            gradient_steps=4,
             ent_coef="auto_0.2",   # higher entropy target → more gripper exploration
             target_entropy=-4.0,   # 7-dim action space, ~-N/2
             policy_kwargs=policy_kwargs,
             verbose=1,
             tensorboard_log=LOG_ROOT,
-            device="cpu",
+            device="cuda",
         )
 
     # ── callbacks ──────────────────────────────────────────────────────────────

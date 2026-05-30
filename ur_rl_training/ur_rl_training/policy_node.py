@@ -43,6 +43,11 @@ _TABLE_Z               = 0.02
 _LIFT_Z                = 0.10
 _GRASP_STREAK_ADVANCE  = 5   # consecutive closed-gripper steps before phase 1→2
 
+# Joint order: pan, lift, elbow, wrist1, wrist2, wrist3
+# Tighter than hardware limits to prevent self-collision (wrist1 is the main offender)
+_SAFE_JOINT_MIN = np.array([-6.28, -2.5, -2.5, -2.2, -3.14, -3.14], dtype=np.float32)
+_SAFE_JOINT_MAX = np.array([ 6.28,  2.5,  2.5,  2.2,  3.14,  3.14], dtype=np.float32)
+
 _PKG = Path(__file__).resolve().parents[2]
 DEFAULT_MODEL_PATH = str(_PKG / "models" / "checkpoints" / "best_model.zip")
 
@@ -62,7 +67,7 @@ class PolicyNode(Node):
         self.declare_parameter("control_rate_hz",         100.0)
         self.declare_parameter("action_scale",            0.1)
         self.declare_parameter("gripper_scale",           0.04)
-        self.declare_parameter("step_dt",                 0.01)
+        self.declare_parameter("step_dt",                 0.1)
 
         # Object / drop zone positions — update these to match your scene
         self.declare_parameter("object_x",  0.35)
@@ -240,7 +245,7 @@ class PolicyNode(Node):
         action = np.asarray(action, dtype=np.float32)
 
         arm_delta  = np.clip(action[:6], -1.0, 1.0) * self._action_scale
-        arm_target = self.qpos + arm_delta
+        arm_target = np.clip(self.qpos + arm_delta, _SAFE_JOINT_MIN, _SAFE_JOINT_MAX)
         self._publish_arm(arm_target)
 
         if action.shape[0] >= 7:
@@ -276,7 +281,8 @@ class PolicyNode(Node):
         ns = max(int(self._step_dt * 1e9), 1)
         dur = Duration(sec=ns // 1_000_000_000, nanosec=ns % 1_000_000_000)
         msg = JointTrajectory()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp.sec = 0
+        msg.header.stamp.nanosec = 0
         msg.joint_names  = self._arm_joints
         pt = JointTrajectoryPoint()
         pt.positions = [float(v) for v in positions]
