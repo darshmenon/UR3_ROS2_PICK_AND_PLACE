@@ -1,0 +1,163 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <world name="default">
+
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <gravity>0.0 0.0 -9.8</gravity>
+    </physics>
+
+    <plugin filename="gz-sim-physics-system"        name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"  name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system"        name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-contact-system"        name="gz::sim::systems::Contact"/>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Sun</uri>
+    </include>
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
+    </include>
+
+    <!-- ================================================================
+         Conveyor belt — long flat surface in front of the robot.
+         Objects are spawned at the far end (x=0.80) and slide toward
+         the robot pick zone (x=0.35) by a periodic velocity impulse
+         applied by the conveyor_node.py ROS2 node.
+
+         Belt surface uses low mu2 (lateral) and high mu1 (along belt)
+         so objects slide freely in the X direction.
+         ================================================================ -->
+
+    <model name="conveyor_belt">
+      <static>true</static>
+      <pose>0.55 0.0 0.04 0 0 0</pose>
+      <link name="belt">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.80 0.20 0.02</size></box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <!-- High friction along belt (X), low lateral (Y) -->
+                <mu>0.8</mu>
+                <mu2>0.1</mu2>
+                <fdir1>1 0 0</fdir1>
+              </ode>
+            </friction>
+            <contact>
+              <ode>
+                <kp>1e6</kp>
+                <kd>100</kd>
+              </ode>
+            </contact>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.80 0.20 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.4 0.4 0.4 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+        <!-- Belt stripe markings -->
+        <visual name="stripe_1">
+          <pose>-0.3 0 0.011 0 0 0</pose>
+          <geometry><box><size>0.02 0.22 0.001</size></box></geometry>
+          <material><ambient>0.9 0.9 0.9 1</ambient><diffuse>0.9 0.9 0.9 1</diffuse></material>
+        </visual>
+        <visual name="stripe_2">
+          <pose>0.0 0 0.011 0 0 0</pose>
+          <geometry><box><size>0.02 0.22 0.001</size></box></geometry>
+          <material><ambient>0.9 0.9 0.9 1</ambient><diffuse>0.9 0.9 0.9 1</diffuse></material>
+        </visual>
+        <visual name="stripe_3">
+          <pose>0.3 0 0.011 0 0 0</pose>
+          <geometry><box><size>0.02 0.22 0.001</size></box></geometry>
+          <material><ambient>0.9 0.9 0.9 1</ambient><diffuse>0.9 0.9 0.9 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Belt entry end-stop (far from robot) -->
+    <model name="belt_entry_marker">
+      <static>true</static>
+      <pose>0.92 0.0 0.06 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.01 0.22 0.04</size></box></geometry>
+          <material><ambient>1 0.5 0 1</ambient><diffuse>1 0.5 0 1</diffuse></material>
+        </visual>
+        <collision name="collision">
+          <geometry><box><size>0.01 0.22 0.04</size></box></geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Pick zone marker (UR3 reachable area) -->
+    <model name="pick_zone_marker">
+      <static>true</static>
+      <pose>0.35 0.0 0.051 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>0.06</radius><length>0.001</length></cylinder></geometry>
+          <material>
+            <ambient>0.0 0.8 0.0 0.5</ambient>
+            <diffuse>0.0 0.8 0.0 0.5</diffuse>
+          </material>
+          <transparency>0.5</transparency>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Sorting bins on the side table -->
+    <model name="bin_red">
+      <static>true</static>
+      <pose>0.15 0.30 0.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.12 0.12 0.06</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.12 0.12 0.06</size></box></geometry>
+          <material><ambient>0.8 0.1 0.1 0.7</ambient><diffuse>0.8 0.1 0.1 0.7</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="bin_green">
+      <static>true</static>
+      <pose>0.35 0.30 0.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.12 0.12 0.06</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.12 0.12 0.06</size></box></geometry>
+          <material><ambient>0.1 0.8 0.1 0.7</ambient><diffuse>0.1 0.8 0.1 0.7</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="bin_blue">
+      <static>true</static>
+      <pose>0.50 0.30 0.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.12 0.12 0.06</size></box></geometry></collision>
+        <visual name="v">
+          <geometry><box><size>0.12 0.12 0.06</size></box></geometry>
+          <material><ambient>0.1 0.1 0.8 0.7</ambient><diffuse>0.1 0.1 0.8 0.7</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <scene>
+      <shadows>false</shadows>
+    </scene>
+
+  </world>
+</sdf>
