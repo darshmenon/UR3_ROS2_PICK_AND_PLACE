@@ -235,6 +235,20 @@ class MotionExecutor:
         self._logger.info("[MotionExecutor] close_gripper")
         return self._send_gripper_goal(GRIPPER_CLOSED, 10.0, timeout)
 
+    def compliant_close_gripper(
+        self, max_effort: float = 5.0, timeout: float = 20.0
+    ) -> bool:
+        """Close gripper with force limit — stops on contact (stall).
+
+        Uses a low max_effort so the GripperActionController stalls when
+        it hits an object rather than driving through it.  The result's
+        `stalled` flag tells us whether contact was detected.
+        """
+        self._logger.info(
+            f"[MotionExecutor] compliant_close_gripper (max_effort={max_effort})"
+        )
+        return self._send_gripper_goal(GRIPPER_CLOSED, max_effort, timeout)
+
     def half_close_gripper(self, timeout: float = 10.0) -> bool:
         """Close the gripper to half position."""
         self._logger.info("[MotionExecutor] half_close_gripper")
@@ -438,6 +452,31 @@ class MotionExecutor:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def compliant_pick(self, task: dict, max_effort: float = 5.0) -> bool:
+        """Pick with compliant (force-limited) gripper close instead of full close."""
+        obj_id = task.get("object_id", "unknown")
+        obj_x = float(task.get("object_x", 0.3))
+        obj_y = float(task.get("object_y", 0.0))
+        obj_z = float(task.get("object_z", 0.1))
+
+        pregrasp = self._make_downward_pose(obj_x, obj_y, obj_z + PREGRASP_HEIGHT_OFFSET)
+        if not self.move_to_pose(pregrasp):
+            return False
+
+        if not self.open_gripper():
+            self._logger.warn("[MotionExecutor] Gripper open failed — continuing.")
+
+        grasp = self._make_downward_pose(obj_x, obj_y, obj_z + 0.01)
+        if not self.move_to_pose(grasp):
+            return False
+
+        self.compliant_close_gripper(max_effort=max_effort)
+
+        if not self.move_to_pose(pregrasp):
+            self._logger.warn("[MotionExecutor] Lift failed — continuing.")
+
+        return True
 
     def _dispatch_task(self, task: dict) -> bool:
         """Route a single task dict to the appropriate executor method."""

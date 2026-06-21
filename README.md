@@ -65,6 +65,7 @@ sudo apt install ros-$ROS_DISTRO-rviz2 \
 
 ```bash
 pip3 install -r requirements.txt
+pip3 install py-trees          # required for ur_bt_planner
 # Ollama is required for the LLM planner:
 # Install from https://ollama.com
 # Then pull your preferred model:
@@ -407,6 +408,95 @@ ros2 launch ur_gazebo full_demo.launch.py \
 
 ---
 
+## Force Control / Compliant Grasping (`ur_force_control`)
+
+Monitors `finger_joint` effort from `/joint_states` to detect contact during gripper closure. Stops the gripper automatically when force exceeds the configured threshold, giving soft compliant grasps without crushing fragile objects.
+
+**Topics:**
+
+| Topic | Type | Description |
+|---|---|---|
+| `/ft/finger_effort` | `std_msgs/Float32` | Raw finger joint effort [Nm] |
+| `/ft/contact_detected` | `std_msgs/Bool` | True when effort > threshold |
+
+**Service:** `/ft/compliant_close` (`std_srvs/Trigger`) — incrementally closes the gripper and stops on contact.
+
+**Launch:**
+
+```bash
+source install/setup.bash
+ros2 launch ur_force_control ft_monitor.launch.py
+```
+
+The `MotionExecutor` class also exposes `compliant_close_gripper(max_effort=5.0)` and `compliant_pick()` for use from any node.
+
+---
+
+## Behavior Tree Task Planner (`ur_bt_planner`)
+
+Replaces the flat task-list execution model with a hierarchical behavior tree ([py_trees](https://py-trees.readthedocs.io/)). Supports retry on IK failure via a Selector fallback, making pick-and-place more robust than a simple sequential loop.
+
+**Tree structure:**
+```
+Sequence [pick_place]
+  ├─ go_home
+  ├─ Selector [pick_or_retry]
+  │    ├─ Sequence [pick]   ← open → compliant_pick
+  │    └─ Sequence [retry]  ← plain pick (IK fallback seed)
+  └─ Sequence [place]
+       ├─ place(x,y,z)
+       └─ return_home
+```
+
+**Services:**
+
+| Service | Description |
+|---|---|
+| `/bt/run_pick_place` | Execute one full pick-and-place BT cycle |
+| `/bt/stop` | Abort after current leaf completes |
+
+**Launch:**
+
+```bash
+source install/setup.bash
+ros2 launch ur_bt_planner bt_planner.launch.py \
+  pick_x:=0.35 pick_y:=0.0 pick_z:=0.05 \
+  place_x:=0.15 place_y:=0.30 place_z:=0.08
+
+# Trigger a cycle:
+ros2 service call /bt/run_pick_place std_srvs/srv/Trigger {}
+```
+
+---
+
+## Conveyor Belt Simulation (`ur_conveyor`)
+
+Simulates a moving conveyor feeding colored boxes into the UR3 pick zone. The `conveyor_node` spawns random-color boxes at the belt entry (x ≈ 0.88 m), moves them toward the pick zone (x ≈ 0.35 m) via Gazebo pose updates, and publishes `/conveyor/object_ready` when a box arrives. Unpicked boxes are despawned after a configurable timeout.
+
+**Topics / Services:**
+
+| Interface | Description |
+|---|---|
+| `/conveyor/object_ready` | `String` — `"box_N color"` when box at pick zone |
+| `/conveyor/picked` | `String` — publish box name to mark as picked |
+| `/conveyor/start` | Trigger — start belt |
+| `/conveyor/stop` | Trigger — stop belt |
+
+**Launch (includes Gazebo with conveyor world):**
+
+```bash
+source install/setup.bash
+ros2 launch ur_conveyor conveyor.launch.py \
+  spawn_interval_s:=6.0 belt_speed:=0.06
+
+# Start the belt:
+ros2 service call /conveyor/start std_srvs/srv/Trigger {}
+```
+
+The `conveyor_sorting.world` includes a belt visual with friction-direction surface (objects slide along X), a green pick-zone marker, and three colored bins (red, green, blue).
+
+---
+
 ## Contributing
 
 Pull requests and issues are welcome, especially around simulation stability, transfer learning, and perception-to-action integration.
@@ -417,8 +507,9 @@ Pull requests and issues are welcome, especially around simulation stability, tr
 
 - Improve MuJoCo-to-Gazebo transfer so learned grasping policies behave more consistently on the UR3 with the Robotiq gripper.
 - Fine-tune OpenVLA on collected UR3 demonstrations for better sim-to-real performance.
-- Add multi-object handling so the RL policy and LLM planner can sequence picks across several targets.
 - Real robot deployment — swap Gazebo hardware interface for the live UR3 driver and test trained policies on hardware.
+- 6-DoF object pose estimation from depth camera for better grasp orientation.
+- Extend the BT planner to handle multi-object sorting using the conveyor + perception pipeline together.
 
 ---
 
