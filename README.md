@@ -391,14 +391,31 @@ No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` est
 
 **Service:** `/ft/zero_wrench` (`std_srvs/Trigger`) — tares the bias at the current pose.
 
-**Launch:**
+**Launch and use:**
 
 ```bash
+# Terminal 1 — full simulation:
+source install/setup.bash
+ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Terminal 2 — wrench estimator (wait for controllers to spawn first, ~40 s):
 source install/setup.bash
 ros2 launch ur_force_control wrench_estimator.launch.py
+
+# Terminal 3 — watch the estimate:
+ros2 topic echo /ft/estimated_wrench
+
+# Tare the reading at the arm's current pose (run before checking for contact
+# from that pose — cancels the resting gravity/friction torque bias):
+ros2 service call /ft/zero_wrench std_srvs/srv/Trigger {}
+
+# Watch for a contact event (goes true when force norm > force_threshold_n):
+ros2 topic echo /ft/arm_contact_detected
 ```
 
 Parameters: `planning_group` (default `arm`), `publish_rate_hz` (`30.0`), `force_threshold_n` (`15.0`), `damping_lambda` (`0.05`).
+
+**Not yet built:** true joint-space **impedance control** (direct torque commands per joint, `τ = K(q_des - q) + D(q̇_des - q̇)`). The groundwork exists — `impedance_controller` is declared in `moveit_config/config/ros2_controllers.yaml` and arm joints already expose an `effort` *state* interface — but it isn't spawned, and no arm joint has an `effort` *command* interface yet, so torque commands can't reach the arm in Gazebo. This estimator is the sensing half of **admittance** control (Cartesian compliance driven by estimated contact force) — the motion-execution half (piping the wrench into a compliant Servo command) also isn't built yet.
 
 ---
 
