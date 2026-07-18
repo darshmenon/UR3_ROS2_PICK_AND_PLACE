@@ -354,60 +354,6 @@ python3 ur_rl_training/scripts/eval_headless.py \
 
 ---
 
-## ACT — Action Chunking Transformers (`ur_act`)
-
-`ur_act` trains an [ACT policy](https://github.com/tonyzhaozh/act) on demonstrations recorded by `ur_data_collector`. Instead of predicting one action at a time (like the BC policy), ACT predicts a **chunk** of future actions per step and blends overlapping predictions with temporal ensemble — giving smoother, more temporally consistent motion.
-
-**Architecture:**
-- ResNet18 visual backbone → spatial image tokens
-- CVAE encoder (training only) → style latent `z`
-- Transformer decoder (image tokens + joint token + `z`) → action chunk of length `k`
-- At inference: `z = 0`, temporal ensemble blends overlapping chunks
-
-**Train:**
-
-```bash
-# Record demonstrations first with ur_data_collector, then:
-python3 ur_act/scripts/train_act.py \
-  --data_dir ~/ur3_demos \
-  --output_dir ~/act_policy \
-  --chunk_size 10 \
-  --epochs 100
-```
-
-| Arg | Default | Description |
-|-----|---------|-------------|
-| `chunk_size` | `10` | Actions predicted per step (2 s at 5 Hz) |
-| `kl_weight`  | `10.0` | CVAE KL term weight |
-| `d_model`    | `256` | Transformer hidden dim |
-| `freeze_backbone` | off | Freeze ResNet18 during training |
-
-**Full Gazebo workflow — collect → train → deploy:**
-
-```bash
-# Step 1: Launch Gazebo + MoveIt + data collector
-ros2 launch ur_gazebo ur.gazebo.launch.py
-ros2 launch ur_data_collector data_collector.launch.py
-
-# Step 2: Record demos using the MTC pick-place script (repeat N times)
-ros2 service call /data_collector/start_recording std_srvs/srv/Trigger {}
-bash ur_mtc_pick_place_demo/scripts/robot.sh          # runs one pick-place
-ros2 service call /data_collector/stop_recording  std_srvs/srv/Trigger {}
-
-# Step 3: Train
-python3 ur_act/scripts/train_act.py \
-  --data_dir ~/ur3_demos \
-  --output_dir ~/act_policy \
-  --chunk_size 10 --epochs 100
-
-# Step 4: Deploy via full_demo (ACT as the brain)
-ros2 launch ur_gazebo full_demo.launch.py \
-  brain:=act \
-  act_model_path:=~/act_policy/best_act_policy.pt
-```
-
----
-
 ## Force Control / Compliant Grasping (`ur_force_control`)
 
 Monitors `finger_joint` effort from `/joint_states` to detect contact during gripper closure. Stops the gripper automatically when force exceeds the configured threshold, giving soft compliant grasps without crushing fragile objects.
@@ -429,6 +375,30 @@ ros2 launch ur_force_control ft_monitor.launch.py
 ```
 
 The `MotionExecutor` class also exposes `compliant_close_gripper(max_effort=5.0)` and `compliant_pick()` for use from any node.
+
+### External Wrench Estimator (arm-level, for admittance control)
+
+No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` estimates external force/torque at the end-effector from arm joint effort readings via a damped-least-squares Jacobian-transpose inverse (`F ≈ pinv_damped(Jᵀ) · τ_ext`). This is the building block for admittance/contact-based control on the arm, as opposed to `ft_monitor_node`'s gripper-only effort threshold.
+
+**Limitations:** not gravity-compensated — `/ft/zero_wrench` tares the reading at the current pose only, so it drifts as the arm moves away from that pose. The damping also rolls off near kinematic singularities (this robot's idle pose sits at the UR wrist singularity, `wrist_2_joint ≈ 0`) instead of blowing up, but readings are less trustworthy there.
+
+**Topics:**
+
+| Topic | Type | Description |
+|---|---|---|
+| `/ft/estimated_wrench` | `geometry_msgs/WrenchStamped` | Estimated external force/torque at the end-effector |
+| `/ft/arm_contact_detected` | `std_msgs/Bool` | True when estimated force norm > `force_threshold_n` |
+
+**Service:** `/ft/zero_wrench` (`std_srvs/Trigger`) — tares the bias at the current pose.
+
+**Launch:**
+
+```bash
+source install/setup.bash
+ros2 launch ur_force_control wrench_estimator.launch.py
+```
+
+Parameters: `planning_group` (default `arm`), `publish_rate_hz` (`30.0`), `force_threshold_n` (`15.0`), `damping_lambda` (`0.05`).
 
 ---
 

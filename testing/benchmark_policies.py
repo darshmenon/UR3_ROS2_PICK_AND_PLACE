@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Policy benchmark harness — ACT vs OpenVLA vs MTC.
+Policy benchmark harness — OpenVLA vs MTC.
 
 Runs N trials for each active policy on the same task (pick red object,
 place at target), measures success rate and cycle time, writes results
 to CSV and prints a summary table.
 
 Usage:
-    # Benchmark all three policies, 5 trials each
+    # Benchmark both policies, 5 trials each
     python3 testing/benchmark_policies.py --trials 5
 
-    # Benchmark only ACT and MTC, 10 trials
-    python3 testing/benchmark_policies.py --policies act mtc --trials 10
+    # Benchmark only MTC, 10 trials
+    python3 testing/benchmark_policies.py --policies mtc --trials 10
 
     # Use a custom output path
     python3 testing/benchmark_policies.py --output ~/results/bench.csv
@@ -19,7 +19,6 @@ Usage:
 Prerequisites:
     - Gazebo + MoveIt simulation must be running:
         ros2 launch ur_gazebo ur.gazebo.launch.py
-    - For ACT:    model_path must point to a trained .pt checkpoint
     - For OpenVLA: model is downloaded on first run (~15 GB)
     - For MTC:    ur_mtc_pick_place_demo must be running
 
@@ -114,16 +113,6 @@ class BenchmarkNode(Node):
         )
         return self._run_llm_cmd_trial(cmd, place_xyz)
 
-    def run_act_trial(self, pick_x, pick_y, pick_z, place_xyz) -> dict:
-        """
-        ACT trial: start the ACT policy node and let it run until timeout.
-        Success is checked by seeing if any detected object lands near the target.
-        """
-        return self._run_policy_node_trial(
-            "ur_act", "act_policy_node", place_xyz,
-            extra_params={"model_path": os.environ.get("ACT_MODEL_PATH", "")}
-        )
-
     def run_openvla_trial(self, pick_x, pick_y, pick_z, place_xyz) -> dict:
         """OpenVLA trial: start inference node, check convergence."""
         return self._run_policy_node_trial(
@@ -190,14 +179,13 @@ class BenchmarkNode(Node):
 
 POLICY_RUNNERS = {
     "mtc":    "run_mtc_trial",
-    "act":    "run_act_trial",
     "openvla": "run_openvla_trial",
 }
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Benchmark UR3 pick-place policies")
-    p.add_argument("--policies", nargs="+", default=["mtc", "act", "openvla"],
+    p.add_argument("--policies", nargs="+", default=["mtc", "openvla"],
                    choices=list(POLICY_RUNNERS.keys()),
                    help="Which policies to benchmark")
     p.add_argument("--trials", type=int, default=5,

@@ -5,7 +5,6 @@ brain options:
   llm      — LLM planner (Ollama, natural-language commands via /llm_planner/command)
   rl       — Trained SAC policy node (needs model_path)
   openvla  — OpenVLA/SmolVLA end-to-end VLA inference
-  act      — ACT (Action Chunking Transformer) policy (needs act_model_path)
   none     — Perception + grasp only, no autonomous brain
 
 Usage:
@@ -14,9 +13,6 @@ Usage:
 
     # RL policy:
     ros2 launch ur_gazebo full_demo.launch.py brain:=rl model_path:=/path/to/best_model.zip
-
-    # ACT policy:
-    ros2 launch ur_gazebo full_demo.launch.py brain:=act act_model_path:=~/act_policy/best_act_policy.pt
 
     # OpenVLA:
     ros2 launch ur_gazebo full_demo.launch.py brain:=openvla task:="pick the red block"
@@ -65,12 +61,6 @@ def generate_launch_description():
         # RL-specific
         DeclareLaunchArgument("model_path",  default_value="",
                               description="Path to SAC .zip (required if brain:=rl)"),
-        # ACT-specific
-        DeclareLaunchArgument("act_model_path", default_value="",
-                              description="Path to ACT .pt checkpoint (required if brain:=act)"),
-        DeclareLaunchArgument("act_chunk_size",    default_value="10"),
-        DeclareLaunchArgument("act_control_rate",  default_value="5.0"),
-        DeclareLaunchArgument("act_temporal_gamma",default_value="0.01"),
         DeclareLaunchArgument("drop_x",      default_value="0.35"),
         DeclareLaunchArgument("drop_y",      default_value="0.20"),
         DeclareLaunchArgument("drop_z",      default_value="0.02"),
@@ -99,7 +89,6 @@ def generate_launch_description():
     is_llm    = IfCondition(PythonExpression(["'", brain, "' == 'llm'"]))
     is_rl     = IfCondition(PythonExpression(["'", brain, "' == 'rl'"]))
     is_openvla= IfCondition(PythonExpression(["'", brain, "' == 'openvla'"]))
-    is_act    = IfCondition(PythonExpression(["'", brain, "' == 'act'"]))
 
     # ── Core simulation (Gazebo + MoveIt) ────────────────────────────────────
     gazebo_launch = IncludeLaunchDescription(
@@ -182,23 +171,6 @@ def generate_launch_description():
     )
     delayed_rl = TimerAction(period=65.0, actions=[rl_node])
 
-    # ACT policy node
-    act_node = Node(
-        package="ur_act",
-        executable="act_policy_node",
-        name="act_policy_node",
-        output="screen",
-        condition=is_act,
-        parameters=[{
-            "model_path":       LaunchConfiguration("act_model_path"),
-            "chunk_size":       LaunchConfiguration("act_chunk_size"),
-            "control_rate_hz":  LaunchConfiguration("act_control_rate"),
-            "temporal_gamma":   LaunchConfiguration("act_temporal_gamma"),
-            "use_sim_time":     use_sim,
-        }],
-    )
-    delayed_act = TimerAction(period=65.0, actions=[act_node])
-
     # OpenVLA node
     openvla_node = Node(
         package="ur_smolvla",
@@ -230,6 +202,5 @@ def generate_launch_description():
     ld.add_action(brain_log)
     ld.add_action(delayed_llm)
     ld.add_action(delayed_rl)
-    ld.add_action(delayed_act)
     ld.add_action(delayed_openvla)
     return ld
