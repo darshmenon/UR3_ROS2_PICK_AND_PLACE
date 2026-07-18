@@ -13,6 +13,7 @@ find_package(moveit_core REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(pinocchio REQUIRED)
 
 ament_python_install_package(${PROJECT_NAME})
 
@@ -30,6 +31,10 @@ ament_target_dependencies(external_wrench_estimator
   geometry_msgs
   std_msgs
   std_srvs
+)
+target_link_libraries(external_wrench_estimator
+  pinocchio::pinocchio_default
+  pinocchio::pinocchio_parsers
 )
 
 install(TARGETS external_wrench_estimator

@@ -378,9 +378,9 @@ The `MotionExecutor` class also exposes `compliant_close_gripper(max_effort=5.0)
 
 ### External Wrench Estimator (arm-level, for admittance control)
 
-No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` estimates external force/torque at the end-effector from arm joint effort readings via a damped-least-squares Jacobian-transpose inverse (`F ≈ pinv_damped(Jᵀ) · τ_ext`). This is the building block for admittance/contact-based control on the arm, as opposed to `ft_monitor_node`'s gripper-only effort threshold.
+No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` estimates external force/torque at the end-effector from arm joint effort readings via a damped-least-squares Jacobian-transpose inverse (`F ≈ pinv_damped(Jᵀ) · τ_ext`), where `τ_ext` is measured joint effort minus a real gravity torque `g(q)` computed every cycle by [Pinocchio](https://github.com/stack-of-tasks/pinocchio) RNEA from the full-body URDF (gripper mass included). This is the building block for admittance/contact-based control on the arm, as opposed to `ft_monitor_node`'s gripper-only effort threshold.
 
-**Limitations:** not gravity-compensated — `/ft/zero_wrench` tares the reading at the current pose only, so it drifts as the arm moves away from that pose. The damping also rolls off near kinematic singularities (this robot's idle pose sits at the UR wrist singularity, `wrist_2_joint ≈ 0`) instead of blowing up, but readings are less trustworthy there.
+**Limitations:** `g(q)` is a rigid-body model, not a measurement — it doesn't capture joint friction or PID steady-state error, so a repeatable residual (observed up to ~25 N away from the idle pose in testing) remains even at rest; `/ft/zero_wrench` trims that residual at the current pose, but it's a per-pose correction, not a global fix. The damping also rolls off near kinematic singularities (this robot's idle pose sits at the UR wrist singularity, `wrist_2_joint ≈ 0`) instead of blowing up, but readings are less trustworthy there.
 
 **Topics:**
 
@@ -389,7 +389,7 @@ No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` est
 | `/ft/estimated_wrench` | `geometry_msgs/WrenchStamped` | Estimated external force/torque at the end-effector |
 | `/ft/arm_contact_detected` | `std_msgs/Bool` | True when estimated force norm > `force_threshold_n` |
 
-**Service:** `/ft/zero_wrench` (`std_srvs/Trigger`) — tares the bias at the current pose.
+**Service:** `/ft/zero_wrench` (`std_srvs/Trigger`) — trims the residual bias (friction/PID error not captured by the gravity model) at the current pose.
 
 **Launch and use:**
 
@@ -405,8 +405,8 @@ ros2 launch ur_force_control wrench_estimator.launch.py
 # Terminal 3 — watch the estimate:
 ros2 topic echo /ft/estimated_wrench
 
-# Tare the reading at the arm's current pose (run before checking for contact
-# from that pose — cancels the resting gravity/friction torque bias):
+# Trim residual bias at the arm's current pose (gravity is already compensated by
+# the model — this corrects friction/PID error the model doesn't capture):
 ros2 service call /ft/zero_wrench std_srvs/srv/Trigger {}
 
 # Watch for a contact event (goes true when force norm > force_threshold_n):
