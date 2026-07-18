@@ -10,6 +10,10 @@
             </hardware>
             <joint name="shoulder_pan_joint">
                 <command_interface name="position"/>
+                <command_interface name="effort">
+                    <param name="min">-56.0</param>
+                    <param name="max">56.0</param>
+                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['shoulder_pan_joint']}</param>
                 </state_interface>
@@ -21,6 +25,10 @@
 
             <joint name="shoulder_lift_joint">
                 <command_interface name="position"/>
+                <command_interface name="effort">
+                    <param name="min">-56.0</param>
+                    <param name="max">56.0</param>
+                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['shoulder_lift_joint']}</param>
                 </state_interface>
@@ -32,6 +40,10 @@
 
             <joint name="elbow_joint">
                 <command_interface name="position"/>
+                <command_interface name="effort">
+                    <param name="min">-28.0</param>
+                    <param name="max">28.0</param>
+                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['elbow_joint']}</param>
                 </state_interface>
@@ -43,6 +55,10 @@
 
             <joint name="wrist_1_joint">
                 <command_interface name="position"/>
+                <command_interface name="effort">
+                    <param name="min">-12.0</param>
+                    <param name="max">12.0</param>
+                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['wrist_1_joint']}</param>
                 </state_interface>
@@ -54,6 +70,10 @@
 
             <joint name="wrist_2_joint">
                 <command_interface name="position"/>
+                <command_interface name="effort">
+                    <param name="min">-12.0</param>
+                    <param name="max">12.0</param>
+                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['wrist_2_joint']}</param>
                 </state_interface>
@@ -65,6 +85,10 @@
 
             <joint name="wrist_3_joint">
                 <command_interface name="position"/>
+                <command_interface name="effort">
+                    <param name="min">-12.0</param>
+                    <param name="max">12.0</param>
+                </command_interface>
                 <state_interface name="position">
                     <param name="initial_value">${initial_positions['wrist_3_joint']}</param>
                 </state_interface>
