@@ -12,6 +12,7 @@ setup(
         ("share/" + package_name + "/launch", [
             "launch/ft_monitor.launch.py",
             "launch/wrench_estimator.launch.py",
+            "launch/joint_impedance.launch.py",
         ]),
     ],
     install_requires=["setuptools"],

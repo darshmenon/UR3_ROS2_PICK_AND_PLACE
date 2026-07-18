@@ -37,7 +37,21 @@ target_link_libraries(external_wrench_estimator
   pinocchio::pinocchio_parsers
 )
 
-install(TARGETS external_wrench_estimator
+add_executable(joint_impedance_controller src/joint_impedance_controller.cpp)
+target_compile_features(joint_impedance_controller PUBLIC cxx_std_17)
+ament_target_dependencies(joint_impedance_controller
+  rclcpp
+  moveit_ros_planning_interface
+  moveit_core
+  std_msgs
+  std_srvs
+)
+target_link_libraries(joint_impedance_controller
+  pinocchio::pinocchio_default
+  pinocchio::pinocchio_parsers
+)
+
+install(TARGETS external_wrench_estimator joint_impedance_controller
   DESTINATION lib/${PROJECT_NAME}
 )
 
