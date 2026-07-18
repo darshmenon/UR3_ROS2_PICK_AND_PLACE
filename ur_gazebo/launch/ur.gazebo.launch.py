@@ -231,6 +231,34 @@ def generate_launch_description():
             )
         )
 
+    # forward_command_controller_effort — loaded inactive (see impedance_controller
+    # entry in ros2_controllers.yaml). arm_controller already claims the arm joints'
+    # position command interface, and ros2_control only allows one controller to claim a
+    # given interface at a time, so this stays inactive until switched in explicitly via
+    # `ros2 control switch_controllers --deactivate arm_controller --activate
+    # forward_command_controller_effort`.
+    ld.add_action(
+        TimerAction(
+            period=50.0,
+            actions=[
+                Node(
+                    package="controller_manager",
+                    executable="spawner",
+                    arguments=[
+                        "forward_command_controller_effort",
+                        "--controller-manager",
+                        "/controller_manager",
+                        "--controller-manager-timeout",
+                        "60.0",
+                        "--inactive",
+                    ],
+                    parameters=[{'use_sim_time': True}],
+                    output='screen'
+                )
+            ]
+        )
+    )
+
     # ld.add_action(load_controllers_cmd)
     # Start Gazebo
     start_gazebo_cmd = IncludeLaunchDescription(
