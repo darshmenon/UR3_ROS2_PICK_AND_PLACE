@@ -203,7 +203,7 @@ def generate_launch_description():
     # )
 
     controllers = ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
-    delays = [20.0, 30.0, 40.0]
+    delays = [30.0, 40.0, 50.0]
 
     for controller, delay in zip(controllers, delays):
         ld.add_action(
@@ -239,7 +239,7 @@ def generate_launch_description():
     # forward_command_controller_effort`.
     ld.add_action(
         TimerAction(
-            period=50.0,
+            period=60.0,
             actions=[
                 Node(
                     package="controller_manager",
