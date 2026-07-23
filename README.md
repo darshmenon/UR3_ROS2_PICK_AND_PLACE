@@ -415,7 +415,43 @@ ros2 topic echo /ft/arm_contact_detected
 
 Parameters: `planning_group` (default `arm`), `publish_rate_hz` (`30.0`), `force_threshold_n` (`15.0`), `damping_lambda` (`0.05`).
 
-**Not yet built:** true joint-space **impedance control** (direct torque commands per joint, `τ = K(q_des - q) + D(q̇_des - q̇)`). The groundwork exists — `impedance_controller` is declared in `moveit_config/config/ros2_controllers.yaml` and arm joints already expose an `effort` *state* interface — but it isn't spawned, and no arm joint has an `effort` *command* interface yet, so torque commands can't reach the arm in Gazebo. This estimator is the sensing half of **admittance** control (Cartesian compliance driven by estimated contact force) — the motion-execution half (piping the wrench into a compliant Servo command) also isn't built yet.
+### Joint Impedance Controller (arm-level, torque control)
+
+Direct joint-space torque control: `τ = K(q_des − q) − D·q̇ + g(q)`, with `g(q)` computed every cycle by Pinocchio RNEA (same approach as `external_wrench_estimator`) so the arm doesn't sag under its own weight even at zero stiffness. The arm's `forward_command_controller_effort` is spawned inactive alongside `arm_controller` (they can't both claim the position/effort interfaces at once), so switching to torque control means explicitly deactivating one and activating the other.
+
+Equilibrium pose defaults to wherever the arm is when the node starts (hold-current-pose) and can be moved via a target topic or re-captured at any time.
+
+**Topic:** `/joint_impedance_controller/target_positions` (`std_msgs/Float64MultiArray`) — 6 values, one per arm joint, in `joint_names` order.
+
+**Service:** `/joint_impedance_controller/hold_current_pose` (`std_srvs/Trigger`) — re-latches the equilibrium pose to the arm's current position.
+
+**Launch and use:**
+
+```bash
+# Terminal 1 — full simulation (wait for controllers to spawn, ~40 s):
+source install/setup.bash
+ros2 launch ur_gazebo ur.gazebo.launch.py
+
+# Terminal 2 — start the impedance controller BEFORE switching interfaces, so it's
+# already commanding valid torque the instant the switch happens (starting it after
+# the switch leaves the arm at zero commanded effort in the meantime — see caveat below):
+source install/setup.bash
+ros2 launch ur_force_control joint_impedance.launch.py
+
+# Terminal 3 — hand control from arm_controller to the torque controller:
+ros2 control switch_controllers --deactivate arm_controller --activate forward_command_controller_effort
+
+# Move the equilibrium pose:
+ros2 topic pub --once /joint_impedance_controller/target_positions std_msgs/msg/Float64MultiArray \
+  "{data: [0.0, -1.57, 1.57, 0.0, 1.57, 0.0]}"
+
+# Hand control back to position control when done:
+ros2 control switch_controllers --deactivate forward_command_controller_effort --activate arm_controller
+```
+
+Parameters: `joint_names`, `stiffness` (default `[80, 80, 60, 15, 15, 15]`), `damping` (default `[8, 8, 6, 1.5, 1.5, 1.5]`), `effort_limits` (default `[56, 56, 28, 12, 12, 12]`, matching `ur.ros2_control.xacro`), `publish_rate_hz` (`200.0`).
+
+**Known issue (unresolved):** live-testing this in Gazebo Harmonic shows the arm drifting/oscillating rather than holding pose, with commanded torque pinned at its limits. Root cause under investigation — the arm appears to free-fall under gravity from the moment Gazebo spawns it, well before `arm_controller` (plain position control) ever claims the joints (~40 s later), so by the time any controller takes over, the "current pose" it latches onto is already far from `initial_positions.yaml`. This looks like a side effect of adding the `effort` command interface to the arm joints, not a bug in the impedance math itself, but it isn't fixed yet — don't rely on this controller for anything beyond experimentation until this is resolved.
 
 ---
 
