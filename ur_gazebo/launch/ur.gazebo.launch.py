@@ -9,14 +9,12 @@ from launch import LaunchDescription
 from launch.actions import (
     AppendEnvironmentVariable,
     DeclareLaunchArgument,
-    GroupAction,
     IncludeLaunchDescription,
     RegisterEventHandler,
-    TimerAction,
 )
 from launch.conditions import IfCondition
 from launch.conditions import UnlessCondition
-from launch.event_handlers import OnProcessStart
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable, PythonExpression
 from launch_ros.actions import Node
@@ -202,62 +200,53 @@ def generate_launch_description():
     #     }.items()
     # )
 
-    controllers = ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
-    delays = [30.0, 40.0, 50.0]
-
-    for controller, delay in zip(controllers, delays):
-        ld.add_action(
-            TimerAction(
-                period=delay,
-                actions=[
-                    Node(
-                        package="controller_manager",
-                        executable="spawner",
-                        arguments=[
-                            controller,
-                            "--controller-manager",
-                            "/controller_manager",
-                            "--controller-manager-timeout",
-                            "60.0",
-                            "--switch-timeout",
-                            "60.0",
-                            "--service-call-timeout",
-                            "60.0",
-                        ],
-                        parameters=[{'use_sim_time': True}],
-                        output='screen'
-                    )
-                ]
-            )
+    # Spawners all talk to the same controller_manager service interface — launching
+    # them in parallel floods its single-threaded service handling ("already loaded"
+    # errors, timed-out switches, controllers stuck inactive). Chain each spawner to
+    # start only once the previous one's process exits, so requests never overlap.
+    controller_spawners = [
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                controller,
+                "--controller-manager",
+                "/controller_manager",
+                "--controller-manager-timeout",
+                "60.0",
+                "--switch-timeout",
+                "60.0",
+                "--service-call-timeout",
+                "60.0",
+            ],
+            parameters=[{'use_sim_time': True}],
+            output='screen'
         )
+        for controller in ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
+    ]
 
-    # forward_command_controller_effort — loaded inactive (see impedance_controller
-    # entry in ros2_controllers.yaml). arm_controller already claims the arm joints'
-    # position command interface, and ros2_control only allows one controller to claim a
-    # given interface at a time, so this stays inactive until switched in explicitly via
-    # `ros2 control switch_controllers --deactivate arm_controller --activate
-    # forward_command_controller_effort`.
-    ld.add_action(
-        TimerAction(
-            period=60.0,
-            actions=[
-                Node(
-                    package="controller_manager",
-                    executable="spawner",
-                    arguments=[
-                        "forward_command_controller_effort",
-                        "--controller-manager",
-                        "/controller_manager",
-                        "--controller-manager-timeout",
-                        "60.0",
-                        "--inactive",
-                    ],
-                    parameters=[{'use_sim_time': True}],
-                    output='screen'
-                )
-            ]
+    # Loaded inactive until explicitly switched in for the custom impedance node.
+    controller_spawners.append(
+        Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[
+                "forward_command_controller_effort",
+                "--controller-manager",
+                "/controller_manager",
+                "--controller-manager-timeout",
+                "60.0",
+                "--inactive",
+            ],
+            parameters=[{'use_sim_time': True}],
+            output='screen'
         )
     )
+
+    controller_spawn_events = [
+        RegisterEventHandler(OnProcessExit(target_action=prev, on_exit=[nxt]))
+        for prev, nxt in zip(controller_spawners, controller_spawners[1:])
+    ]
 
     # ld.add_action(load_controllers_cmd)
     # Start Gazebo
@@ -414,6 +403,9 @@ def generate_launch_description():
     ld.add_action(start_gazebo_ros_bridge_cmd)
     ld.add_action(start_gazebo_ros_image_bridge_cmd)
     ld.add_action(start_gazebo_ros_spawner_cmd)
+    ld.add_action(controller_spawners[0])
+    for event in controller_spawn_events:
+        ld.add_action(event)
     ld.add_action(move_group_node_robotiq)
     ld.add_action(move_group_node_onrobot)
     ld.add_action(rviz_node_robotiq)

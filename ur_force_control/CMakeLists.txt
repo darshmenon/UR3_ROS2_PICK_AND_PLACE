@@ -11,6 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
 find_package(moveit_core REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(pinocchio REQUIRED)
@@ -29,6 +30,7 @@ ament_target_dependencies(external_wrench_estimator
   moveit_ros_planning_interface
   moveit_core
   geometry_msgs
+  sensor_msgs
   std_msgs
   std_srvs
 )
@@ -43,6 +45,7 @@ ament_target_dependencies(joint_impedance_controller
   rclcpp
   moveit_ros_planning_interface
   moveit_core
+  sensor_msgs
   std_msgs
   std_srvs
 )

@@ -153,7 +153,7 @@ All four grippers use `position_controllers/GripperActionController` for the sin
 
 ### Verify Controllers After Launch
 
-Controllers take ~40 s to spawn. Run this to confirm all three are `active`:
+Controllers spawn sequentially (each one starts only after the previous finishes, to avoid racing `controller_manager`) and take ~10-15 s. Run this to confirm all three are `active`:
 
 ```bash
 ros2 control list_controllers
@@ -398,7 +398,7 @@ No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` est
 source install/setup.bash
 ros2 launch ur_gazebo ur.gazebo.launch.py
 
-# Terminal 2 — wrench estimator (wait for controllers to spawn first, ~40 s):
+# Terminal 2 — wrench estimator (wait for controllers to spawn first, ~10-15 s):
 source install/setup.bash
 ros2 launch ur_force_control wrench_estimator.launch.py
 
@@ -417,7 +417,7 @@ Parameters: `planning_group` (default `arm`), `publish_rate_hz` (`30.0`), `force
 
 ### Joint Impedance Controller (arm-level, torque control)
 
-Direct joint-space torque control: `τ = K(q_des − q) − D·q̇ + g(q)`, with `g(q)` computed every cycle by Pinocchio RNEA (same approach as `external_wrench_estimator`) so the arm doesn't sag under its own weight even at zero stiffness. The arm's `forward_command_controller_effort` is spawned inactive alongside `arm_controller` (they can't both claim the position/effort interfaces at once), so switching to torque control means explicitly deactivating one and activating the other.
+Direct joint-space torque control: `τ = K(q_des − q) − D·q̇ + g(q)`, with `g(q)` computed every cycle by Pinocchio RNEA (same approach as `external_wrench_estimator`) so the arm doesn't sag under its own weight even at zero stiffness. The arm's raw `forward_command_controller_effort` is spawned inactive alongside `arm_controller`, so switching to torque control means explicitly deactivating position control and activating the effort command controller.
 
 Equilibrium pose defaults to wherever the arm is when the node starts (hold-current-pose) and can be moved via a target topic or re-captured at any time.
 
@@ -425,16 +425,17 @@ Equilibrium pose defaults to wherever the arm is when the node starts (hold-curr
 
 **Service:** `/joint_impedance_controller/hold_current_pose` (`std_srvs/Trigger`) — re-latches the equilibrium pose to the arm's current position.
 
+**Motion planning:** MoveIt planning/execution should use the normal `arm_controller`. The custom impedance node is not a `FollowJointTrajectory` action server; it holds or shifts an equilibrium pose through `/joint_impedance_controller/target_positions`. For planned motion, execute with `arm_controller`, then switch to `forward_command_controller_effort` when you want compliant hold/contact behavior.
+
 **Launch and use:**
 
 ```bash
-# Terminal 1 — full simulation (wait for controllers to spawn, ~40 s):
+# Terminal 1 — full simulation:
 source install/setup.bash
 ros2 launch ur_gazebo ur.gazebo.launch.py
 
 # Terminal 2 — start the impedance controller BEFORE switching interfaces, so it's
-# already commanding valid torque the instant the switch happens (starting it after
-# the switch leaves the arm at zero commanded effort in the meantime — see caveat below):
+# already commanding valid torque the instant the switch happens:
 source install/setup.bash
 ros2 launch ur_force_control joint_impedance.launch.py
 
@@ -451,7 +452,7 @@ ros2 control switch_controllers --deactivate forward_command_controller_effort -
 
 Parameters: `joint_names`, `stiffness` (default `[80, 80, 60, 15, 15, 15]`), `damping` (default `[8, 8, 6, 1.5, 1.5, 1.5]`), `effort_limits` (default `[56, 56, 28, 12, 12, 12]`, matching `ur.ros2_control.xacro`), `publish_rate_hz` (`200.0`).
 
-**Known issue (unresolved):** live-testing this in Gazebo Harmonic shows the arm drifting/oscillating rather than holding pose, with commanded torque pinned at its limits. Root cause under investigation — the arm appears to free-fall under gravity from the moment Gazebo spawns it, well before `arm_controller` (plain position control) ever claims the joints (~40 s later), so by the time any controller takes over, the "current pose" it latches onto is already far from `initial_positions.yaml`. This looks like a side effect of adding the `effort` command interface to the arm joints, not a bug in the impedance math itself, but it isn't fixed yet — don't rely on this controller for anything beyond experimentation until this is resolved.
+**Known issue (unresolved):** live-tested in Gazebo Harmonic with stiffness and damping both set to zero — i.e. commanding pure gravity feedforward `g(q)` and nothing else — and the arm does not hold; it collapses faster than free-fall, with wrist joints spinning past ±2π into their limits. This means the Pinocchio gravity computation itself is producing wrong torque (wrong sign/magnitude), not just a gain-tuning issue. (The separate startup free-fall — arm dropping before any controller claims it — is fixed and verified: the arm now holds `initial_positions.yaml` rock-solid from spawn through controller activation.) Don't rely on this controller for anything beyond experimentation until the gravity computation is fixed.
 
 ---
 

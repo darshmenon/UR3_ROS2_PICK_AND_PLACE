@@ -24,6 +24,7 @@
 #include <cmath>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <vector>
 
 #include <Eigen/Dense>

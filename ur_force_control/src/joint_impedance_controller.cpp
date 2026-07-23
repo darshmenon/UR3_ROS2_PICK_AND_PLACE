@@ -22,9 +22,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -58,6 +61,8 @@ public:
       "effort_limits", std::vector<double>{56.0, 56.0, 28.0, 12.0, 12.0, 12.0});
     publish_rate_hz_ = declare_parameter("publish_rate_hz", 200.0);
 
+    validateParameters();
+
     target_sub_ = create_subscription<std_msgs::msg::Float64MultiArray>(
       "/joint_impedance_controller/target_positions", 10,
       std::bind(&JointImpedanceController::targetCallback, this, std::placeholders::_1));
@@ -79,6 +84,7 @@ public:
 
     pinocchio::urdf::buildModel(robot_model_->getURDF(), pin_model_, /*verbose=*/false, /*mimic=*/false);
     pin_data_ = pinocchio::Data(pin_model_);
+    validateModelJoints();
 
     command_pub_ = create_publisher<std_msgs::msg::Float64MultiArray>(
       "/forward_command_controller_effort/commands", 10);
@@ -89,7 +95,7 @@ public:
 
     auto period = std::chrono::duration<double>(1.0 / publish_rate_hz_);
     timer_ = create_wall_timer(
-      std::chrono::duration_cast<std::chrono::milliseconds>(period),
+      std::chrono::duration_cast<std::chrono::nanoseconds>(period),
       std::bind(&JointImpedanceController::update, this));
 
     RCLCPP_INFO(
@@ -100,6 +106,52 @@ public:
   }
 
 private:
+  void validateParameters() const
+  {
+    if (joint_names_.empty()) {
+      throw std::runtime_error("joint_names must not be empty");
+    }
+    if (stiffness_.size() != joint_names_.size()) {
+      throw std::runtime_error("stiffness size must match joint_names size");
+    }
+    if (damping_.size() != joint_names_.size()) {
+      throw std::runtime_error("damping size must match joint_names size");
+    }
+    if (effort_limits_.size() != joint_names_.size()) {
+      throw std::runtime_error("effort_limits size must match joint_names size");
+    }
+    if (publish_rate_hz_ <= 0.0 || !std::isfinite(publish_rate_hz_)) {
+      throw std::runtime_error("publish_rate_hz must be finite and > 0");
+    }
+    for (size_t i = 0; i < joint_names_.size(); ++i) {
+      if (joint_names_[i].empty()) {
+        throw std::runtime_error("joint_names entries must not be empty");
+      }
+      if (!std::isfinite(stiffness_[i]) || stiffness_[i] < 0.0) {
+        throw std::runtime_error("stiffness values must be finite and >= 0");
+      }
+      if (!std::isfinite(damping_[i]) || damping_[i] < 0.0) {
+        throw std::runtime_error("damping values must be finite and >= 0");
+      }
+      if (!std::isfinite(effort_limits_[i]) || effort_limits_[i] <= 0.0) {
+        throw std::runtime_error("effort_limits values must be finite and > 0");
+      }
+    }
+  }
+
+  void validateModelJoints() const
+  {
+    for (const auto & joint_name : joint_names_) {
+      if (!robot_model_->hasJointModel(joint_name)) {
+        throw std::runtime_error("Joint '" + joint_name + "' not found in MoveIt robot model");
+      }
+      pinocchio::JointIndex jid = pin_model_.getJointId(joint_name);
+      if (jid >= static_cast<pinocchio::JointIndex>(pin_model_.njoints)) {
+        throw std::runtime_error("Joint '" + joint_name + "' not found in Pinocchio model");
+      }
+    }
+  }
+
   Eigen::VectorXd computeGravityTorque(const moveit::core::RobotState & state)
   {
     Eigen::VectorXd q_full = pinocchio::neutral(pin_model_);
@@ -126,6 +178,9 @@ private:
     Eigen::VectorXd g_arm(joint_names_.size());
     for (size_t i = 0; i < joint_names_.size(); ++i) {
       pinocchio::JointIndex jid = pin_model_.getJointId(joint_names_[i]);
+      if (jid >= static_cast<pinocchio::JointIndex>(pin_model_.njoints)) {
+        throw std::runtime_error("Joint '" + joint_names_[i] + "' not found in Pinocchio model");
+      }
       g_arm(i) = g_full(pin_model_.joints[jid].idx_v());
     }
     return g_arm;
@@ -164,6 +219,12 @@ private:
       RCLCPP_WARN(
         get_logger(), "target_positions expected %zu values, got %zu — ignoring",
         joint_names_.size(), msg->data.size());
+      return;
+    }
+    if (!std::all_of(msg->data.begin(), msg->data.end(), [](double value) {
+        return std::isfinite(value);
+      })) {
+      RCLCPP_WARN(get_logger(), "target_positions contains non-finite values — ignoring");
       return;
     }
     std::lock_guard<std::mutex> lock(target_mutex_);
