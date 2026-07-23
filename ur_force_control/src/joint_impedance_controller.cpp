@@ -60,6 +60,8 @@ public:
     effort_limits_ = declare_parameter(
       "effort_limits", std::vector<double>{56.0, 56.0, 28.0, 12.0, 12.0, 12.0});
     publish_rate_hz_ = declare_parameter("publish_rate_hz", 200.0);
+    debug_logging_ = declare_parameter("debug_logging", false);
+    debug_log_period_ms_ = declare_parameter("debug_log_period_ms", 200);
 
     validateParameters();
 
@@ -122,6 +124,9 @@ private:
     }
     if (publish_rate_hz_ <= 0.0 || !std::isfinite(publish_rate_hz_)) {
       throw std::runtime_error("publish_rate_hz must be finite and > 0");
+    }
+    if (debug_log_period_ms_ <= 0) {
+      throw std::runtime_error("debug_log_period_ms must be > 0");
     }
     for (size_t i = 0; i < joint_names_.size(); ++i) {
       if (joint_names_[i].empty()) {
@@ -283,15 +288,46 @@ private:
     }
 
     Eigen::VectorXd gravity = computeGravityTorque(state);
+    Eigen::VectorXd spring_term(joint_names_.size());
+    Eigen::VectorXd damping_term(joint_names_.size());
+    Eigen::VectorXd raw_tau(joint_names_.size());
+    Eigen::VectorXd clamped_tau(joint_names_.size());
+    bool saturated = false;
 
     std_msgs::msg::Float64MultiArray msg;
     msg.data.resize(joint_names_.size());
     for (size_t i = 0; i < joint_names_.size(); ++i) {
-      double tau = stiffness_[i] * (target(i) - q(i)) - damping_[i] * qdot(i) + gravity(i);
-      double limit = effort_limits_[i];
-      msg.data[i] = std::clamp(tau, -limit, limit);
+      spring_term(i) = stiffness_[i] * (target(i) - q(i));
+      damping_term(i) = -damping_[i] * qdot(i);
+      raw_tau(i) = spring_term(i) + damping_term(i) + gravity(i);
+      const double limit = effort_limits_[i];
+      clamped_tau(i) = std::clamp(raw_tau(i), -limit, limit);
+      saturated = saturated || (clamped_tau(i) != raw_tau(i));
+      msg.data[i] = clamped_tau(i);
     }
     command_pub_->publish(msg);
+
+    if (debug_logging_) {
+      RCLCPP_INFO_THROTTLE(
+        get_logger(), *get_clock(), debug_log_period_ms_,
+        "impedance_debug q=[%.4f %.4f %.4f %.4f %.4f %.4f] "
+        "qdot=[%.4f %.4f %.4f %.4f %.4f %.4f] "
+        "target=[%.4f %.4f %.4f %.4f %.4f %.4f] "
+        "gravity=[%.4f %.4f %.4f %.4f %.4f %.4f] "
+        "spring=[%.4f %.4f %.4f %.4f %.4f %.4f] "
+        "damping=[%.4f %.4f %.4f %.4f %.4f %.4f] "
+        "raw_tau=[%.4f %.4f %.4f %.4f %.4f %.4f] "
+        "cmd_tau=[%.4f %.4f %.4f %.4f %.4f %.4f] saturated=%s",
+        q(0), q(1), q(2), q(3), q(4), q(5),
+        qdot(0), qdot(1), qdot(2), qdot(3), qdot(4), qdot(5),
+        target(0), target(1), target(2), target(3), target(4), target(5),
+        gravity(0), gravity(1), gravity(2), gravity(3), gravity(4), gravity(5),
+        spring_term(0), spring_term(1), spring_term(2), spring_term(3), spring_term(4), spring_term(5),
+        damping_term(0), damping_term(1), damping_term(2), damping_term(3), damping_term(4), damping_term(5),
+        raw_tau(0), raw_tau(1), raw_tau(2), raw_tau(3), raw_tau(4), raw_tau(5),
+        clamped_tau(0), clamped_tau(1), clamped_tau(2), clamped_tau(3), clamped_tau(4), clamped_tau(5),
+        saturated ? "true" : "false");
+    }
   }
 
   std::vector<std::string> joint_names_;
@@ -299,6 +335,8 @@ private:
   std::vector<double> damping_;
   std::vector<double> effort_limits_;
   double publish_rate_hz_;
+  bool debug_logging_;
+  int debug_log_period_ms_;
 
   std::shared_ptr<MoveGroupInterface> move_group_;
   moveit::core::RobotModelConstPtr robot_model_;

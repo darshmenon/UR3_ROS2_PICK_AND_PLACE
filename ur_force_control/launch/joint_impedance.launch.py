@@ -18,6 +18,8 @@ def generate_launch_description():
                 "damping": [8.0, 8.0, 6.0, 1.5, 1.5, 1.5],
                 "effort_limits": [56.0, 56.0, 28.0, 12.0, 12.0, 12.0],
                 "publish_rate_hz": 200.0,
+                "debug_logging": False,
+                "debug_log_period_ms": 200,
                 "use_sim_time": True,
             }],
         ),

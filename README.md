@@ -450,9 +450,9 @@ ros2 topic pub --once /joint_impedance_controller/target_positions std_msgs/msg/
 ros2 control switch_controllers --deactivate forward_command_controller_effort --activate arm_controller
 ```
 
-Parameters: `joint_names`, `stiffness` (default `[80, 80, 60, 15, 15, 15]`), `damping` (default `[8, 8, 6, 1.5, 1.5, 1.5]`), `effort_limits` (default `[56, 56, 28, 12, 12, 12]`, matching `ur.ros2_control.xacro`), `publish_rate_hz` (`200.0`).
+Parameters: `joint_names`, `stiffness` (default `[80, 80, 60, 15, 15, 15]`), `damping` (default `[8, 8, 6, 1.5, 1.5, 1.5]`), `effort_limits` (default `[56, 56, 28, 12, 12, 12]`, matching `ur.ros2_control.xacro`), `publish_rate_hz` (`200.0`), `debug_logging` (`false`), `debug_log_period_ms` (`200`).
 
-**Known issue (unresolved):** live-tested in Gazebo Harmonic with stiffness and damping both set to zero — i.e. commanding pure gravity feedforward `g(q)` and nothing else — and the arm does not hold; it collapses faster than free-fall, with wrist joints spinning past ±2π into their limits. This means the Pinocchio gravity computation itself is producing wrong torque (wrong sign/magnitude), not just a gain-tuning issue. (The separate startup free-fall — arm dropping before any controller claims it — is fixed and verified: the arm now holds `initial_positions.yaml` rock-solid from spawn through controller activation.) Don't rely on this controller for anything beyond experimentation until the gravity computation is fixed.
+**Debugging note:** enable `debug_logging` for one controlled run to print `q`, `qdot`, `target`, `gravity`, spring torque, damping torque, raw torque, clamped command torque, and saturation state. This is intended for diagnosing sign/unit issues in the effort-control loop.
 
 ---
 
