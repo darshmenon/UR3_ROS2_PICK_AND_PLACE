@@ -4,9 +4,11 @@
  *
  * No wrist F/T sensor is modeled in this robot, so this estimates external force/torque
  * from joint torques via the Jacobian-transpose relationship: tau = J^T * F, solved as
- * F = pinv(J^T) * tau_ext, where tau_ext = measured joint effort minus the model's
+ * F = pinv(J^T) * tau_ext, where tau_ext = measured joint effort plus the model's
  * predicted gravity torque g(q) (computed via Pinocchio RNEA from the full-body URDF,
- * so gripper mass is accounted for too) minus an optional residual bias.
+ * so gripper mass is accounted for too) minus an optional residual bias. (g(q) is added,
+ * not subtracted: holding the arm still at rest requires commanded torque -g(q), so at
+ * equilibrium tau_measured == -g(q) and tau_ext = tau_measured + g(q) == 0.)
  *
  * Unlike a plain effort-threshold tare, this stays valid as the arm moves — g(q) is
  * recomputed every cycle from the live joint configuration, not fixed at a single pose.
@@ -189,7 +191,7 @@ private:
     if (bias.size() != tau.size()) {
       bias.setZero(tau.size());
     }
-    Eigen::VectorXd tau_ext = tau - gravity_arm - bias;
+    Eigen::VectorXd tau_ext = tau + gravity_arm - bias;
 
     Eigen::MatrixXd jacobian = state.getJacobian(jmg);
     Eigen::MatrixXd jacobian_t = jacobian.transpose();  // N x 6
@@ -223,7 +225,7 @@ private:
     contact.data = wrench.head<3>().norm() > force_threshold_n_;
     contact_pub_->publish(contact);
 
-    last_residual_ = tau - gravity_arm;
+    last_residual_ = tau + gravity_arm;
   }
 
   void zeroWrenchCallback(

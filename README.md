@@ -382,6 +382,8 @@ No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` est
 
 **Limitations:** `g(q)` is a rigid-body model, not a measurement — it doesn't capture joint friction or PID steady-state error, so a repeatable residual (observed up to ~25 N away from the idle pose in testing) remains even at rest; `/ft/zero_wrench` trims that residual at the current pose, but it's a per-pose correction, not a global fix. The damping also rolls off near kinematic singularities (this robot's idle pose sits at the UR wrist singularity, `wrist_2_joint ≈ 0`) instead of blowing up, but readings are less trustworthy there.
 
+**Fixed (2026-07-24):** `τ_ext` was computed as measured effort *minus* `g(q)`, the same sign bug found in `joint_impedance_controller` — corrected to measured effort *plus* `g(q)` to match. **Still unresolved:** live testing also found that `/joint_states` effort for these effort-interface joints doesn't reliably track the torque actually commanded through `forward_command_controller_effort` (seen off by up to ~15x with no consistent scale factor across joints) — likely a deeper gz_ros2_control state-readback issue that the sign fix alone can't correct, and probably a large contributor to the residual noted above. Needs further investigation before trusting absolute wrench values.
+
 **Topics:**
 
 | Topic | Type | Description |
