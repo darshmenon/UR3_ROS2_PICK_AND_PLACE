@@ -454,6 +454,8 @@ Parameters: `joint_names`, `stiffness` (default `[80, 80, 60, 15, 15, 15]`), `da
 
 **Debugging note:** enable `debug_logging` for one controlled run to print `q`, `qdot`, `target`, `gravity`, spring torque, damping torque, raw torque, clamped command torque, and saturation state. This is intended for diagnosing sign/unit issues in the effort-control loop.
 
+**Fixed (2026-07-24):** the gravity feedforward term was applied with the wrong sign (`+ gravity(q)` instead of `- gravity(q)`), so commanding pure gravity feedforward (stiffness and damping both zero) doubled the joints' downward acceleration instead of canceling it — the arm collapsed faster than free-fall, with wrist joints spinning past ±2π into their limits. Verified live in Gazebo Harmonic: with the corrected sign, the arm now holds its pose under zero stiffness/damping (drift <0.001 rad over several seconds).
+
 ---
 
 ## Behavior Tree Task Planner (`ur_bt_planner`)

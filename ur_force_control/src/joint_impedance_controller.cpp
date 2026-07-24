@@ -1,6 +1,6 @@
 /**
  * @file joint_impedance_controller.cpp
- * @brief Joint-space impedance control for the arm: tau = K*(q_des - q) - D*qdot + g(q).
+ * @brief Joint-space impedance control for the arm: tau = K*(q_des - q) - D*qdot - g(q).
  *
  * Requires the arm to be in effort command mode first:
  *   ros2 control switch_controllers --deactivate arm_controller \
@@ -299,7 +299,7 @@ private:
     for (size_t i = 0; i < joint_names_.size(); ++i) {
       spring_term(i) = stiffness_[i] * (target(i) - q(i));
       damping_term(i) = -damping_[i] * qdot(i);
-      raw_tau(i) = spring_term(i) + damping_term(i) + gravity(i);
+      raw_tau(i) = spring_term(i) + damping_term(i) - gravity(i);
       const double limit = effort_limits_[i];
       clamped_tau(i) = std::clamp(raw_tau(i), -limit, limit);
       saturated = saturated || (clamped_tau(i) != raw_tau(i));
