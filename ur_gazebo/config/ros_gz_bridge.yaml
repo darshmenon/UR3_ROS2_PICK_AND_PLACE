@@ -22,6 +22,32 @@
   direction: GZ_TO_ROS
   lazy: true
 
+# Wrist-mounted camera (only present when spawned with wrist_camera:=true).
+# Link path is a guess pending empirical verification against `gz topic -l` —
+# fixed joints between wrist_3_link and camera_wrist_link get reduced by
+# SDFormat same as the head camera was reduced into base_link, unless
+# disableFixedJointLumping is set (it is, on tool0_to_camera_wrist_link).
+- ros_topic_name: "camera_wrist/depth/camera_info"
+  gz_topic_name: "/world/default/model/ur/link/wrist_3_link/sensor/camera_wrist/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+  lazy: true
+
+- ros_topic_name: "camera_wrist/camera_info"
+  gz_topic_name: "/world/default/model/ur/link/wrist_3_link/sensor/camera_wrist/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+  lazy: true
+
+- ros_topic_name: "camera_wrist/depth/color/points"
+  gz_topic_name: "/world/default/model/ur/link/wrist_3_link/sensor/camera_wrist/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+  lazy: true
+
 - ros_topic_name: "/clock"
   gz_topic_name: "/clock"
   ros_type_name: "rosgraph_msgs/msg/Clock"

@@ -5,6 +5,7 @@ This launch file sets up a complete ROS 2 simulation environment with Gazebo.
 """
 
 import os
+import sys
 from launch import LaunchDescription
 from launch.actions import (
     AppendEnvironmentVariable,
@@ -44,8 +45,21 @@ def generate_launch_description():
     ur_description_share = FindPackageShare(package=ur_description_pkg).find(ur_description_pkg)
     moveit_config_share = FindPackageShare(package=moveit_config_pkg).find(moveit_config_pkg)
 
+    # wrist_camera must be resolved here (not via LaunchConfiguration) because
+    # MoveItConfigsBuilder.robot_description_semantic() reads srdf_path
+    # immediately at description-generation time, before any substitution
+    # gets resolved at launch runtime.
+    _wrist_camera_arg = next(
+        (a.split(":=", 1)[1] for a in sys.argv if a.startswith("wrist_camera:=")),
+        "false",
+    )
+    use_wrist_camera = _wrist_camera_arg.strip().lower() == "true"
+
     # File Path Configuration
-    srdf_path = os.path.join(moveit_config_share, "config", "ur.srdf.xacro")
+    srdf_path = os.path.join(
+        moveit_config_share, "config",
+        "ur_wrist_cam.srdf.xacro" if use_wrist_camera else "ur.srdf.xacro",
+    )
     moveit_controllers_path = os.path.join(moveit_config_share, "config", "moveit_controllers.yaml")
     moveit_controllers_onrobot_path = os.path.join(moveit_config_share, "config", "moveit_controllers_onrobot.yaml")
     joint_limits_path = os.path.join(moveit_config_share, "config", "joint_limits.yaml")
@@ -74,6 +88,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     robot_name = LaunchConfiguration('robot_name')
     gripper = LaunchConfiguration('gripper')
+    table_height = LaunchConfiguration('table_height')
 
     # Declare launch arguments
     declared_arguments = [
@@ -95,6 +110,21 @@ def generate_launch_description():
         DeclareLaunchArgument("use_rviz", default_value="true", description="Launch RViz2"),
         DeclareLaunchArgument("use_move_group", default_value="true", description="Launch move_group node"),
         DeclareLaunchArgument("use_gazebo_gui", default_value="true", description="Launch Gazebo with the GUI client"),
+        DeclareLaunchArgument(
+            "table_height",
+            default_value="1.015",
+            description="Height (m) the arm's base is raised above the world origin, "
+                         "to sit flush on top of the mount_table model's surface "
+                         "(top face, not the surface collision's center pose). "
+                         "Set to 0.0 if the world doesn't include mount_table.",
+        ),
+        DeclareLaunchArgument(
+            "wrist_camera",
+            default_value="false",
+            description="Mount the D435 on the wrist (tool0, eye-in-hand) instead of "
+                         "the fixed head stand. Publishes on /camera_wrist/* instead "
+                         "of /camera_head/*.",
+        ),
     ]
 
     # Create launch description
@@ -108,7 +138,10 @@ def generate_launch_description():
     ))
     
     # Use pkg_share_description for the URDF xacro file
-    urdf_xacro_path = os.path.join(moveit_config_share, "config", "ur.urdf.xacro")
+    urdf_xacro_path = os.path.join(
+        moveit_config_share, "config",
+        "ur_wrist_cam.urdf.xacro" if use_wrist_camera else "ur.urdf.xacro",
+    )
 
     robot_description_content = Command([
         PathJoinSubstitution([FindExecutable(name="xacro")]),
@@ -117,6 +150,9 @@ def generate_launch_description():
         " ",
         "gripper:=",
         gripper,
+        " ",
+        "table_height:=",
+        table_height,
     ])
 
     robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
@@ -269,7 +305,12 @@ def generate_launch_description():
 
     # Start Gazebo ROS Bridge
     # Ignition sensor topics use the full world/model/link path
-    _gz_cam = '/world/default/model/ur/link/base_link/sensor/camera_head'
+    if use_wrist_camera:
+        _gz_cam = '/world/default/model/ur/link/wrist_3_link/sensor/camera_wrist'
+        _cam_ns = 'camera_wrist'
+    else:
+        _gz_cam = '/world/default/model/ur/link/base_link/sensor/camera_head'
+        _cam_ns = 'camera_head'
     start_gazebo_ros_image_bridge_cmd = Node(
         package='ros_gz_image',
         executable='image_bridge',
@@ -278,8 +319,8 @@ def generate_launch_description():
             f'{_gz_cam}/image',
         ],
         remappings=[
-            (f'{_gz_cam}/depth_image', '/camera_head/depth/image_rect_raw'),
-            (f'{_gz_cam}/image',       '/camera_head/color/image_raw'),
+            (f'{_gz_cam}/depth_image', f'/{_cam_ns}/depth/image_rect_raw'),
+            (f'{_gz_cam}/image',       f'/{_cam_ns}/color/image_raw'),
         ],
     )
 

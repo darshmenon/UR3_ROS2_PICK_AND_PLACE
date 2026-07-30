@@ -16,7 +16,7 @@ Publishes
 
 Subscribes
 ──────────
-  /camera_head/depth/color/points   sensor_msgs/PointCloud2
+  <camera_topic>   sensor_msgs/PointCloud2   (default /camera_wrist/depth/color/points)
 
 Services
 ────────
@@ -25,9 +25,21 @@ Services
 
 Parameters
 ──────────
-  colour        (str,  default "any")  target colour filter
-  backend       (str,  default "auto") "simple_grasping" | "numpy" | "auto"
-  min_confidence (float, default 0.2)  discard candidates below this
+  colour             (str,   default "any")  target colour filter
+  backend             (str,   default "auto") "simple_grasping" | "numpy" | "auto"
+  min_confidence      (float, default 0.2)    discard candidates below this
+  camera_topic        (str,   default "/camera_wrist/depth/color/points")
+                       point cloud topic to detect from. Use
+                       "/camera_head/depth/color/points" for the fixed
+                       head-mounted camera instead.
+  continuous_detect_hz (float, default 0.0)   if > 0, re-run detection on a
+                       timer at this rate and keep /ur_grasp/grasp_pose
+                       updated automatically — the useful mode when the
+                       camera is wrist-mounted, since the object's apparent
+                       position in the point cloud changes as the arm
+                       approaches (this is what makes servo_node's PBVS loop
+                       actually closed-loop against live perception instead
+                       of a single frozen detection).
 
 Usage
 ─────
@@ -44,6 +56,8 @@ Usage
 
 import threading
 from typing import Optional
+
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -66,10 +80,14 @@ class GraspNode(Node):
         self.declare_parameter("colour",         "any")
         self.declare_parameter("backend",        "auto")
         self.declare_parameter("min_confidence", 0.20)
+        self.declare_parameter("camera_topic",   "/camera_wrist/depth/color/points")
+        self.declare_parameter("continuous_detect_hz", 0.0)
 
         self._colour     = self.get_parameter("colour").value
         self._backend    = self.get_parameter("backend").value
         self._min_conf   = self.get_parameter("min_confidence").value
+        self._camera_topic = self.get_parameter("camera_topic").value
+        self._continuous_hz = self.get_parameter("continuous_detect_hz").value
 
         # ── state ────────────────────────────────────────────────────────────
         self._latest_cloud: Optional[PointCloud2] = None
@@ -106,7 +124,7 @@ class GraspNode(Node):
         # ── pub / sub / srv ──────────────────────────────────────────────────
         self._cloud_sub = self.create_subscription(
             PointCloud2,
-            "/camera_head/depth/color/points",
+            self._camera_topic,
             self._cloud_cb,
             rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
         )
@@ -115,9 +133,17 @@ class GraspNode(Node):
 
         self._detect_srv = self.create_service(Trigger, "/ur_grasp/detect", self._detect_cb)
 
+        self._continuous_timer = None
+        if self._continuous_hz > 0.0:
+            self._continuous_timer = self.create_timer(
+                1.0 / self._continuous_hz, self._continuous_detect_cb
+            )
+
         self.get_logger().info(
             f"GraspNode ready — colour={self._colour}  backend="
-            f"{'simple_grasping' if self._use_simple_grasping else 'numpy'}"
+            f"{'simple_grasping' if self._use_simple_grasping else 'numpy'}  "
+            f"camera_topic={self._camera_topic}  "
+            f"continuous_detect_hz={self._continuous_hz}"
         )
 
     # ── callbacks ─────────────────────────────────────────────────────────────
@@ -130,20 +156,13 @@ class GraspNode(Node):
         """Trigger service — run detection and return summary."""
         self.get_logger().info("Detection requested...")
 
-        if self._use_simple_grasping:
-            grasp = self._detect_simple_grasping()
-        else:
-            grasp = self._detect_numpy()
+        grasp = self._run_detection()
 
         if grasp is None:
             response.success = False
             response.message = "No graspable object detected"
             self.get_logger().warn(response.message)
             return response
-
-        self._last_grasp = grasp
-        self._pose_pub.publish(grasp)
-        self._publish_marker(grasp)
 
         px = grasp.pose.position
         response.success = True
@@ -153,6 +172,32 @@ class GraspNode(Node):
         )
         self.get_logger().info(response.message)
         return response
+
+    def _continuous_detect_cb(self):
+        """Timer callback — re-run detection and republish, no service response.
+
+        This is what turns wrist-camera perception into an actual closed
+        loop: the object's position in the point cloud shifts as the arm
+        servos toward it, so grasp_pose needs to keep tracking that instead
+        of being set once from the first frame.
+        """
+        self._run_detection(log_failures=False)
+
+    def _run_detection(self, log_failures: bool = True) -> Optional[PoseStamped]:
+        if self._use_simple_grasping:
+            grasp = self._detect_simple_grasping()
+        else:
+            grasp = self._detect_numpy()
+
+        if grasp is None:
+            if log_failures:
+                self.get_logger().warn("No graspable object detected")
+            return None
+
+        self._last_grasp = grasp
+        self._pose_pub.publish(grasp)
+        self._publish_marker(grasp)
+        return grasp
 
     # ── backends ──────────────────────────────────────────────────────────────
 
@@ -168,7 +213,21 @@ class GraspNode(Node):
             return None
 
         cloud = decode_pointcloud2(cloud_msg)
-        candidate = estimate_cylinder_grasp(cloud, colour=self._colour)
+        if cloud is None:
+            self.get_logger().warn("Point cloud decoded to zero points.")
+            return None
+
+        # estimate_cylinder_grasp()'s Z/XY thresholds are base_link-frame
+        # workspace bounds (table height, reach radius) — the cloud must be
+        # transformed into base_link *before* filtering, not after picking a
+        # candidate. Filtering camera-frame coordinates against those bounds
+        # silently rejects every real point (camera Z is depth, not height).
+        cloud = self._transform_cloud_to_base(cloud, cloud_msg.header.frame_id)
+        if cloud is None:
+            return None
+
+        colour = self.get_parameter("colour").value
+        candidate = estimate_cylinder_grasp(cloud, colour=colour)
 
         if candidate is None:
             return None
@@ -186,9 +245,7 @@ class GraspNode(Node):
             f"conf={candidate.confidence:.2f}  pts={candidate.n_points}"
         )
 
-        pose_in_cloud = self._make_pose(candidate.x, candidate.y, candidate.grasp_z,
-                                        cloud_msg.header.frame_id)
-        return self._transform_to_base(pose_in_cloud)
+        return self._make_pose(candidate.x, candidate.y, candidate.grasp_z, "base_link")
 
     def _detect_simple_grasping(self) -> Optional[PoseStamped]:
         """Use simple_grasping FindObjects action server."""
@@ -239,6 +296,35 @@ class GraspNode(Node):
         return pose
 
     # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _transform_cloud_to_base(self, cloud, source_frame: str):
+        """Transform an (N,6) [x,y,z,r,g,b] cloud's XYZ columns into base_link."""
+        if source_frame == "base_link":
+            return cloud
+        try:
+            transform = self._tf_buffer.lookup_transform(
+                "base_link", source_frame,
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.5),
+            )
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException) as e:
+            self.get_logger().warn(f"TF {source_frame}->base_link failed: {e}")
+            return None
+
+        q = transform.transform.rotation
+        t = transform.transform.translation
+        x2, y2, z2, w2 = q.x * q.x, q.y * q.y, q.z * q.z, q.w * q.w
+        R = np.array([
+            [x2 - y2 - z2 + w2,       2 * (q.x * q.y - q.z * q.w), 2 * (q.x * q.z + q.y * q.w)],
+            [2 * (q.x * q.y + q.z * q.w), -x2 + y2 - z2 + w2,      2 * (q.y * q.z - q.x * q.w)],
+            [2 * (q.x * q.z - q.y * q.w), 2 * (q.y * q.z + q.x * q.w), -x2 - y2 + z2 + w2],
+        ])
+        translation = np.array([t.x, t.y, t.z])
+
+        transformed = cloud.copy()
+        transformed[:, :3] = cloud[:, :3] @ R.T + translation
+        return transformed
 
     def _transform_to_base(self, pose: PoseStamped) -> Optional[PoseStamped]:
         if pose.header.frame_id == "base_link":
