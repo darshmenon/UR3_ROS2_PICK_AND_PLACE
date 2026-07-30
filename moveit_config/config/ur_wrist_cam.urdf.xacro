@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ur">
+    <!-- Copy of ur.urdf.xacro with the D435 mounted on the wrist (tool0)
+         instead of the fixed torso stand. See
+         ur_description/urdf/intel_rgbd_cam_d435_wrist.urdf.xacro -->
+    <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+    <xacro:arg name="use_gazebo" default="true"/> <!-- Added missing argument -->
+    <xacro:arg name="robot_name" default="ur"/>
+    <xacro:arg name="gripper" default="robotiq_2f_85"/>
+    <xacro:arg name="name" default="ur"/>
+    <xacro:arg name="ur_type" default="ur3"/>
+    <xacro:arg name="tf_prefix" default=""/>
+    <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
+    <xacro:arg name="kinematics_params" default="$(find ur_description)/config/$(arg ur_type)/default_kinematics.yaml"/>
+    <xacro:arg name="physical_params" default="$(find ur_description)/config/$(arg ur_type)/physical_parameters.yaml"/>
+    <xacro:arg name="visual_params" default="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml"/>
+    <xacro:arg name="safety_limits" default="false"/>
+    <xacro:arg name="safety_pos_margin" default="0.15"/>
+    <xacro:arg name="safety_k_position" default="20"/>
+    <xacro:arg name="force_abs_paths" default="false"/>
+    <xacro:arg name="table_height" default="0.0"/>
+
+    <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro" />
+    <xacro:include filename="$(find moveit_config)/config/ur.ros2_control.xacro" />
+    <xacro:include filename="$(find ur_description)/urdf/gazebo_sim_ros2_control.urdf.xacro" />
+
+    <xacro:property name="selected_gripper" value="$(arg gripper)"/>
+    <xacro:property name="controllers_file" value="$(find moveit_config)/config/ros2_controllers.yaml"/>
+    <xacro:if value="${selected_gripper == 'onrobot_rg2' or selected_gripper == 'onrobot_rg6'}">
+      <xacro:property name="controllers_file" value="$(find moveit_config)/config/ros2_controllers_onrobot.yaml"/>
+    </xacro:if>
+
+    <link name="world" />
+
+    <xacro:ur_robot
+      name="$(arg name)"
+      tf_prefix="$(arg tf_prefix)"
+      parent="world"
+      joint_limits_parameters_file="$(arg joint_limit_params)"
+      kinematics_parameters_file="$(arg kinematics_params)"
+      physical_parameters_file="$(arg physical_params)"
+      visual_parameters_file="$(arg visual_params)"
+      safety_limits="$(arg safety_limits)"
+      safety_pos_margin="$(arg safety_pos_margin)"
+      safety_k_position="$(arg safety_k_position)"
+      force_abs_paths="$(arg force_abs_paths)"
+      gripper="$(arg gripper)">
+      <origin xyz="0 0 $(arg table_height)" rpy="0 0 0" />
+    </xacro:ur_robot>
+
+    <gazebo>
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <xacro:ur_ros2_control
+      name="ur"
+      initial_positions_file="$(find moveit_config)/config/initial_positions.yaml"
+      gripper="$(arg gripper)"/>
+    <xacro:load_gazebo_sim_ros2_control_plugin
+      robot_name="$(arg robot_name)"
+      use_gazebo="$(arg use_gazebo)"
+      controllers_file="${controllers_file}"/>
+
+    <xacro:include filename="$(find ur_description)/urdf/intel_rgbd_cam_d435_wrist.urdf.xacro"/>
+</robot>

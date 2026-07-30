@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:arg name="use_camera" default="true"/>
+  <xacro:arg name="use_gazebo" default="true"/>
+  <xacro:arg name="prefix" default=""/>
+
+  <xacro:if value="${'true' == '$(arg use_camera)' and 'true' == '$(arg use_gazebo)'}">
+
+    <xacro:property name="M_PI" value="3.1415926535897931" />
+
+    <xacro:property name="d435_cam_width" value="0.090"/>
+    <xacro:property name="d435_cam_height" value="0.025"/>
+    <xacro:property name="d435_cam_depth" value="0.02505"/>
+
+    <xacro:property name="d435_cam_depth_to_infra1_offset" value="0.0"/>
+    <xacro:property name="d435_cam_depth_to_infra2_offset" value="-0.050"/>
+    <xacro:property name="d435_cam_depth_to_color_offset" value="0.015"/>
+
+    <!-- Eye-in-hand mount, off tool0. Tune these to adjust the mount without
+         touching the joint math below: offset places the camera beside the
+         gripper body, tilt/yaw re-aim it at the TCP so the fingers don't
+         block the center of frame. Starting guess only - verify in RViz. -->
+    <xacro:property name="wrist_cam_offset_y" value="0.055"/>
+    <xacro:property name="wrist_cam_offset_z" value="-0.02"/>
+    <xacro:property name="wrist_cam_tilt_deg" value="20"/>
+    <xacro:property name="wrist_cam_yaw_deg" value="-15"/>
+
+    <joint name="$(arg prefix)tool0_to_camera_wrist_link" type="fixed">
+      <parent link="$(arg prefix)tool0"/>
+      <child link="camera_wrist_link" />
+      <origin xyz="0 ${wrist_cam_offset_y} ${wrist_cam_offset_z}"
+              rpy="0.0 ${-M_PI/2 + wrist_cam_tilt_deg * M_PI / 180} ${wrist_cam_yaw_deg * M_PI / 180}"/>
+      <!-- Without this, SDFormat lumps this fixed joint's link into
+           wrist_3_link during URDF->SDF reduction (same as every other
+           fixed joint between wrist_3_link and tool0), and the camera
+           sensor ends up attached under the wrong gz link/topic path. -->
+      <gazebo><disableFixedJointLumping>true</disableFixedJointLumping></gazebo>
+    </joint>
+
+    <link name="camera_wrist_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${M_PI/2} 0.0 ${M_PI/2}"/>
+        <geometry>
+          <mesh filename="file://$(find ur_description)/meshes/d435/visual/d435.stl" />
+        </geometry>
+        <material name="aluminum">
+          <color rgba="0.5 0.5 0.5 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="${d435_cam_depth} ${d435_cam_width} ${d435_cam_height}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.072" />
+        <origin xyz="0 0 0" />
+        <inertia ixx="0.003881243" ixy="0.0" ixz="0.0" iyy="0.000498940" iyz="0.0" izz="0.003879257" />
+      </inertial>
+    </link>
+
+    <joint name="camera_wrist_depth_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <parent link="camera_wrist_link"/>
+      <child link="camera_wrist_depth_frame" />
+    </joint>
+    <link name="camera_wrist_depth_frame"/>
+
+    <joint name="camera_wrist_depth_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-M_PI/2} 0 ${-M_PI/2}" />
+      <parent link="camera_wrist_depth_frame" />
+      <child link="camera_wrist_depth_optical_frame" />
+    </joint>
+    <link name="camera_wrist_depth_optical_frame"/>
+
+    <joint name="camera_wrist_infra1_joint" type="fixed">
+      <origin xyz="0 ${d435_cam_depth_to_infra1_offset} 0" rpy="0 0 0" />
+      <parent link="camera_wrist_link" />
+      <child link="camera_wrist_infra1_frame" />
+    </joint>
+    <link name="camera_wrist_infra1_frame"/>
+
+    <joint name="camera_wrist_infra1_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-M_PI/2} 0 ${-M_PI/2}" />
+      <parent link="camera_wrist_infra1_frame" />
+      <child link="camera_wrist_infra1_optical_frame" />
+    </joint>
+    <link name="camera_wrist_infra1_optical_frame"/>
+
+    <joint name="camera_wrist_infra2_joint" type="fixed">
+      <origin xyz="0 ${d435_cam_depth_to_infra2_offset} 0" rpy="0 0 0" />
+      <parent link="camera_wrist_link" />
+      <child link="camera_wrist_infra2_frame" />
+    </joint>
+    <link name="camera_wrist_infra2_frame"/>
+
+    <joint name="camera_wrist_infra2_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-M_PI/2} 0 ${-M_PI/2}" />
+      <parent link="camera_wrist_infra2_frame" />
+      <child link="camera_wrist_infra2_optical_frame" />
+    </joint>
+    <link name="camera_wrist_infra2_optical_frame"/>
+
+    <joint name="camera_wrist_color_joint" type="fixed">
+      <origin xyz="0 ${d435_cam_depth_to_color_offset} 0" rpy="0 0 0" />
+      <parent link="camera_wrist_link" />
+      <child link="camera_wrist_color_frame" />
+    </joint>
+    <link name="camera_wrist_color_frame"/>
+
+    <joint name="camera_wrist_color_optical_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${-M_PI/2} 0 ${-M_PI/2}" />
+      <parent link="camera_wrist_color_frame" />
+      <child link="camera_wrist_color_optical_frame" />
+    </joint>
+    <link name="camera_wrist_color_optical_frame"/>
+
+<gazebo reference="camera_wrist_link">
+  <sensor name="camera_wrist" type="rgbd_camera">
+    <camera>
+      <horizontal_fov>1.5184</horizontal_fov>
+      <image>
+        <width>424</width>
+        <height>240</height>
+      </image>
+      <clip>
+        <near>0.05</near>
+        <far>1.5</far>
+      </clip>
+    </camera>
+    <always_on>1</always_on>
+    <update_rate>10</update_rate>
+    <gz_frame_id>camera_wrist_link</gz_frame_id>
+    <output>
+      <image>true</image>
+      <depth_image>true</depth_image>
+      <point_cloud>true</point_cloud>
+    </output>
+    <visualize>true</visualize>
+  </sensor>
+</gazebo>
+
+  </xacro:if>
+</robot>
