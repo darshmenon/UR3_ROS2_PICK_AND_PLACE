@@ -136,6 +136,9 @@ ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=onrobot_rg2
 
 # OnRobot RG6
 ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=onrobot_rg6
+
+# Wrist-mounted camera (eye-in-hand) instead of the fixed head camera
+ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
 ```
 
 ---
@@ -547,12 +550,20 @@ The following features are actively being developed and are not yet fully integr
 
 ### Grasp Detection (`ur_grasp`)
 
-Point-cloud grasp estimation for tabletop objects from the Intel D435 depth stream.
+Point-cloud grasp estimation for tabletop objects from the Intel D435 depth stream. Note: `camera_head` is **not** a wrist/eye-in-hand camera — it's a simulated D435 fixed to a stand bolted to `base_link` (`ur_description/urdf/intel_rgbd_cam_d435.urdf.xacro`), so it doesn't move with the arm.
 
-Verified in this workspace:
+Verified live in Gazebo Harmonic (2026-07-30), full chain: camera → point cloud → colour-filtered centroid detection → base_link pose → visual servo → gripper close.
 
-- package imports successfully after `source install/setup.bash`
-- installed executable: `ros2 run ur_grasp grasp_node`
+- camera publishes real RGB, depth, and `PointCloud2` data (`/camera_head/color/image_raw`, `/camera_head/depth/image_rect_raw`, `/camera_head/depth/color/points`) at ~3-6 Hz
+- `colour:=red` detection now returns an accurate `base_link`-frame pose (verified against Gazebo's ground-truth object pose, error < 2 cm)
+
+**Fixed (2026-07-30):**
+- `cylinder_grasp_detector.decode_pointcloud2` crashed `grasp_node` on every real detection request — `sensor_msgs_py.point_cloud2.read_points()` returns a structured numpy array on this ROS distro, and casting it straight to `float32` raised `TypeError`, killing the node. Switched to `read_points_numpy()`.
+- `grasp_node`'s `colour` parameter was cached once in `__init__` and never re-read, so `ros2 param set /grasp_node colour red` (as documented below) silently had no effect. Now re-read from the parameter server on every detection.
+- The real reason detection found nothing even with the colour fix: `estimate_cylinder_grasp()`'s workspace filters (table height, reach radius) are documented as base_link-frame bounds, but `grasp_node` ran them on the raw camera-frame cloud *before* transforming to base_link — camera-frame Z is depth, not height, so every real point was rejected. `grasp_node` now transforms the whole cloud to `base_link` first.
+- `camera_tilt_angle_deg` in the D435 xacro was `25`, aiming the camera mostly at the far wall/floor — the table and object were outside its vertical FOV. Raised to `55` so the workspace is actually in frame (confirmed visually by dumping a camera frame to PNG).
+
+**Known limitation (2026-07-30):** the visual servo (`ur_visual_servo`) and final-descent grasp track `tool0`'s position and treat it as the grasp point, but the Robotiq 2F-85's actual fingertip is offset from `tool0` by the gripper's mount geometry. In testing, the arm reached the correct grasp *height* but the fingertips closed ~0.12 m away in X/Y from the object — the gripper closes on air and `/visual_servo/status` reports "grasp complete" even though nothing was picked up. Not yet fixed; needs the servo/grasp code to target the actual gripper TCP frame (or use MoveIt's configured tip link) instead of `tool0`.
 
 Launch:
 
@@ -578,6 +589,61 @@ Healthy signs:
 - publishes `/ur_grasp/grasp_marker` for RViz
 - falls back to the built-in numpy centroid detector if `simple_grasping` is not installed
 - warns and returns no grasp if a point cloud has not arrived yet
+
+#### Wrist-Mounted Camera Option (2026-07-30)
+
+A second D435 mount is available, bolted to `tool0` (eye-in-hand) instead of
+the fixed head stand described above:
+
+- `ur_description/urdf/intel_rgbd_cam_d435_wrist.urdf.xacro` — the camera itself
+- `ur_description/urdf/ur_wrist_cam.urdf.xacro`, `moveit_config/config/ur_wrist_cam.{urdf,srdf}.xacro` — full-robot variants that include it instead of the head camera (the originals are untouched)
+- publishes on `/camera_wrist/*` (same topic shapes as `/camera_head/*`)
+
+Launch with it instead of the head camera:
+
+```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
+```
+
+`grasp_node` can target either camera via a parameter (default is now the
+wrist camera):
+
+```bash
+ros2 launch ur_grasp grasp_detection.launch.py colour:=red \
+  camera_topic:=/camera_wrist/depth/color/points \
+  continuous_detect_hz:=0.0
+```
+
+Verified live (2026-07-30): the sensor is correctly attached under
+`wrist_3_link` in the gz scene graph (fixed-joint lumping disabled on that
+joint specifically, matching the pattern already used for the gripper
+joint), and `/camera_wrist/depth/color/points` / `color/image_raw` stream
+real data. Detection itself works well (100% confidence, 3000+ points)
+**once the arm is already posed so the wrist camera can see the table** —
+from the arm's default home pose the wrist camera only sees the gripper
+itself, since it's rigidly mounted a few cm from it. This is a real
+eye-in-hand geometry constraint, not a bug: a wrist camera can't bootstrap
+detection from an arbitrary pose the way a fixed head camera can.
+
+Two more findings from testing the full servo loop with this camera:
+
+- `continuous_detect_hz > 0` (re-detecting every camera frame during the
+  approach) is **not stable yet** — as the arm gets closer, the box's
+  framing/point count in view changes a lot, and the recomputed grasp pose
+  drifted several cm between frames. That moving target sent the servo loop
+  into a wrong IK branch and it drove away from the object instead of
+  converging. Leave `continuous_detect_hz:=0.0` (one-shot detection, frozen
+  target) for now.
+- Separately, even with a frozen target, `servo_node`'s incremental-step PBVS
+  loop plateaus a few cm short of the target and hits `max_iterations`
+  without ever closing the gap — the final direct "descend to grasp" jump
+  (which isn't constrained to a small step from the previous pose) still
+  reaches the correct pose fine. This looks like IK-branch jumping between
+  successive tiny Cartesian steps, not anything camera-specific.
+- The final grasp itself did not succeed (verified by commanding the arm to
+  lift afterward — the box stayed on the table) — consistent with the
+  tool0-vs-actual-fingertip offset already logged as a known limitation
+  above, reproduced here via the wrist camera path too.
 
 ### Vision-Based Perception (`ur_perception`)
 
