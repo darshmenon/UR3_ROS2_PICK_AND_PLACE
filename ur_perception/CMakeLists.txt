@@ -45,6 +45,7 @@ find_package(Eigen3 REQUIRED)
 ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   ur_perception/object_detector_node.py
+  ur_perception/object_reconstructor_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -662,6 +662,39 @@ Watch detections:
 ros2 topic echo /detected_objects
 ```
 
+#### Multi-View 3D Reconstruction (2026-07-30)
+
+`object_reconstructor_node` fuses point cloud frames from a moving camera into
+a single accumulated cloud, using TF (not ICP) for registration — the wrist
+camera's pose relative to `base_link` is already known exactly from forward
+kinematics, so each frame just gets transformed into `base_link` and merged
+into a voxel grid. Moving the arm around an object fills in the occlusions any
+single fixed viewpoint would miss.
+
+```bash
+source install/setup.bash
+ros2 launch ur_perception reconstruct.launch.py \
+  camera_topic:=/camera_wrist/depth/color/points \
+  roi_radius:=0.20 \
+  save_path:=/tmp/object.ply
+
+ros2 service call /ur_perception/reconstruct/start std_srvs/srv/Trigger {}
+# ...move the arm / let the wrist camera sweep the object...
+ros2 service call /ur_perception/reconstruct/stop std_srvs/srv/Trigger {}
+```
+
+Live fused cloud publishes on `/ur_perception/reconstructed_points`
+(`base_link` frame) while accumulating, viewable in RViz.
+
+Verified live (2026-07-30): swept the arm through 5 waypoints around the red
+box with the wrist camera, accumulated 154 frames into 35k voxels, and wrote a
+valid ASCII PLY (`open(path).readlines()` + point count round-tripped
+correctly). The `roi_radius` filter is a plain sphere around either a fixed
+`roi_center` param or the last `/ur_grasp/grasp_pose` (auto-recenters if
+`ur_grasp` is running) — it keeps the table and any nearby clutter in frame
+too, not just the target object, so don't expect an isolated single-object
+mesh out of the box.
+
 Run the node directly:
 
 ```bash
