@@ -23,6 +23,9 @@
   <depend>ur_interfaces</depend>
   <depend>ur_grasp</depend>
   <depend>std_srvs</depend>
+  <depend>python3-scipy</depend>
+  <depend>ament_index_python</depend>
+  <exec_depend>rviz2</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

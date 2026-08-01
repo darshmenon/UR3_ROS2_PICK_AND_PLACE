@@ -73,7 +73,8 @@ def _rgb_to_hsv(r: np.ndarray, g: np.ndarray, b: np.ndarray):
     h[mr] = (60 * ((g[mr] - b[mr]) / df[mr]) % 360) / 360
     h[mg] = (60 * ((b[mg] - r[mg]) / df[mg] + 2)) / 360
     h[mb] = (60 * ((r[mb] - g[mb]) / df[mb] + 4)) / 360
-    s = np.where(mx > 0, df / mx, 0.0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        s = np.where(mx > 0, df / mx, 0.0)
     v = mx
     return h, s, v
 
@@ -102,6 +103,11 @@ def _colour_mask(rgb: np.ndarray, colour: str) -> np.ndarray:
     return mask
 
 
+def colour_mask(rgb: np.ndarray, colour: str) -> np.ndarray:
+    """Public alias for HSV colour filtering of an (N,3) RGB uint8 cloud."""
+    return _colour_mask(rgb, colour)
+
+
 def decode_pointcloud2(msg) -> Optional[np.ndarray]:
     """
     Decode a sensor_msgs/PointCloud2 → (N, 6) float32 array [x,y,z,r,g,b].
@@ -112,11 +118,20 @@ def decode_pointcloud2(msg) -> Optional[np.ndarray]:
     except ImportError:
         raise ImportError("sensor_msgs_py not available — install ros-humble-sensor-msgs-py")
 
-    pts = list(pc2.read_points(msg, field_names=("x", "y", "z", "rgb"), skip_nans=True))
-    if not pts:
+    # read_points() returns a structured array (named fields); cast straight to
+    # float32 fails on it. read_points_numpy() gives a plain (N,4) float array
+    # since x/y/z/rgb all share the FLOAT32 PointField datatype here.
+    arr = pc2.read_points_numpy(msg, field_names=("x", "y", "z", "rgb"), skip_nans=True)
+    if arr is None or len(arr) == 0:
+        return None
+    arr = arr.astype(np.float32)  # (N,4): x y z rgb_packed
+
+    # skip_nans doesn't drop the +/-inf "no return" points depth sensors emit
+    # for background/out-of-range pixels — those blow up the base_link transform.
+    arr = arr[np.isfinite(arr[:, :3]).all(axis=1)]
+    if len(arr) == 0:
         return None
 
-    arr = np.array(pts, dtype=np.float32)  # (N,4): x y z rgb_packed
     rgb_packed = arr[:, 3].view(np.uint32)
     r = ((rgb_packed >> 16) & 0xFF).astype(np.float32)
     g = ((rgb_packed >>  8) & 0xFF).astype(np.float32)

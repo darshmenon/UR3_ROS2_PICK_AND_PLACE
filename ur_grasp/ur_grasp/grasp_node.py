@@ -16,7 +16,8 @@ Publishes
 
 Subscribes
 ──────────
-  <camera_topic>   sensor_msgs/PointCloud2   (default /camera_wrist/depth/color/points)
+  <camera_topic>          sensor_msgs/PointCloud2   (default /camera_wrist/depth/color/points)
+  <reconstructed_topic>   sensor_msgs/PointCloud2   (optional, when use_reconstructed=true)
 
 Services
 ────────
@@ -32,6 +33,12 @@ Parameters
                        point cloud topic to detect from. Use
                        "/camera_head/depth/color/points" for the fixed
                        head-mounted camera instead.
+  use_reconstructed   (bool,  default false)  prefer fused multi-view cloud from
+                       object_reconstructor_node when it has points; fall back
+                       to the live camera_topic cloud otherwise.
+  reconstructed_topic (str,   default "/ur_perception/reconstructed_points")
+  min_recon_points    (int,   default 200)    quality gate: ignore fused cloud
+                       with fewer points than this (fall back to live)
   continuous_detect_hz (float, default 0.0)   if > 0, re-run detection on a
                        timer at this rate and keep /ur_grasp/grasp_pose
                        updated automatically — the useful mode when the
@@ -72,6 +79,12 @@ from std_srvs.srv import Trigger
 from visualization_msgs.msg import Marker, MarkerArray
 
 
+def _as_bool(value) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
 class GraspNode(Node):
     def __init__(self):
         super().__init__("grasp_node")
@@ -81,16 +94,23 @@ class GraspNode(Node):
         self.declare_parameter("backend",        "auto")
         self.declare_parameter("min_confidence", 0.20)
         self.declare_parameter("camera_topic",   "/camera_wrist/depth/color/points")
+        self.declare_parameter("use_reconstructed", False)
+        self.declare_parameter("reconstructed_topic", "/ur_perception/reconstructed_points")
+        self.declare_parameter("min_recon_points", 200)
         self.declare_parameter("continuous_detect_hz", 0.0)
 
         self._colour     = self.get_parameter("colour").value
         self._backend    = self.get_parameter("backend").value
         self._min_conf   = self.get_parameter("min_confidence").value
         self._camera_topic = self.get_parameter("camera_topic").value
-        self._continuous_hz = self.get_parameter("continuous_detect_hz").value
+        self._use_reconstructed = _as_bool(self.get_parameter("use_reconstructed").value)
+        self._reconstructed_topic = self.get_parameter("reconstructed_topic").value
+        self._min_recon_points = int(self.get_parameter("min_recon_points").value)
+        self._continuous_hz = float(self.get_parameter("continuous_detect_hz").value)
 
         # ── state ────────────────────────────────────────────────────────────
         self._latest_cloud: Optional[PointCloud2] = None
+        self._latest_recon: Optional[PointCloud2] = None
         self._cloud_lock = threading.Lock()
         self._last_grasp: Optional[PoseStamped] = None
 
@@ -128,6 +148,13 @@ class GraspNode(Node):
             self._cloud_cb,
             rclpy.qos.QoSPresetProfiles.SENSOR_DATA.value,
         )
+        if self._use_reconstructed:
+            self.create_subscription(
+                PointCloud2,
+                self._reconstructed_topic,
+                self._recon_cb,
+                10,
+            )
         self._pose_pub = self.create_publisher(PoseStamped,    "/ur_grasp/grasp_pose",   10)
         self._marker_pub = self.create_publisher(MarkerArray,  "/ur_grasp/grasp_marker", 10)
 
@@ -143,6 +170,8 @@ class GraspNode(Node):
             f"GraspNode ready — colour={self._colour}  backend="
             f"{'simple_grasping' if self._use_simple_grasping else 'numpy'}  "
             f"camera_topic={self._camera_topic}  "
+            f"use_reconstructed={self._use_reconstructed}  "
+            f"min_recon_points={self._min_recon_points}  "
             f"continuous_detect_hz={self._continuous_hz}"
         )
 
@@ -151,6 +180,10 @@ class GraspNode(Node):
     def _cloud_cb(self, msg: PointCloud2) -> None:
         with self._cloud_lock:
             self._latest_cloud = msg
+
+    def _recon_cb(self, msg: PointCloud2) -> None:
+        with self._cloud_lock:
+            self._latest_recon = msg
 
     def _detect_cb(self, _req, response):
         """Trigger service — run detection and return summary."""
@@ -206,7 +239,28 @@ class GraspNode(Node):
         from ur_grasp.cylinder_grasp_detector import decode_pointcloud2, estimate_cylinder_grasp
 
         with self._cloud_lock:
-            cloud_msg = self._latest_cloud
+            recon_msg = self._latest_recon if self._use_reconstructed else None
+            live_msg = self._latest_cloud
+
+        # Prefer fused multi-view cloud when enabled, non-empty, and past the
+        # quality gate; else live RGBD.
+        cloud_msg = None
+        source = "live"
+        if (
+            recon_msg is not None
+            and recon_msg.width * recon_msg.height >= self._min_recon_points
+        ):
+            cloud_msg = recon_msg
+            source = "reconstructed"
+        elif recon_msg is not None and self._use_reconstructed:
+            n = recon_msg.width * recon_msg.height
+            self.get_logger().warn(
+                f"Fused cloud has only {n} points (< min_recon_points="
+                f"{self._min_recon_points}) — falling back to live camera"
+            )
+        if cloud_msg is None and live_msg is not None:
+            cloud_msg = live_msg
+            source = "live"
 
         if cloud_msg is None:
             self.get_logger().warn("No point cloud received yet.")
@@ -222,6 +276,7 @@ class GraspNode(Node):
         # transformed into base_link *before* filtering, not after picking a
         # candidate. Filtering camera-frame coordinates against those bounds
         # silently rejects every real point (camera Z is depth, not height).
+        # Reconstructed clouds are already published in base_link.
         cloud = self._transform_cloud_to_base(cloud, cloud_msg.header.frame_id)
         if cloud is None:
             return None
@@ -238,7 +293,7 @@ class GraspNode(Node):
             return None
 
         self.get_logger().info(
-            f"[numpy] Grasp: ({candidate.x:.3f}, {candidate.y:.3f}, "
+            f"[numpy/{source}] Grasp: ({candidate.x:.3f}, {candidate.y:.3f}, "
             f"grasp_z={candidate.grasp_z:.3f})  "
             f"h={candidate.object_height:.3f}m  "
             f"r={candidate.object_radius:.3f}m  "

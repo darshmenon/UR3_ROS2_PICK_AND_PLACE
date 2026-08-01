@@ -2,10 +2,10 @@
 """
 ObjectDetectorNode - Color + optional YOLO hybrid perception node.
 
-Subscribes to:
-  /camera_head/color/image_raw          (sensor_msgs/Image)
-  /camera_head/depth/image_rect_raw     (sensor_msgs/Image)
-  /camera_head/camera_info              (sensor_msgs/CameraInfo)  [latched, once]
+Subscribes to (defaults = Gazebo head camera; remap for wrist / real RealSense):
+  <color_topic>          (sensor_msgs/Image)
+  <depth_topic>          (sensor_msgs/Image)
+  <camera_info_topic>    (sensor_msgs/CameraInfo)  [once]
 
 Publishes:
   /detected_objects    (ur_interfaces/msg/DetectedObjectArray)
@@ -18,6 +18,12 @@ Parameters:
   publish_planning_scene (bool,  default True)
   min_depth_m            (float, default 0.1)
   max_depth_m            (float, default 2.0)
+  color_topic            (str,   default /camera_head/color/image_raw)
+  depth_topic            (str,   default /camera_head/depth/image_rect_raw)
+  camera_info_topic      (str,   default /camera_head/camera_info)
+  depth_scale            (float, default 1.0)
+                         Gazebo depth is metres → 1.0.
+                         Real Intel RealSense uint16 mm depth → 0.001.
 """
 
 import sys
@@ -89,6 +95,10 @@ class ObjectDetectorNode(Node):
         self.declare_parameter('min_depth_m',            0.1)
         self.declare_parameter('max_depth_m',            2.0)
         self.declare_parameter('target_colors',          ['red', 'green', 'blue', 'yellow', 'orange'])
+        self.declare_parameter('color_topic',            '/camera_head/color/image_raw')
+        self.declare_parameter('depth_topic',            '/camera_head/depth/image_rect_raw')
+        self.declare_parameter('camera_info_topic',      '/camera_head/camera_info')
+        self.declare_parameter('depth_scale',            1.0)
 
         self._use_yolo               = self.get_parameter('use_yolo').value
         self._conf_thresh            = self.get_parameter('confidence_threshold').value
@@ -96,11 +106,17 @@ class ObjectDetectorNode(Node):
         self._min_depth_m            = self.get_parameter('min_depth_m').value
         self._max_depth_m            = self.get_parameter('max_depth_m').value
         self._target_colors: List[str] = list(self.get_parameter('target_colors').value)
+        self._color_topic            = self.get_parameter('color_topic').value
+        self._depth_topic            = self.get_parameter('depth_topic').value
+        self._camera_info_topic      = self.get_parameter('camera_info_topic').value
+        self._depth_scale            = float(self.get_parameter('depth_scale').value)
 
         self.get_logger().info(
             f"Parameters: use_yolo={self._use_yolo}, "
             f"conf_thresh={self._conf_thresh:.2f}, "
-            f"target_colors={self._target_colors}"
+            f"target_colors={self._target_colors}, "
+            f"depth_scale={self._depth_scale}, "
+            f"color_topic={self._color_topic}"
         )
 
         # ------------------------------------------------------------------ #
@@ -178,7 +194,7 @@ class ObjectDetectorNode(Node):
         # ------------------------------------------------------------------ #
         self._cam_info_sub = self.create_subscription(
             CameraInfo,
-            '/camera_head/camera_info',
+            self._camera_info_topic,
             self._cam_info_cb,
             _CAM_INFO_QOS,
         )
@@ -187,10 +203,10 @@ class ObjectDetectorNode(Node):
         # Synchronised image subscriptions
         # ------------------------------------------------------------------ #
         self._color_sub = message_filters.Subscriber(
-            self, Image, '/camera_head/color/image_raw', qos_profile=_SENSOR_QOS,
+            self, Image, self._color_topic, qos_profile=_SENSOR_QOS,
         )
         self._depth_sub = message_filters.Subscriber(
-            self, Image, '/camera_head/depth/image_rect_raw', qos_profile=_SENSOR_QOS,
+            self, Image, self._depth_topic, qos_profile=_SENSOR_QOS,
         )
 
         self._sync = message_filters.ApproximateTimeSynchronizer(
@@ -242,7 +258,8 @@ class ObjectDetectorNode(Node):
 
             self._depth_estimator = DepthPoseEstimator(
                 fx=fx, fy=fy, cx=cx, cy=cy,
-                depth_scale=1.0,   # Ignition Gazebo depth camera publishes float32 metres
+                # Gazebo: metres → 1.0; real RealSense uint16 mm → 0.001
+                depth_scale=self._depth_scale,
                 patch_radius=5,
             )
             self.get_logger().info(

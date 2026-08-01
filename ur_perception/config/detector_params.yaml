@@ -5,6 +5,12 @@ object_detector_node:
     publish_planning_scene: true
     min_depth_m: 0.05
     max_depth_m: 1.5
+    # Gazebo depth is float metres. For a real RealSense D435 set depth_scale: 0.001
+    # and point color/depth/camera_info topics at the realsense2_camera namespace.
+    depth_scale: 1.0
+    color_topic: /camera_head/color/image_raw
+    depth_topic: /camera_head/depth/image_rect_raw
+    camera_info_topic: /camera_head/camera_info
     target_colors:
       - red
       - green

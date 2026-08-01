@@ -66,12 +66,7 @@
     <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
     <end_effector name="gripper" parent_link="tool0" group="gripper" parent_group="arm"/>
     <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
-    <disable_collisions link1="base_link_inertia" link2="camera_head_link" reason="Never"/>
     <disable_collisions link1="base_link_inertia" link2="shoulder_link" reason="Adjacent"/>
-    <disable_collisions link1="base_link_inertia" link2="torso_link" reason="Adjacent"/>
-    <disable_collisions link1="camera_head_link" link2="shoulder_link" reason="Never"/>
-    <disable_collisions link1="camera_head_link" link2="torso_link" reason="Adjacent"/>
-    <disable_collisions link1="camera_head_link" link2="upper_arm_link" reason="Never"/>
     <!-- camera_wrist_link — eye-in-hand mount, sits right beside wrist_3_link/gripper -->
     <disable_collisions link1="camera_wrist_link" link2="wrist_1_link" reason="Never"/>
     <disable_collisions link1="camera_wrist_link" link2="wrist_2_link" reason="Never"/>
@@ -171,7 +166,6 @@
     <disable_collisions link1="${gripper_base_link}" link2="wrist_1_link" reason="Never"/>
     <disable_collisions link1="${gripper_base_link}" link2="wrist_2_link" reason="Never"/>
     <disable_collisions link1="${gripper_base_link}" link2="wrist_3_link" reason="Adjacent"/>
-    <disable_collisions link1="shoulder_link" link2="torso_link" reason="Never"/>
     <disable_collisions link1="shoulder_link" link2="upper_arm_link" reason="Adjacent"/>
     <disable_collisions link1="shoulder_link" link2="wrist_1_link" reason="Never"/>
     <disable_collisions link1="shoulder_link" link2="wrist_2_link" reason="Never"/>
@@ -253,12 +247,7 @@
         <joint name="gripper_joint" value="1.3"/>
     </group_state>
     <end_effector name="gripper" parent_link="tool0" group="gripper" parent_group="arm"/>
-    <disable_collisions link1="base_link_inertia" link2="camera_head_link" reason="Never"/>
     <disable_collisions link1="base_link_inertia" link2="shoulder_link" reason="Adjacent"/>
-    <disable_collisions link1="base_link_inertia" link2="torso_link" reason="Adjacent"/>
-    <disable_collisions link1="camera_head_link" link2="shoulder_link" reason="Never"/>
-    <disable_collisions link1="camera_head_link" link2="torso_link" reason="Adjacent"/>
-    <disable_collisions link1="camera_head_link" link2="upper_arm_link" reason="Never"/>
     <!-- camera_wrist_link — eye-in-hand mount, sits right beside wrist_3_link/gripper -->
     <disable_collisions link1="camera_wrist_link" link2="wrist_1_link" reason="Never"/>
     <disable_collisions link1="camera_wrist_link" link2="wrist_2_link" reason="Never"/>
@@ -269,7 +258,6 @@
     <disable_collisions link1="forearm_link" link2="upper_arm_link" reason="Adjacent"/>
     <disable_collisions link1="forearm_link" link2="wrist_1_link" reason="Adjacent"/>
     <disable_collisions link1="forearm_link" link2="wrist_2_link" reason="Never"/>
-    <disable_collisions link1="shoulder_link" link2="torso_link" reason="Never"/>
     <disable_collisions link1="shoulder_link" link2="upper_arm_link" reason="Adjacent"/>
     <disable_collisions link1="shoulder_link" link2="wrist_1_link" reason="Never"/>
     <disable_collisions link1="shoulder_link" link2="wrist_2_link" reason="Never"/>

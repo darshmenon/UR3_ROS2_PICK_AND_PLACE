@@ -7,11 +7,16 @@ and the current end-effector pose from TF, then issues corrective
 joint-trajectory commands until the EE is within tolerance.
 
 This gives pose-based visual servoing (PBVS):
-  - error = target_pose − current_ee_pose
+  - error = target_pose − current_tcp_pose
   - while |error| > tol: move toward target in small Cartesian steps
 
-Unlike a single one-shot MTC plan, this loop re-queries the grasp pose
-each iteration — so it compensates for object drift or perception noise.
+TCP vs tool0
+────────────
+MoveIt / SRDF tip is tool0 (flange). The Robotiq 2F-85 fingertips sit
+further along +tool0 Z (~0.14–0.15 m). Servoing tool0 to the object XY
+therefore closes on air. This node tracks a virtual TCP =
+tool0_origin + R_tool0 * tcp_offset_xyz, and commands tool0 goals that
+place that TCP on the grasp target.
 
 Usage:
     ros2 launch ur_visual_servo visual_servo.launch.py
@@ -25,14 +30,18 @@ Parameters:
     xy_tolerance      (float, 0.015) — positional tolerance in X/Y [m]
     z_tolerance       (float, 0.010) — positional tolerance in Z [m]
     step_size         (float, 0.025) — max Cartesian step per iteration [m]
-    grasp_offset_z    (float, 0.05)  — stop this far above the grasp pose
+    grasp_offset_z    (float, 0.05)  — hover this far above the grasp (base Z)
     auto_grasp        (bool, true)   — close gripper after convergence
     max_iterations    (int,  60)     — abort if not converged after N steps
+    ee_frame          (str, tool0)   — TF frame MoveIt actually drives
+    tcp_offset_xyz    (float[3], [0,0,0.145]) — grasp TCP in ee_frame
 """
 
 import math
 import threading
 import time
+
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -51,8 +60,22 @@ SENSOR_QOS = QoSProfile(
     depth=1,
 )
 
-EE_FRAME = "tool0"
 BASE_FRAME = "base_link"
+
+
+def _as_bool(value) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
+def _quat_to_rotation_matrix(q) -> np.ndarray:
+    x2, y2, z2, w2 = q.x * q.x, q.y * q.y, q.z * q.z, q.w * q.w
+    return np.array([
+        [x2 - y2 - z2 + w2,           2 * (q.x * q.y - q.z * q.w), 2 * (q.x * q.z + q.y * q.w)],
+        [2 * (q.x * q.y + q.z * q.w), -x2 + y2 - z2 + w2,          2 * (q.y * q.z - q.x * q.w)],
+        [2 * (q.x * q.z - q.y * q.w), 2 * (q.y * q.z + q.x * q.w), -x2 - y2 + z2 + w2],
+    ])
 
 
 class VisualServoNode(Node):
@@ -66,14 +89,22 @@ class VisualServoNode(Node):
         self.declare_parameter("grasp_offset_z",  0.05)
         self.declare_parameter("auto_grasp",      True)
         self.declare_parameter("max_iterations",  60)
+        self.declare_parameter("ee_frame",        "tool0")
+        # Robotiq 2F-85: fingertip grasp center is ~145 mm along +tool0 Z from tool0
+        # (base_link mount at +10 mm + ~135 mm through knuckles/pads when open).
+        self.declare_parameter("tcp_offset_xyz",  [0.0, 0.0, 0.145])
 
-        self._rate_hz        = self.get_parameter("servo_rate_hz").value
-        self._xy_tol         = self.get_parameter("xy_tolerance").value
-        self._z_tol          = self.get_parameter("z_tolerance").value
-        self._step           = self.get_parameter("step_size").value
-        self._grasp_offset_z = self.get_parameter("grasp_offset_z").value
-        self._auto_grasp     = self.get_parameter("auto_grasp").value
-        self._max_iter       = self.get_parameter("max_iterations").value
+        self._rate_hz        = float(self.get_parameter("servo_rate_hz").value)
+        self._xy_tol         = float(self.get_parameter("xy_tolerance").value)
+        self._z_tol          = float(self.get_parameter("z_tolerance").value)
+        self._step           = float(self.get_parameter("step_size").value)
+        self._grasp_offset_z = float(self.get_parameter("grasp_offset_z").value)
+        self._auto_grasp     = _as_bool(self.get_parameter("auto_grasp").value)
+        self._max_iter       = int(self.get_parameter("max_iterations").value)
+        self._ee_frame       = str(self.get_parameter("ee_frame").value)
+        self._tcp_offset     = np.array(
+            self.get_parameter("tcp_offset_xyz").value, dtype=np.float64
+        )
 
         self._target_pose: PoseStamped | None = None
         self._pose_lock = threading.Lock()
@@ -95,7 +126,9 @@ class VisualServoNode(Node):
         self._motion = MotionExecutor(self)
 
         self.get_logger().info(
-            "VisualServoNode ready.  Call /visual_servo/start to activate."
+            f"VisualServoNode ready — ee_frame={self._ee_frame}  "
+            f"tcp_offset={self._tcp_offset.tolist()}.  "
+            "Call /visual_servo/start to activate."
         )
 
     # ── ROS callbacks ─────────────────────────────────────────────────────────
@@ -150,7 +183,6 @@ class VisualServoNode(Node):
             if not self._active:
                 break
 
-            # Refresh target each iteration (grasp detector updates continuously)
             with self._pose_lock:
                 target = self._target_pose
 
@@ -158,21 +190,22 @@ class VisualServoNode(Node):
                 time.sleep(dt)
                 continue
 
-            # Get current EE pose via TF
-            current = self._get_ee_pose()
-            if current is None:
+            ee = self._get_ee_pose()
+            if ee is None:
                 self.get_logger().warn("TF lookup failed — retrying.")
                 time.sleep(dt)
                 continue
 
-            # Desired position: target + Z offset (hover before final descent)
+            tcp = self._ee_to_tcp(ee)
+
+            # Desired TCP: grasp target + hover offset in base Z
             tx = target.pose.position.x
             ty = target.pose.position.y
             tz = target.pose.position.z + self._grasp_offset_z
 
-            cx = current.pose.position.x
-            cy = current.pose.position.y
-            cz = current.pose.position.z
+            cx = tcp.pose.position.x
+            cy = tcp.pose.position.y
+            cz = tcp.pose.position.z
 
             ex = tx - cx
             ey = ty - cy
@@ -182,27 +215,28 @@ class VisualServoNode(Node):
             z_err  = abs(ez)
 
             self.get_logger().debug(
-                f"  iter={iteration} err=({ex:.3f},{ey:.3f},{ez:.3f})"
+                f"  iter={iteration} tcp_err=({ex:.3f},{ey:.3f},{ez:.3f})"
                 f" xy={xy_err:.3f} z={z_err:.3f}"
             )
 
             if xy_err < self._xy_tol and z_err < self._z_tol:
                 self.get_logger().info(
-                    f"Converged at ({cx:.3f},{cy:.3f},{cz:.3f}) after {iteration} steps."
+                    f"Converged TCP at ({cx:.3f},{cy:.3f},{cz:.3f}) after {iteration} steps."
                 )
                 self._publish_status("Servo: converged at hover position")
                 break
 
-            # Clamp step to max step size
             dist = math.sqrt(ex**2 + ey**2 + ez**2)
             scale = min(self._step / dist, 1.0) if dist > 1e-6 else 0.0
 
-            goal_pose = self._make_downward_pose(
+            # Step the TCP, then convert back to a tool0 command for MoveIt.
+            next_tcp = self._make_downward_pose(
                 cx + ex * scale,
                 cy + ey * scale,
                 cz + ez * scale,
             )
-            ok = self._motion.move_to_pose(goal_pose, group="arm", timeout=10.0)
+            goal_ee = self._tcp_to_ee(next_tcp)
+            ok = self._motion.move_to_pose(goal_ee, group="arm", timeout=10.0)
             if not ok:
                 self.get_logger().warn(f"Step {iteration} planning failed — retrying.")
 
@@ -211,7 +245,6 @@ class VisualServoNode(Node):
             self.get_logger().warn(f"Max iterations ({self._max_iter}) reached without convergence.")
             self._publish_status("Servo: max iterations reached")
 
-        # Final descent to grasp height
         if self._active and self._auto_grasp:
             self._execute_final_grasp(target)
 
@@ -219,16 +252,17 @@ class VisualServoNode(Node):
 
     def _execute_final_grasp(self, target: PoseStamped):
         self._publish_status("Servo: descending to grasp")
-        self.get_logger().info("Descending to grasp…")
+        self.get_logger().info("Descending to grasp (TCP)…")
 
         self._motion.open_gripper()
 
-        grasp_pose = self._make_downward_pose(
+        grasp_tcp = self._make_downward_pose(
             target.pose.position.x,
             target.pose.position.y,
             target.pose.position.z + 0.01,
         )
-        ok = self._motion.move_to_pose(grasp_pose, group="arm", timeout=15.0)
+        grasp_ee = self._tcp_to_ee(grasp_tcp)
+        ok = self._motion.move_to_pose(grasp_ee, group="arm", timeout=15.0)
         if not ok:
             self.get_logger().error("Final descent failed.")
             self._publish_status("Servo: descent FAILED")
@@ -243,7 +277,7 @@ class VisualServoNode(Node):
     def _get_ee_pose(self) -> PoseStamped | None:
         try:
             tf = self._tf_buffer.lookup_transform(
-                BASE_FRAME, EE_FRAME,
+                BASE_FRAME, self._ee_frame,
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=0.5),
             )
@@ -259,6 +293,30 @@ class VisualServoNode(Node):
         pose.pose.position.z = tf.transform.translation.z
         pose.pose.orientation = tf.transform.rotation
         return pose
+
+    def _ee_to_tcp(self, ee: PoseStamped) -> PoseStamped:
+        """tool0 pose → virtual fingertip TCP pose in base_link."""
+        R = _quat_to_rotation_matrix(ee.pose.orientation)
+        offset_base = R @ self._tcp_offset
+        tcp = PoseStamped()
+        tcp.header = ee.header
+        tcp.pose.orientation = ee.pose.orientation
+        tcp.pose.position.x = ee.pose.position.x + float(offset_base[0])
+        tcp.pose.position.y = ee.pose.position.y + float(offset_base[1])
+        tcp.pose.position.z = ee.pose.position.z + float(offset_base[2])
+        return tcp
+
+    def _tcp_to_ee(self, tcp: PoseStamped) -> PoseStamped:
+        """Desired TCP → tool0 goal MoveIt should drive (same orientation)."""
+        R = _quat_to_rotation_matrix(tcp.pose.orientation)
+        offset_base = R @ self._tcp_offset
+        ee = PoseStamped()
+        ee.header = tcp.header
+        ee.pose.orientation = tcp.pose.orientation
+        ee.pose.position.x = tcp.pose.position.x - float(offset_base[0])
+        ee.pose.position.y = tcp.pose.position.y - float(offset_base[1])
+        ee.pose.position.z = tcp.pose.position.z - float(offset_base[2])
+        return ee
 
     @staticmethod
     def _make_downward_pose(x: float, y: float, z: float) -> PoseStamped:

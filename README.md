@@ -671,8 +671,33 @@ kinematics, so each frame just gets transformed into `base_link` and merged
 into a voxel grid. Moving the arm around an object fills in the occlusions any
 single fixed viewpoint would miss.
 
+**This is a standalone perception/inspection tool** — nothing in the pick-and-place
+pipeline consumes `/ur_perception/reconstructed_points` yet (`ur_grasp` still
+detects grasps off a single raw frame, and `object_reconstructor_node` only
+*listens* to `/ur_grasp/grasp_pose` to auto-recenter its ROI). Use it to build
+and export a fused point cloud for inspection; it won't by itself sharpen the
+grasp the arm executes.
+
+Two things that will give you zero fused points if missed — the node now logs
+a `warn` every 3s while active and stuck at zero, naming which of these it is,
+instead of silently sitting at "0 frames" forever:
+
+- **The wrist camera must be launched with `wrist_camera:=true`** — it's opt-in
+  (default `false`), so `/camera_wrist/depth/color/points` won't exist at all
+  without it. Shows up as: `no messages received on '<topic>' yet — is the
+  wrist camera launched...?`.
+- **The arm has to actually be pointed at the object.** The default `home` pose
+  aims the wrist camera up and away from the table — the reconstructor will
+  merge nothing until the arm is at a pose (e.g. a pre-grasp hover over the
+  object) that puts the target inside `roi_radius` of `roi_center`. Shows up
+  as: `frame(s) received but 0 merged ... is the arm pointed so the camera
+  sees roi_center=...?`.
+
 ```bash
 source install/setup.bash
+ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
+# ...move the arm so the wrist camera is looking at the object...
+
 ros2 launch ur_perception reconstruct.launch.py \
   camera_topic:=/camera_wrist/depth/color/points \
   roi_radius:=0.20 \
@@ -684,7 +709,9 @@ ros2 service call /ur_perception/reconstruct/stop std_srvs/srv/Trigger {}
 ```
 
 Live fused cloud publishes on `/ur_perception/reconstructed_points`
-(`base_link` frame) while accumulating, viewable in RViz.
+(`base_link` frame) while accumulating, viewable in RViz. The service response
+reports `saved to <path>` once `stop` finishes writing the PLY — check for that
+line if you passed `save_path`.
 
 Verified live (2026-07-30): swept the arm through 5 waypoints around the red
 box with the wrist camera, accumulated 154 frames into 35k voxels, and wrote a
@@ -695,12 +722,60 @@ correctly). The `roi_radius` filter is a plain sphere around either a fixed
 too, not just the target object, so don't expect an isolated single-object
 mesh out of the box.
 
+Re-verified live (2026-07-31), holding a single pre-grasp hover pose over the
+box (no sweep): merged 44 of ~50 possible frames in 5s at the camera's 10Hz
+into 2400 voxels, PLY round-tripped correctly. `VoxelMap.add()` used to merge
+points one at a time in a Python loop — at the wrist camera's ~70k points/frame
+that was slow enough to starve this node's own TF listener (same
+single-threaded executor), so most frames failed their TF lookup and got
+silently dropped (1-2 frames actually merged per 5s window, not ~50). Fixed
+by vectorising the voxel merge with numpy.
+
+Re-verified live (2026-08-01): a 5cm test cube came out ~11cm elongated in a
+5-view sweep. Cause: the stamped TF lookup only got 0.05s, so most frames fell
+back to a stale "latest" transform instead of the pose at actual capture time,
+smearing points along the arm's motion. Fixed by widening that timeout to 0.2s
+(`tf_fail` dropped from ~65% of frames to 0) and tightening `max_tf_age_sec`
+0.25 → 0.05 as a backstop. Confirmed: a single stationary viewpoint now
+reconstructs the cube at 4.8x4.85x4.63cm — matches the true 5cm within a voxel.
+
+**Known limitation**: multi-view fusion still shows a few cm of spread on one
+axis, since registration is TF-based, not ICP — each viewpoint's depth reading
+has its own small bias, and nothing reconciles that across views. Real
+accuracy ceiling of this approach, not a bug; closing it needs an ICP
+registration pass, not a parameter tweak.
+
 Run the node directly:
 
 ```bash
 source install/setup.bash
-ros2 run ur_perception object_detector_node.py
+ros2 run ur_perception object_reconstructor_node.py
 ```
+
+#### Viewing the camera feed
+
+To see what either camera (`camera_head` or `camera_wrist`) is actually
+looking at, without needing RViz:
+
+```bash
+source install/setup.bash
+ros2 run rqt_image_view rqt_image_view /camera_wrist/color/image_raw
+# or: /camera_head/color/image_raw
+```
+
+To add it in RViz instead (already open from `ur.gazebo.launch.py`):
+
+1. Bottom-left **Displays** panel → **Add** button.
+2. Pick the **By topic** tab, not **By display type** — it lists only topics
+   that currently have data, so you can't pick the wrong message type by accident.
+3. Expand `/camera_wrist` (or `/camera_head`) and choose:
+   - `color/image_raw` → **Image** — adds a separate 2D image panel showing the RGB feed.
+   - `depth/color/points` → **PointCloud2** — adds the raw 3D depth cloud into the main 3D view.
+   - (once reconstruction is running) `/ur_perception/reconstructed_points` → **PointCloud2** — the fused, accumulated cloud.
+4. Click **OK**. If a `PointCloud2` display stays empty, check the **Global
+   Options → Fixed Frame** at the top of the Displays panel is set to
+   `base_link` — a cloud published in a different frame than the fixed frame
+   won't render.
 
 Verified in this workspace:
 

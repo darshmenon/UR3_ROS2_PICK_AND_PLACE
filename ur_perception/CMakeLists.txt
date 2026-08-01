@@ -46,6 +46,8 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   ur_perception/object_detector_node.py
   ur_perception/object_reconstructor_node.py
+  ur_perception/reconstruct_sweep_node.py
+  ur_perception/ply_viewer_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -81,6 +83,6 @@ install(DIRECTORY include/ DESTINATION include)
 # -----------------------------------------------------------------------
 # Shared install dirs
 # -----------------------------------------------------------------------
-install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY launch config rviz DESTINATION share/${PROJECT_NAME})
 
 ament_package()
