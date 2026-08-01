@@ -35,12 +35,25 @@
     </include>
 
     <!-- ================================================================
+         Arm mount surface — arm's base_joint is raised by the same
+         TABLE_HEIGHT (see table_height xacro arg / launch argument) so
+         it sits flush on top. See ur_gazebo/models/README.md.
+         ================================================================ -->
+    <include>
+      <name>mount_table</name>
+      <uri>model://mount_table</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- ================================================================
          Single-arm pick-and-place scene matching ur_gazebo_single_arm_env.py
+         Raised by TABLE_HEIGHT (1.0m) so it sits on mount_table's surface,
+         keeping every pose identical relative to the arm's base_link.
          ================================================================ -->
 
     <model name="table">
       <static>true</static>
-      <pose>0.35 0.0 0.02 0 0 0</pose>
+      <pose>0.35 0.0 1.035 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -62,7 +75,7 @@
 
     <model name="red_box">
       <static>false</static>
-      <pose>0.35 0.0 0.045 0 0 0</pose>
+      <pose>0.35 0.0 1.06 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>
@@ -97,7 +110,7 @@
 
     <model name="drop_zone">
       <static>true</static>
-      <pose>0.35 0.20 0.025 0 0 0</pose>
+      <pose>0.35 0.20 1.04 0 0 0</pose>
       <link name="link">
         <collision name="collision">
           <geometry>

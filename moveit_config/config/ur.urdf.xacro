@@ -15,6 +15,7 @@
     <xacro:arg name="safety_pos_margin" default="0.15"/>
     <xacro:arg name="safety_k_position" default="20"/>
     <xacro:arg name="force_abs_paths" default="false"/>
+    <xacro:arg name="table_height" default="0.0"/>
 
     <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro" />
     <xacro:include filename="$(find moveit_config)/config/ur.ros2_control.xacro" />
@@ -41,7 +42,7 @@
       safety_k_position="$(arg safety_k_position)"
       force_abs_paths="$(arg force_abs_paths)"
       gripper="$(arg gripper)">
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0 0 $(arg table_height)" rpy="0 0 0" />
     </xacro:ur_robot>
 
     <gazebo>
