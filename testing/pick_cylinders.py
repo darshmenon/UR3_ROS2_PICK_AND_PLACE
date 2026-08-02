@@ -161,7 +161,8 @@ class CylinderPickNode(Node):
                 pose.header.frame_id = "base_link"
                 pose.pose.position.x = task["x"]
                 pose.pose.position.y = task["y"]
-                pose.pose.position.z = task["z"]
+                from ur_llm_planner.motion_executor import GRIPPER_TCP_OFFSET_Z
+                pose.pose.position.z = task["z"] + GRIPPER_TCP_OFFSET_Z
                 pose.pose.orientation.x = 1.0  # downward orientation
                 pose.pose.orientation.w = 0.0
                 ok = self._executor_obj.move_to_pose(pose)

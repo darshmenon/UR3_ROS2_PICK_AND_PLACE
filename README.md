@@ -563,7 +563,11 @@ Verified live in Gazebo Harmonic (2026-07-30), full chain: camera → point clou
 - The real reason detection found nothing even with the colour fix: `estimate_cylinder_grasp()`'s workspace filters (table height, reach radius) are documented as base_link-frame bounds, but `grasp_node` ran them on the raw camera-frame cloud *before* transforming to base_link — camera-frame Z is depth, not height, so every real point was rejected. `grasp_node` now transforms the whole cloud to `base_link` first.
 - `camera_tilt_angle_deg` in the D435 xacro was `25`, aiming the camera mostly at the far wall/floor — the table and object were outside its vertical FOV. Raised to `55` so the workspace is actually in frame (confirmed visually by dumping a camera frame to PNG).
 
-**Known limitation (2026-07-30):** the visual servo (`ur_visual_servo`) and final-descent grasp track `tool0`'s position and treat it as the grasp point, but the Robotiq 2F-85's actual fingertip is offset from `tool0` by the gripper's mount geometry. In testing, the arm reached the correct grasp *height* but the fingertips closed ~0.12 m away in X/Y from the object — the gripper closes on air and `/visual_servo/status` reports "grasp complete" even though nothing was picked up. Not yet fixed; needs the servo/grasp code to target the actual gripper TCP frame (or use MoveIt's configured tip link) instead of `tool0`.
+**Fixed (2026-08-01):**
+- `ur_visual_servo` tracked `tool0` directly as the grasp point — the Robotiq 2F-85 fingertip sits ~0.145 m along `tool0`'s +Z, so the arm reached the right height but closed ~0.12 m away in X/Y. `servo_node.py` now servos a virtual TCP (`tool0_origin + R_tool0 * tcp_offset_xyz`) instead of `tool0` — see `_ee_to_tcp`/`_tcp_to_ee`.
+
+**Fixed (2026-08-02):**
+- The LLM-planner/BT-planner/sorting-demo pick-and-place path had no TCP offset at all — `motion_executor.py`'s `_make_downward_pose()` drove `tool0` straight to the object's raw height, putting the fingertips ~0.145 m too low. Fixed with the same offset convention (`GRIPPER_TCP_OFFSET_Z = 0.145`) at every pick/place call site.
 
 Launch:
 

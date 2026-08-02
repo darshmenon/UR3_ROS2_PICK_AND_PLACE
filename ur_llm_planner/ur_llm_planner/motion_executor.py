@@ -72,6 +72,14 @@ PREGRASP_HEIGHT_OFFSET = 0.12
 # Default place height above table
 DEFAULT_PLACE_Z = 0.10
 
+# The "arm" group's IK tip link is tool0 (the flange), but for a downward-
+# pointing Robotiq 2F-85 the fingertip contact point sits ~145mm further
+# along tool0's +Z (10mm mount + ~135mm through knuckles/pads) — same value
+# as ur_visual_servo/servo_node.py's tcp_offset_xyz. move_to_pose() drives
+# tool0, so pick/place targets must add this offset or the gripper closes
+# ~145mm below the intended contact height.
+GRIPPER_TCP_OFFSET_Z = 0.145
+
 
 class MotionExecutor:
     """
@@ -603,15 +611,20 @@ class MotionExecutor:
     @staticmethod
     def _make_downward_pose(x: float, y: float, z: float) -> PoseStamped:
         """
-        Create a PoseStamped with the end-effector pointing straight down.
+        Create a tool0 PoseStamped that puts the gripper's fingertip TCP,
+        pointing straight down, at (x, y, z) in base_link.
 
         The orientation corresponds to a rotation where the tool z-axis
         points in the -world-Z direction (downward grasp).
         Quaternion for 180-degree rotation about X: (1, 0, 0, 0) rotated →
         q = (w=0, x=1, y=0, z=0) for pi rotation about X.
 
+        move_to_pose() drives the "arm" group's IK tip link, tool0 — not the
+        gripper's fingertip contact point — so z is offset by
+        GRIPPER_TCP_OFFSET_Z here to compensate (see its definition above).
+
         Args:
-            x, y, z: Position in base_link frame (metres).
+            x, y, z: Desired gripper-TCP contact position in base_link (metres).
 
         Returns:
             PoseStamped ready for move_to_pose.
@@ -620,7 +633,7 @@ class MotionExecutor:
         pose.header.frame_id = "base_link"
         pose.pose.position.x = x
         pose.pose.position.y = y
-        pose.pose.position.z = z
+        pose.pose.position.z = z + GRIPPER_TCP_OFFSET_Z
         # End-effector pointing down: rotate 180 degrees about world X axis
         # q = (cos(pi/2), sin(pi/2)*x̂) = (0, 1, 0, 0) [w, x, y, z]
         pose.pose.orientation.x = 1.0
