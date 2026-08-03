@@ -638,16 +638,32 @@ Two more findings from testing the full servo loop with this camera:
   into a wrong IK branch and it drove away from the object instead of
   converging. Leave `continuous_detect_hz:=0.0` (one-shot detection, frozen
   target) for now.
-- Separately, even with a frozen target, `servo_node`'s incremental-step PBVS
-  loop plateaus a few cm short of the target and hits `max_iterations`
-  without ever closing the gap — the final direct "descend to grasp" jump
-  (which isn't constrained to a small step from the previous pose) still
-  reaches the correct pose fine. This looks like IK-branch jumping between
-  successive tiny Cartesian steps, not anything camera-specific.
-- The final grasp itself did not succeed (verified by commanding the arm to
-  lift afterward — the box stayed on the table) — consistent with the
-  tool0-vs-actual-fingertip offset already logged as a known limitation
-  above, reproduced here via the wrist camera path too.
+- **Update (2026-08-04), re-tested after the `tcp_offset_xyz` fix landed in
+  `servo_node.py`:** the convergence plateau above is gone — the servo loop
+  now reaches "Converged TCP at (...)" in 4 steps instead of hitting
+  `max_iterations` without closing the gap. The earlier plateau was likely
+  the same tool0-vs-fingertip offset error feeding bad small-step targets,
+  not an independent IK-branch bug.
+- The physical grasp did not succeed with this fix alone, though. Re-tested
+  end-to-end, isolated on `ROS_DOMAIN_ID=77` (see `launch_headless.sh`) to
+  rule out cross-talk with other ROS2 sessions on this machine: detection
+  (0.350, 0.008, 0.055), servo converges in 4 steps, gripper closes, node
+  logs "Visual servo grasp complete" — but `finger_joint` reads exactly `0.8`
+  (full closure, no resistance) and commanding the arm to lift afterward left
+  the box's Z position on the table completely unchanged. Root cause turned
+  out to be `xy_tolerance` (default 0.015 = 1.5cm): the test box is only
+  ~4.2cm across, so the servo loop was declaring "converged" while still up
+  to 1.5cm off-center — enough for one finger to clip the box and knock it
+  sideways instead of centering around it.
+- **Fixed (2026-08-04):** tightened `xy_tolerance` to `0.006` (6mm) in
+  `servo_node.py`. Re-tested end-to-end on `ROS_DOMAIN_ID=77`: servo converges
+  to the exact detected position (0.350, 0.008) in 5 steps, gripper closes
+  (took longer this time — "Gripper result timed out" logged, consistent with
+  the fingers meeting real resistance instead of closing on air), and
+  commanding the arm to lift and then swing sideways carried the box with it
+  — Z went from ~1.08 (resting) to ~1.13-1.17 and stayed elevated, XY tracked
+  the arm's swing (0.284, 0.027) → (0.161, 0.245). The wrist-camera
+  detect → servo → grasp → lift pipeline now works end-to-end.
 
 ### Vision-Based Perception (`ur_perception`)
 
