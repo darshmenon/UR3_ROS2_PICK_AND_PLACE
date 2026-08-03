@@ -11,6 +11,8 @@ from launch.actions import (
     AppendEnvironmentVariable,
     DeclareLaunchArgument,
     IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
     RegisterEventHandler,
 )
 from launch.conditions import IfCondition
@@ -240,49 +242,61 @@ def generate_launch_description():
     # them in parallel floods its single-threaded service handling ("already loaded"
     # errors, timed-out switches, controllers stuck inactive). Chain each spawner to
     # start only once the previous one's process exits, so requests never overlap.
-    controller_spawners = [
-        Node(
+    #
+    # gz_ros2_control can take well over --controller-manager-timeout to come up
+    # under load (observed >60s), which used to make the *first* spawner
+    # (joint_state_broadcaster) time out and die — then the chain advanced to the
+    # next spawner anyway (OnProcessExit fires on any exit code, not just success),
+    # silently dropping joint_state_broadcaster for the rest of the session. With
+    # no /joint_states, robot_state_publisher can't publish the arm's dynamic
+    # transforms, so TF fragments into disconnected trees and IK/MoveIt calls fail
+    # in ways that look unrelated to the real cause. Fix: check the exit code and
+    # retry the same controller instead of blindly advancing on failure.
+    _CONTROLLER_CHAIN = ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
+    _SPAWNER_MAX_RETRIES = 3
+
+    def _make_spawner(controller, inactive=False):
+        args = [
+            controller,
+            "--controller-manager", "/controller_manager",
+            "--controller-manager-timeout", "60.0",
+        ]
+        if inactive:
+            args.append("--inactive")
+        else:
+            args += ["--switch-timeout", "60.0", "--service-call-timeout", "60.0"]
+        return Node(
             package="controller_manager",
             executable="spawner",
-            arguments=[
-                controller,
-                "--controller-manager",
-                "/controller_manager",
-                "--controller-manager-timeout",
-                "60.0",
-                "--switch-timeout",
-                "60.0",
-                "--service-call-timeout",
-                "60.0",
-            ],
+            arguments=args,
             parameters=[{'use_sim_time': True}],
-            output='screen'
+            output='screen',
         )
-        for controller in ["joint_state_broadcaster", "arm_controller", "gripper_controller"]
-    ]
 
-    # Loaded inactive until explicitly switched in for the custom impedance node.
-    controller_spawners.append(
-        Node(
-            package="controller_manager",
-            executable="spawner",
-            arguments=[
-                "forward_command_controller_effort",
-                "--controller-manager",
-                "/controller_manager",
-                "--controller-manager-timeout",
-                "60.0",
-                "--inactive",
-            ],
-            parameters=[{'use_sim_time': True}],
-            output='screen'
-        )
-    )
+    def _spawn_step(context, index=0, retries_left=_SPAWNER_MAX_RETRIES):
+        if index >= len(_CONTROLLER_CHAIN):
+            # Chain done — spawn the inactive effort controller last, no retry
+            # chain needed after it (nothing depends on it at launch time).
+            return [_make_spawner("forward_command_controller_effort", inactive=True)]
 
-    controller_spawn_events = [
-        RegisterEventHandler(OnProcessExit(target_action=prev, on_exit=[nxt]))
-        for prev, nxt in zip(controller_spawners, controller_spawners[1:])
-    ]
+        controller = _CONTROLLER_CHAIN[index]
+        spawner = _make_spawner(controller)
+
+        def _on_exit(event, ctx):
+            if event.returncode == 0:
+                return _spawn_step(ctx, index + 1, _SPAWNER_MAX_RETRIES)
+            if retries_left > 0:
+                return [LogInfo(
+                    msg=f"[ur.gazebo] {controller} spawner failed (exit "
+                        f"{event.returncode}) — retrying ({retries_left} left)"
+                )] + _spawn_step(ctx, index, retries_left - 1)
+            return [LogInfo(
+                msg=f"[ur.gazebo] ERROR: {controller} spawner failed after "
+                    f"{_SPAWNER_MAX_RETRIES} retries — controller_manager may "
+                    f"still be starting, or something is actually broken."
+            )]
+
+        return [spawner, RegisterEventHandler(OnProcessExit(target_action=spawner, on_exit=_on_exit))]
 
     # ld.add_action(load_controllers_cmd)
     # Start Gazebo
@@ -444,9 +458,7 @@ def generate_launch_description():
     ld.add_action(start_gazebo_ros_bridge_cmd)
     ld.add_action(start_gazebo_ros_image_bridge_cmd)
     ld.add_action(start_gazebo_ros_spawner_cmd)
-    ld.add_action(controller_spawners[0])
-    for event in controller_spawn_events:
-        ld.add_action(event)
+    ld.add_action(OpaqueFunction(function=_spawn_step))
     ld.add_action(move_group_node_robotiq)
     ld.add_action(move_group_node_onrobot)
     ld.add_action(rviz_node_robotiq)
