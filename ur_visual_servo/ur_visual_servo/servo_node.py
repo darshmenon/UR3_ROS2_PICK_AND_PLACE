@@ -27,7 +27,7 @@ Services:
 
 Parameters:
     servo_rate_hz     (float, 5.0)   — control loop rate
-    xy_tolerance      (float, 0.015) — positional tolerance in X/Y [m]
+    xy_tolerance      (float, 0.006) — positional tolerance in X/Y [m]
     z_tolerance       (float, 0.010) — positional tolerance in Z [m]
     step_size         (float, 0.025) — max Cartesian step per iteration [m]
     grasp_offset_z    (float, 0.05)  — hover this far above the grasp (base Z)
@@ -83,7 +83,11 @@ class VisualServoNode(Node):
         super().__init__("visual_servo_node")
 
         self.declare_parameter("servo_rate_hz",   5.0)
-        self.declare_parameter("xy_tolerance",    0.015)
+        # 0.015 (1.5cm) is loose enough to "converge" while still off-center on
+        # small objects (the test box is ~4.2cm across) — one finger clips the
+        # object instead of centering around it, knocking it sideways rather
+        # than gripping it. Tightened to stay well inside typical object radii.
+        self.declare_parameter("xy_tolerance",    0.006)
         self.declare_parameter("z_tolerance",     0.010)
         self.declare_parameter("step_size",       0.025)
         self.declare_parameter("grasp_offset_z",  0.05)
