@@ -36,22 +36,38 @@ mtc_node:
     # GenerateGraspPose (moveit_task_constructor/core/src/stages/generate_grasp_pose.cpp)
     # samples target_pose = Rotation(angle, object_z_axis) with ZERO translation —
     # every candidate is centered exactly at the object's own origin, only the
-    # orientation varies with angle. With pitch=0 (identity rotation) the
-    # gripper's own Z-axis aligns with the object's Z-axis: a natural top-down
-    # approach, closing fingers horizontally over the object. The previous
-    # pitch=1.5708 (90°) tilts that to horizontal — a sideways approach that
-    # sweeps the gripper base around at the object's own (low, table-level)
-    # height, unavoidably clipping the table (support_surface) at most angles
-    # for any object resting low/flush on it (verified: for both a cylinder
-    # and a box target, most of the 24 sampled angles collided with
-    # "support_surface", not the object). Switched to top-down (pitch=0),
-    # which keeps the gripper above the table until final descent.
-    # z is negative here (unlike the sideways config): gripper_frame_pose =
-    # target_pose * grasp_frame_transform^-1, and with pitch=0 the per-angle
-    # Z-rotation doesn't rotate a vector already along Z — so +0.135 placed
-    # the gripper 0.135m *below* the object center (verified: every angle
-    # collided with the object itself, not the table). -0.135 puts it above.
-    grasp_frame_transform: [0.0, 0.0, -0.135, 0.0, 0.0, 0.0]  # top-down grasp
+    # orientation varies with angle. gripper_frame_pose = target_pose *
+    # grasp_frame_transform^-1, so grasp_frame_transform's rotation controls
+    # which way the gripper approaches from, independent of the per-angle
+    # sampling. pitch=pi (180°) anti-aligns the gripper's Z-axis with the
+    # object's Z-axis, pointing it down into the table: a true top-down
+    # approach, closing fingers horizontally over the object from above.
+    #
+    # The previous pitch=1.5708 (90°) tilted that to horizontal — a sideways
+    # approach that swept the gripper base around at the object's own (low,
+    # table-level) height, unavoidably clipping the table (support_surface)
+    # at most angles for any object resting low/flush on it (verified: for
+    # both a cylinder and a box target, most of the 24 sampled angles
+    # collided with "support_surface", not the object).
+    #
+    # pitch=0 (identity) also gives a collision-free position (z=-0.135 puts
+    # the gripper 0.135m above the object) but points the gripper's approach
+    # axis *away* from the table instead of into it — physically requiring
+    # the arm to reach the grasp from below, through the table. Confirmed
+    # unreachable at any position/standoff: repositioning the object and
+    # increasing standoff both left IK stuck around the same large error
+    # (~0.52-0.66m, scaling with standoff distance) — a constant, geometry-
+    # independent failure, not a workspace dead zone.
+    #
+    # pitch=pi (this value) is verified collision-free (checked at both
+    # z=0.135 and z=0.25) and points the correct direction, but IK still
+    # fails to converge for the sampled positions tested — most likely
+    # KDL's known weakness solving near the UR wrist singularity for a
+    # straight-down orientation (see project notes on kinematics.yaml).
+    # A UR-specific analytical solver or TRAC-IK (neither available via apt
+    # here, both would need building from source) would resolve this
+    # definitively; not yet done.
+    grasp_frame_transform: [0.0, 0.0, 0.135, 0.0, 3.14159, 0.0]  # top-down grasp
     place_pose: [-0.30, 0.05, 0.0, 0.0, 0.0, 0.0]  # Place on opposite side
 
     # Motion planning (critical IK parameters)
