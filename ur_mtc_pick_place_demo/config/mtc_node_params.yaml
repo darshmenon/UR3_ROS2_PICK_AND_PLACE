@@ -29,7 +29,29 @@ mtc_node:
     object_pose: [0.22, 0.12, 0.15, 0.0, 0.0, 0.0]  # Z increased +0.05
 
     # Grasp parameters (key collision fixes)
-    grasp_frame_transform: [0.0, 0.0, 0.10, 0.0, 1.5708, 0.0]  # fingers grab sideways
+    # z = distance from gripper_frame (robotiq_arg2f_base_link) to the fingertip
+    # grasp point (~0.135m — see ur_visual_servo/servo_node.py's ~0.145m
+    # tool0->fingertip measurement, minus ~0.010m tool0->base_link offset).
+    #
+    # GenerateGraspPose (moveit_task_constructor/core/src/stages/generate_grasp_pose.cpp)
+    # samples target_pose = Rotation(angle, object_z_axis) with ZERO translation —
+    # every candidate is centered exactly at the object's own origin, only the
+    # orientation varies with angle. With pitch=0 (identity rotation) the
+    # gripper's own Z-axis aligns with the object's Z-axis: a natural top-down
+    # approach, closing fingers horizontally over the object. The previous
+    # pitch=1.5708 (90°) tilts that to horizontal — a sideways approach that
+    # sweeps the gripper base around at the object's own (low, table-level)
+    # height, unavoidably clipping the table (support_surface) at most angles
+    # for any object resting low/flush on it (verified: for both a cylinder
+    # and a box target, most of the 24 sampled angles collided with
+    # "support_surface", not the object). Switched to top-down (pitch=0),
+    # which keeps the gripper above the table until final descent.
+    # z is negative here (unlike the sideways config): gripper_frame_pose =
+    # target_pose * grasp_frame_transform^-1, and with pitch=0 the per-angle
+    # Z-rotation doesn't rotate a vector already along Z — so +0.135 placed
+    # the gripper 0.135m *below* the object center (verified: every angle
+    # collided with the object itself, not the table). -0.135 puts it above.
+    grasp_frame_transform: [0.0, 0.0, -0.135, 0.0, 0.0, 0.0]  # top-down grasp
     place_pose: [-0.30, 0.05, 0.0, 0.0, 0.0, 0.0]  # Place on opposite side
 
     # Motion planning (critical IK parameters)

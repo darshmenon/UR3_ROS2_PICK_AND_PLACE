@@ -742,6 +742,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
 
     for (const auto& object : objects) {
       if (object.primitives.empty()) continue;
+      if (object.id == support_surface_name) continue; // never pick the table itself
 
       const auto& primitive = object.primitives[0];
       double shape_score = 0.0;
