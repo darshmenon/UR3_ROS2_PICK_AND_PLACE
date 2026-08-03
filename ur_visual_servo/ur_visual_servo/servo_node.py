@@ -35,6 +35,12 @@ Parameters:
     max_iterations    (int,  60)     — abort if not converged after N steps
     ee_frame          (str, tool0)   — TF frame MoveIt actually drives
     tcp_offset_xyz    (float[3], [0,0,0.145]) — grasp TCP in ee_frame
+    gripper_joint_name    (str, finger_joint) — joint checked after close to
+                          verify grasp; use "gripper_joint" for OnRobot RG2/RG6
+    gripper_fully_closed  (float, 0.8) — that joint's fully-closed position
+                          (OnRobot RG2/RG6 use 1.3 — see their SRDF "closed" state)
+    gripper_stall_margin  (float, 0.05) — stalling this far short of fully-closed
+                          counts as "hit something" (a real grasp)
 """
 
 import math
@@ -51,6 +57,7 @@ import tf2_ros
 import tf2_geometry_msgs  # noqa: F401  registers PoseStamped transforms
 
 from geometry_msgs.msg import PoseStamped
+from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
@@ -97,6 +104,12 @@ class VisualServoNode(Node):
         # Robotiq 2F-85: fingertip grasp center is ~145 mm along +tool0 Z from tool0
         # (base_link mount at +10 mm + ~135 mm through knuckles/pads when open).
         self.declare_parameter("tcp_offset_xyz",  [0.0, 0.0, 0.145])
+        # Defaults match Robotiq 2F-85 (SRDF "closed" state: finger_joint=0.8).
+        # For OnRobot RG2/RG6 set gripper_joint_name:=gripper_joint and
+        # gripper_fully_closed:=1.3 (their SRDF "closed" state).
+        self.declare_parameter("gripper_joint_name",   "finger_joint")
+        self.declare_parameter("gripper_fully_closed", 0.8)
+        self.declare_parameter("gripper_stall_margin", 0.05)
 
         self._rate_hz        = float(self.get_parameter("servo_rate_hz").value)
         self._xy_tol         = float(self.get_parameter("xy_tolerance").value)
@@ -109,16 +122,25 @@ class VisualServoNode(Node):
         self._tcp_offset     = np.array(
             self.get_parameter("tcp_offset_xyz").value, dtype=np.float64
         )
+        self._gripper_joint_name   = str(self.get_parameter("gripper_joint_name").value)
+        self._gripper_fully_closed = float(self.get_parameter("gripper_fully_closed").value)
+        self._gripper_stall_margin = float(self.get_parameter("gripper_stall_margin").value)
 
         self._target_pose: PoseStamped | None = None
         self._pose_lock = threading.Lock()
         self._active = False
+
+        self._joint_state: JointState | None = None
+        self._joint_state_lock = threading.Lock()
 
         self._tf_buffer = tf2_ros.Buffer()
         self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         self.create_subscription(
             PoseStamped, "/ur_grasp/grasp_pose", self._grasp_pose_cb, SENSOR_QOS
+        )
+        self.create_subscription(
+            JointState, "/joint_states", self._joint_state_cb, SENSOR_QOS
         )
 
         self._status_pub = self.create_publisher(String, "/visual_servo/status", 10)
@@ -140,6 +162,10 @@ class VisualServoNode(Node):
     def _grasp_pose_cb(self, msg: PoseStamped):
         with self._pose_lock:
             self._target_pose = msg
+
+    def _joint_state_cb(self, msg: JointState):
+        with self._joint_state_lock:
+            self._joint_state = msg
 
     def _start_cb(self, request, response):
         if self._active:
@@ -273,8 +299,31 @@ class VisualServoNode(Node):
             return
 
         self._motion.close_gripper()
-        self._publish_status("Servo: grasp complete")
-        self.get_logger().info("Visual servo grasp complete.")
+
+        # close_gripper() alone can't tell success from "closed on air" — a
+        # position controller commands full closure regardless of whether it
+        # meets resistance. Read the actual finger position instead: stalling
+        # short of fully-closed means the fingers hit something.
+        time.sleep(0.5)
+        grasped = self._verify_grasp()
+        if grasped is True:
+            self._publish_status("Servo: grasp complete (verified — object detected)")
+            self.get_logger().info("Visual servo grasp complete — gripper stalled on object.")
+        elif grasped is False:
+            self._publish_status("Servo: grasp FAILED — gripper closed fully, likely missed object")
+            self.get_logger().warn("Gripper closed fully with no resistance — likely missed the object.")
+        else:
+            self._publish_status("Servo: grasp complete (unverified — no /joint_states)")
+            self.get_logger().info("Visual servo grasp complete (could not verify — no joint state).")
+
+    def _verify_grasp(self) -> bool | None:
+        """True if fingers stalled on something, False if closed fully, None if unknown."""
+        with self._joint_state_lock:
+            js = self._joint_state
+        if js is None or self._gripper_joint_name not in js.name:
+            return None
+        position = js.position[js.name.index(self._gripper_joint_name)]
+        return position < (self._gripper_fully_closed - self._gripper_stall_margin)
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
