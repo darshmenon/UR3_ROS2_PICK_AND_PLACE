@@ -69,6 +69,8 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 
 import tf2_ros
 import tf2_geometry_msgs  # registers PoseStamped transforms
@@ -118,23 +120,32 @@ class GraspNode(Node):
         self._use_simple_grasping = False
         if self._backend in ("auto", "simple_grasping"):
             try:
-                from object_recognition_msgs.action import FindObjects  # noqa: F401
+                from grasping_msgs.action import FindGraspableObjects  # noqa: F401
                 self._use_simple_grasping = True
-                self.get_logger().info("Backend: simple_grasping (FindObjects action)")
+                self.get_logger().info("Backend: simple_grasping (FindGraspableObjects action)")
             except ImportError:
                 if self._backend == "simple_grasping":
                     self.get_logger().error(
                         "simple_grasping backend requested but "
-                        "object_recognition_msgs not found. "
+                        "grasping_msgs not found. "
                         "Run: sudo apt install ros-humble-simple-grasping"
                     )
                 else:
                     self.get_logger().info("Backend: numpy centroid (simple_grasping not available)")
 
         if self._use_simple_grasping:
-            from object_recognition_msgs.action import FindObjects
+            from grasping_msgs.action import FindGraspableObjects
+            # Dedicated reentrant group + MultiThreadedExecutor (see main()):
+            # /ur_grasp/detect's callback blocks synchronously on this action's
+            # result. On the default single-threaded executor that would
+            # deadlock — the goal-response/result callbacks that set the event
+            # can never run because the same (only) thread is stuck waiting on
+            # it. Giving the action client its own group lets it run on a
+            # different executor thread while /ur_grasp/detect blocks.
+            self._action_cb_group = ReentrantCallbackGroup()
             self._find_objects_client = ActionClient(
-                self, FindObjects, "/find_objects_with_grasps"
+                self, FindGraspableObjects, "/find_objects",
+                callback_group=self._action_cb_group,
             )
 
         # ── TF ───────────────────────────────────────────────────────────────
@@ -303,14 +314,15 @@ class GraspNode(Node):
         return self._make_pose(candidate.x, candidate.y, candidate.grasp_z, "base_link")
 
     def _detect_simple_grasping(self) -> Optional[PoseStamped]:
-        """Use simple_grasping FindObjects action server."""
-        from object_recognition_msgs.action import FindObjects
+        """Use simple_grasping FindGraspableObjects action server."""
+        from grasping_msgs.action import FindGraspableObjects
 
         if not self._find_objects_client.wait_for_server(timeout_sec=5.0):
-            self.get_logger().warn("FindObjects server not available — falling back to numpy.")
+            self.get_logger().warn("FindGraspableObjects server not available — falling back to numpy.")
             return self._detect_numpy()
 
-        goal = FindObjects.Goal()
+        goal = FindGraspableObjects.Goal()
+        goal.plan_grasps = True
         event = threading.Event()
         result_holder = [None]
 
@@ -321,18 +333,17 @@ class GraspNode(Node):
         send_future = self._find_objects_client.send_goal_async(goal)
         send_future.add_done_callback(lambda f: f.result().get_result_async().add_done_callback(_done))
         if not event.wait(timeout=15.0):
-            self.get_logger().warn("FindObjects timed out — falling back to numpy.")
+            self.get_logger().warn("FindGraspableObjects timed out — falling back to numpy.")
             return self._detect_numpy()
 
         result = result_holder[0]
-        if result is None or not result.result.objects.objects:
+        if result is None or not result.result.objects:
             self.get_logger().info("simple_grasping found no objects — trying numpy.")
             return self._detect_numpy()
 
         # Pick the object with the most grasps (highest confidence)
-        best_obj = max(result.result.objects.objects,
-                       key=lambda o: len(o.grasps) if hasattr(o, 'grasps') else 0)
-        grasps = result.result.grasps.grasps
+        best_obj = max(result.result.objects, key=lambda o: len(o.grasps))
+        grasps = best_obj.grasps
         if not grasps:
             return self._detect_numpy()
 
@@ -447,11 +458,17 @@ class GraspNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = GraspNode()
+    # MultiThreadedExecutor: needed so the simple_grasping action client's
+    # response callbacks (dedicated ReentrantCallbackGroup, see __init__) can
+    # run on a different thread than /ur_grasp/detect's blocking wait.
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 
