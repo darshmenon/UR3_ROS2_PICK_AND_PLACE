@@ -23,33 +23,74 @@
       <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
     </include>
 
-    <!-- Red cylinder — reachable by UR3 arm -->
+    <!-- ================================================================
+         Arm mount surface — arm's base_joint is raised by the same
+         table_height (default 1.015, see ur.gazebo.launch.py) so it sits
+         flush on top of mount_table's surface. Matches colored_blocks.world.
+         ================================================================ -->
+    <include>
+      <name>mount_table</name>
+      <uri>model://mount_table</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <!-- Flat work surface for the perception pipeline's plane segmentation to
+         detect as the support surface — previously this world had objects
+         floating directly above the bare ground plane with no distinct
+         horizontal surface to fit, so get_planning_scene_server's RANSAC
+         plane fit found nothing and MTC always fell back to a dummy object.
+         Table bottom sits at table_height (1.015); top face at 1.055. -->
+    <model name="table">
+      <static>true</static>
+      <pose>0.275 0.04 1.035 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>0.30 0.45 0.04</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>0.30 0.45 0.04</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.6 0.4 1</ambient>
+            <diffuse>0.8 0.6 0.4 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Red cylinder — reachable by UR3 arm. z raised so it rests on the
+         table's top face (1.055) instead of the original bare ground (0). -->
     <include>
       <uri>model://red_cylinder</uri>
       <name>red_cylinder</name>
-      <pose>0.22 0.12 0.20 0 0 0</pose>
+      <pose>0.22 0.12 1.255 0 0 0</pose>
     </include>
 
-    <!-- YCB objects for richer scene -->
+    <!-- YCB objects for richer scene — z raised the same way -->
     <include>
       <uri>model://mustard</uri>
-      <pose>0.28 0.05 0.08 0 0 0</pose>
+      <pose>0.28 0.05 1.135 0 0 0</pose>
     </include>
 
     <include>
       <uri>model://coke_can</uri>
-      <pose>0.25 -0.10 0.075 0 0 0</pose>
+      <pose>0.25 -0.10 1.13 0 0 0</pose>
     </include>
 
     <include>
       <uri>model://cheezit_big_original</uri>
-      <pose>0.30 0.18 0.04 0 0 0</pose>
+      <pose>0.30 0.18 1.095 0 0 0</pose>
     </include>
 
-    <!-- Bin / drop zone -->
+    <!-- Bin / drop zone — sit on the raised ground (mount_table's floor
+         level = table_height), not the pick table; outside its footprint. -->
     <model name="bin_left">
       <static>true</static>
-      <pose>-0.15 0.25 0 0 0 0</pose>
+      <pose>-0.15 0.25 1.015 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry><box><size>0.15 0.15 0.01</size></box></geometry>
@@ -63,7 +104,7 @@
 
     <model name="bin_right">
       <static>true</static>
-      <pose>-0.15 -0.25 0 0 0 0</pose>
+      <pose>-0.15 -0.25 1.015 0 0 0</pose>
       <link name="link">
         <visual name="visual">
           <geometry><box><size>0.15 0.15 0.01</size></box></geometry>
