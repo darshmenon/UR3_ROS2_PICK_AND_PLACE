@@ -8,6 +8,14 @@ arm:
   # pose). Each attempt reseeds from a different random start, so more
   # attempts within a larger timeout meaningfully raises the odds of
   # converging when trac_ik (analytical, not installed) isn't available.
+  #
+  # Also tried lma_kinematics_plugin/LMAKinematicsPlugin (KDL's
+  # Levenberg-Marquardt solver, already installed, in principle more robust
+  # near singularities than plain Newton-Raphson) for the MTC top-down grasp
+  # IK failure — didn't meaningfully change the outcome, and this setting is
+  # global (used by the already-working ur_grasp/ur_visual_servo pipeline
+  # too), so reverted to KDL rather than keep an unproven swap that risks
+  # that working path.
   kinematics_solver_timeout: 0.2
   position_only_ik: false
   kinematics_solver_attempts: 10

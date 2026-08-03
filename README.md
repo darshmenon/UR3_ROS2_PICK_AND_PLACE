@@ -665,6 +665,18 @@ Two more findings from testing the full servo loop with this camera:
   the arm's swing (0.284, 0.027) → (0.161, 0.245). The wrist-camera
   detect → servo → grasp → lift pipeline now works end-to-end.
 
+### MoveIt Task Constructor Pick-and-Place (`ur_mtc_pick_place_demo`)
+
+The MTC demo (`pick_and_place_demo.world` + `get_planning_scene_server` + `mtc_node`) is a separate, less mature path than the `ur_grasp`/`ur_visual_servo` pipeline above — perception now works, motion planning does not yet succeed end-to-end.
+
+**Fixed (2026-08-04):**
+- `pick_and_place_demo.world` had no real support surface — objects floated directly above the bare ground plane with nothing distinct for `get_planning_scene_server`'s RANSAC plane segmentation to fit, so it always came back empty and `mtc_node` silently fell back to a hardcoded dummy object. Added a `table` model (matching the `mount_table` pattern already used in `colored_blocks.world`) and re-raised all objects/bins to sit on it. Verified: the server now finds a real support surface *and* the actual detected collision objects from the live point cloud.
+- `identifyTargetObject()` in `get_planning_scene_server.cpp` could match the table itself (`support_surface`) as a pickable object when searching for a `"box"` type (the table is also box-shaped) — it's never excluded from candidacy. Now skipped explicitly.
+- `grasp_frame_transform`'s standoff (`ur_mtc_pick_place_demo/config/mtc_node_params.yaml`) was `0.10`/`0.12` — too short for the real Robotiq 2F-85 geometry (same ~0.135m measurement documented in `ur_visual_servo/servo_node.py`, adjusted for `gripper_frame` being `robotiq_arg2f_base_link` rather than `tool0`). At the old value every sampled grasp angle put the gripper base in collision with the object.
+- The grasp approach itself was a bigger bug: `grasp_frame_transform`'s pitch (`1.5708`, "sideways") swept the gripper around at the object's own height, colliding with the table at most angles for any object resting low/flush on it — verified against both a cylinder and a box target. Switched to a genuine top-down approach (`pitch=3.14159`, standoff sign flipped accordingly) by reading `GenerateGraspPose`'s source directly (it samples pure rotations about the object's own origin, position never changes) — confirmed zero table/object collisions at the corrected values.
+
+**Known limitation (2026-08-04):** even with the fixes above, `mtc_node` still reports "Task planning failed" for the cylinder target — KDL (and `lma_kinematics_plugin`, also tried) cannot find a valid IK solution for the required straight-down wrist pose; the reported position error is large (~0.5-0.66m) and stays roughly constant regardless of the object's position or the grasp standoff distance, which points to a real solver limitation (the well-known UR wrist-singularity weakness of numerical IK) rather than a scene/config bug. With a box target instead, the failure is different and much closer: only the gripper's *finger pad* clips the table (not the base link, and IK now succeeds) — a pure grasp-depth/clearance tuning issue, not a fundamental blocker. Neither TRAC-IK nor a UR-specific analytical kinematics plugin is available via apt on this system; either would need to be built from source to resolve the remaining cylinder-target IK failures definitively.
+
 ### Vision-Based Perception (`ur_perception`)
 
 Color-based object detection with optional YOLO and PCL cluster extraction from the Intel D435 camera.
