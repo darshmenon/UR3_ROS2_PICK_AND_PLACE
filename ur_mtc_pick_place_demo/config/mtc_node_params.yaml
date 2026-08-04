@@ -67,6 +67,23 @@ mtc_node:
     # A UR-specific analytical solver or TRAC-IK (neither available via apt
     # here, both would need building from source) would resolve this
     # definitively; not yet done.
+    #
+    # 2026-08-04: re-investigated with real explainFailure() diagnostics
+    # (see mtc_node.cpp) instead of guessing blind. Confirmed this IS a
+    # real reachability boundary, not an IK-search-budget problem: bumping
+    # kinematics_solver_timeout 5x (0.2s->1.0s) and attempts 5x (10->50)
+    # made no difference. Tilting off the exact pitch=pi singularity
+    # (tried pitch=3.0, 2.7, 2.4, 2.0 rad) does trade "no IK found" for
+    # "eef in collision" at a nearby standoff, confirming IK *can* succeed
+    # off-axis, but at every tilt tried the collision-free-and-reachable
+    # window was consistently 1-8mm wide or nonexistent, well inside the
+    # run-to-run jitter of the point-cloud-detected object pose/dimensions
+    # — not a stable value to commit. Root cause looks structural: the
+    # pick targets sit very close to the arm base in both the cylinder's
+    # (x=0.22-0.25) and box's (x=0.28ish) case, at close to the base's own
+    # height, which is a tight reach for any steep approach angle
+    # regardless of standoff. Reverted to the documented pitch=pi/0.135
+    # baseline rather than commit a millimeter-fragile tilt value.
     grasp_frame_transform: [0.0, 0.0, 0.135, 0.0, 3.14159, 0.0]  # top-down grasp
     place_pose: [-0.30, 0.05, 0.0, 0.0, 0.0, 0.0]  # Place on opposite side
 
