@@ -39,7 +39,17 @@
          floating directly above the bare ground plane with no distinct
          horizontal surface to fit, so get_planning_scene_server's RANSAC
          plane fit found nothing and MTC always fell back to a dummy object.
-         Table bottom sits at table_height (1.015); top face at 1.055. -->
+         Table bottom sits at table_height (1.015); top face at 1.055.
+         2026-08-04: tried dropping this 0.285m below mount_table's surface
+         to give the arm more top-down reach clearance (this height is only
+         2cm above the robot's own base_link, a likely cause of the razor-thin
+         collision-vs-no-IK grasp margins documented below). Reverted: the
+         drop broke get_planning_scene_server's RANSAC — with the pick table
+         no longer occluding it, the much larger mount_table plane (32k+
+         points vs ~350 object points) won as "best fit" support surface
+         instead, and the real fix (robust across whatever object geometry
+         perception reports) belongs in the grasp strategy, not the scene —
+         see the Fallbacks-based multi-candidate grasp in mtc_node.cpp. -->
     <model name="table">
       <static>true</static>
       <pose>0.275 0.04 1.035 0 0 0</pose>
