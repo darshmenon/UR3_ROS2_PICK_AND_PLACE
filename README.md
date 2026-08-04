@@ -618,52 +618,25 @@ ros2 launch ur_grasp grasp_detection.launch.py colour:=red \
   continuous_detect_hz:=0.0
 ```
 
-Verified live (2026-07-30): the sensor is correctly attached under
-`wrist_3_link` in the gz scene graph (fixed-joint lumping disabled on that
-joint specifically, matching the pattern already used for the gripper
-joint), and `/camera_wrist/depth/color/points` / `color/image_raw` stream
-real data. Detection itself works well (100% confidence, 3000+ points)
-**once the arm is already posed so the wrist camera can see the table** —
-from the arm's default home pose the wrist camera only sees the gripper
-itself, since it's rigidly mounted a few cm from it. This is a real
-eye-in-hand geometry constraint, not a bug: a wrist camera can't bootstrap
-detection from an arbitrary pose the way a fixed head camera can.
+Verified live (2026-07-30): sensor correctly attached under `wrist_3_link`,
+streams real data. Detection works well once the arm is posed so the wrist
+camera can see the table — from home pose it only sees the gripper itself
+(a real eye-in-hand geometry constraint, not a bug).
 
-Two more findings from testing the full servo loop with this camera:
-
-- `continuous_detect_hz > 0` (re-detecting every camera frame during the
-  approach) is **not stable yet** — as the arm gets closer, the box's
-  framing/point count in view changes a lot, and the recomputed grasp pose
-  drifted several cm between frames. That moving target sent the servo loop
-  into a wrong IK branch and it drove away from the object instead of
-  converging. Leave `continuous_detect_hz:=0.0` (one-shot detection, frozen
-  target) for now.
-- **Update (2026-08-04), re-tested after the `tcp_offset_xyz` fix landed in
-  `servo_node.py`:** the convergence plateau above is gone — the servo loop
-  now reaches "Converged TCP at (...)" in 4 steps instead of hitting
-  `max_iterations` without closing the gap. The earlier plateau was likely
-  the same tool0-vs-fingertip offset error feeding bad small-step targets,
-  not an independent IK-branch bug.
-- The physical grasp did not succeed with this fix alone, though. Re-tested
-  end-to-end, isolated on `ROS_DOMAIN_ID=77` (see `launch_headless.sh`) to
-  rule out cross-talk with other ROS2 sessions on this machine: detection
-  (0.350, 0.008, 0.055), servo converges in 4 steps, gripper closes, node
-  logs "Visual servo grasp complete" — but `finger_joint` reads exactly `0.8`
-  (full closure, no resistance) and commanding the arm to lift afterward left
-  the box's Z position on the table completely unchanged. Root cause turned
-  out to be `xy_tolerance` (default 0.015 = 1.5cm): the test box is only
-  ~4.2cm across, so the servo loop was declaring "converged" while still up
-  to 1.5cm off-center — enough for one finger to clip the box and knock it
-  sideways instead of centering around it.
-- **Fixed (2026-08-04):** tightened `xy_tolerance` to `0.006` (6mm) in
-  `servo_node.py`. Re-tested end-to-end on `ROS_DOMAIN_ID=77`: servo converges
-  to the exact detected position (0.350, 0.008) in 5 steps, gripper closes
-  (took longer this time — "Gripper result timed out" logged, consistent with
-  the fingers meeting real resistance instead of closing on air), and
-  commanding the arm to lift and then swing sideways carried the box with it
-  — Z went from ~1.08 (resting) to ~1.13-1.17 and stayed elevated, XY tracked
-  the arm's swing (0.284, 0.027) → (0.161, 0.245). The wrist-camera
-  detect → servo → grasp → lift pipeline now works end-to-end.
+Servo-loop findings, in order:
+- `continuous_detect_hz > 0` isn't stable — re-detecting each frame during
+  approach let the recomputed grasp pose drift several cm and sent the servo
+  into a wrong IK branch. Leave `continuous_detect_hz:=0.0` (one-shot).
+- **2026-08-04:** after the `tcp_offset_xyz` fix in `servo_node.py`, that
+  plateau was gone — converges in 4 steps instead of hitting `max_iterations`.
+- Grasp still didn't succeed, though: gripper closed on air (`finger_joint`
+  fully closed, no resistance) and the box didn't move on lift. Root cause:
+  `xy_tolerance` (default 1.5cm) was letting the loop call "converged" while
+  still off-center enough for a finger to clip a ~4.2cm box sideways.
+- **Fixed:** tightened `xy_tolerance` to 6mm. Re-tested end-to-end on
+  `ROS_DOMAIN_ID=77` — servo converges, gripper closes with real resistance,
+  lift + swing carries the box with it. detect → servo → grasp → lift now
+  works end-to-end.
 
 ### MoveIt Task Constructor Pick-and-Place (`ur_mtc_pick_place_demo`)
 
@@ -748,31 +721,20 @@ Live fused cloud publishes on `/ur_perception/reconstructed_points`
 reports `saved to <path>` once `stop` finishes writing the PLY — check for that
 line if you passed `save_path`.
 
-Verified live (2026-07-30): swept the arm through 5 waypoints around the red
-box with the wrist camera, accumulated 154 frames into 35k voxels, and wrote a
-valid ASCII PLY (`open(path).readlines()` + point count round-tripped
-correctly). The `roi_radius` filter is a plain sphere around either a fixed
-`roi_center` param or the last `/ur_grasp/grasp_pose` (auto-recenters if
-`ur_grasp` is running) — it keeps the table and any nearby clutter in frame
-too, not just the target object, so don't expect an isolated single-object
-mesh out of the box.
+Verified live (2026-07-30): 5-waypoint sweep around a red box accumulated 154
+frames into 35k voxels, valid PLY output. `roi_radius` is a plain sphere
+around a fixed `roi_center` or the last `/ur_grasp/grasp_pose` — it keeps the
+table and nearby clutter in frame too, not just the target object.
 
-Re-verified live (2026-07-31), holding a single pre-grasp hover pose over the
-box (no sweep): merged 44 of ~50 possible frames in 5s at the camera's 10Hz
-into 2400 voxels, PLY round-tripped correctly. `VoxelMap.add()` used to merge
-points one at a time in a Python loop — at the wrist camera's ~70k points/frame
-that was slow enough to starve this node's own TF listener (same
-single-threaded executor), so most frames failed their TF lookup and got
-silently dropped (1-2 frames actually merged per 5s window, not ~50). Fixed
-by vectorising the voxel merge with numpy.
-
-Re-verified live (2026-08-01): a 5cm test cube came out ~11cm elongated in a
-5-view sweep. Cause: the stamped TF lookup only got 0.05s, so most frames fell
-back to a stale "latest" transform instead of the pose at actual capture time,
-smearing points along the arm's motion. Fixed by widening that timeout to 0.2s
-(`tf_fail` dropped from ~65% of frames to 0) and tightening `max_tf_age_sec`
-0.25 → 0.05 as a backstop. Confirmed: a single stationary viewpoint now
-reconstructs the cube at 4.8x4.85x4.63cm — matches the true 5cm within a voxel.
+Two fixes since, both found by re-testing live:
+- **2026-07-31:** a single hover pose only merged 1-2 of ~50 possible frames —
+  `VoxelMap.add()` merged points one at a time in Python, slow enough to starve
+  the node's own TF listener. Fixed by vectorising the voxel merge with numpy.
+- **2026-08-01:** a 5cm test cube came out ~11cm elongated — the stamped TF
+  lookup only got 0.05s, so most frames fell back to a stale transform and
+  smeared points along the arm's motion. Fixed by widening that timeout to
+  0.2s and tightening `max_tf_age_sec` to 0.05. Confirmed: a stationary
+  viewpoint now reconstructs the cube at 4.8x4.85x4.63cm.
 
 **Known limitation**: multi-view fusion still shows a few cm of spread on one
 axis, since registration is TF-based, not ICP — each viewpoint's depth reading

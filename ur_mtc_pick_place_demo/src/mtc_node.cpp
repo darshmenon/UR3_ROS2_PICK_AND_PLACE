@@ -41,6 +41,7 @@
 #include <moveit/task_constructor/task.h>
 #include <moveit/task_constructor/solvers.h>
 #include <moveit/task_constructor/stages.h>
+#include <moveit/task_constructor/storage.h>
 
 // Other utilities
 #include <type_traits>
@@ -92,6 +93,30 @@ Eigen::Isometry3d vectorToEigen(const std::vector<double>& values) {
 geometry_msgs::msg::Pose vectorToPose(const std::vector<double>& values) {
   return tf2::toMsg(vectorToEigen(values));
 };
+
+/**
+ * @brief Find the stage whose name starts with `name_prefix` among the
+ * (possibly nested, via WrappedSolution/SolutionSequence) solutions that
+ * produced `solution` — used to report which Fallbacks grasp candidate
+ * actually succeeded, since the winning branch isn't otherwise surfaced.
+ */
+const moveit::task_constructor::Stage* findStageByNamePrefix(
+    const moveit::task_constructor::SolutionBase& solution, const std::string& name_prefix) {
+  if (solution.creator() && solution.creator()->name().rfind(name_prefix, 0) == 0) {
+    return solution.creator();
+  }
+  if (const auto* seq = dynamic_cast<const moveit::task_constructor::SolutionSequence*>(&solution)) {
+    for (const auto* sub : seq->solutions()) {
+      if (const auto* found = findStageByNamePrefix(*sub, name_prefix)) {
+        return found;
+      }
+    }
+  }
+  if (const auto* wrapped = dynamic_cast<const moveit::task_constructor::WrappedSolution*>(&solution)) {
+    return findStageByNamePrefix(*wrapped->wrapped(), name_prefix);
+  }
+  return nullptr;
+}
 }  // namespace
 
 // Namespace alias for MoveIt Task Constructor
@@ -396,6 +421,12 @@ void MTCTaskNode::doTask()
 
   RCLCPP_INFO(this->get_logger(), "Task planning succeeded");
 
+  // Report which grasp candidate (see "Generate Grasp Pose" in createTask())
+  // actually won, since the Fallbacks container otherwise hides this.
+  if (const auto* winning_stage = findStageByNamePrefix(*task_.solutions().front(), "grasp pose IK ")) {
+    RCLCPP_INFO(this->get_logger(), "Winning grasp candidate: %s", winning_stage->name().c_str());
+  }
+
   // Publish the planned solution for visualization
   task_.introspection().publishSolution(*task_.solutions().front());
   RCLCPP_INFO(this->get_logger(), "Published solution for visualization");
@@ -461,6 +492,18 @@ mtc::Task MTCTaskNode::createTask()
   auto object_dimensions = this->get_parameter("object_dimensions").as_double_array();
   auto object_pose = this->get_parameter("object_pose").as_double_array();
 
+  // object_dimensions is [height, radius] for a cylinder but [x, y, z] for a
+  // box (shape_msgs::SolidPrimitive convention, see prim.dimensions[0..2]
+  // below) — dimensions[0] is only the object's height for a cylinder, so
+  // callers that want "how tall is this object" must branch on object_type
+  // rather than always reading dimensions[0].
+  double object_height = 0.0;
+  if (object_type == "cylinder" && !object_dimensions.empty()) {
+    object_height = object_dimensions[0];
+  } else if (object_type == "box" && object_dimensions.size() >= 3) {
+    object_height = object_dimensions[2];  // z is up
+  }
+
   RCLCPP_INFO(this->get_logger(), "Creating task for object:");
   RCLCPP_INFO(this->get_logger(), "  Name: %s", object_name.c_str());
   RCLCPP_INFO(this->get_logger(), "  Type: %s", object_type.c_str());
@@ -470,6 +513,7 @@ mtc::Task MTCTaskNode::createTask()
                               [](std::string a, double b) {
                                 return std::move(a) + ", " + std::to_string(b);
                               }).c_str());
+  RCLCPP_INFO(this->get_logger(), "  Resolved height (type-aware): %.4f m", object_height);
 
   // Grasp and place parameters
   auto grasp_frame_transform = this->get_parameter("grasp_frame_transform").as_double_array();
@@ -630,69 +674,45 @@ mtc::Task MTCTaskNode::createTask()
 ---- *               Generate Grasp Pose               *
      ***************************************************/
     {
-      // A single fixed grasp_frame_transform is fragile: investigation on
-      // 2026-08-04 (see README) found that for objects sitting close to the
-      // arm's own base height, the collision-free-and-IK-reachable standoff
-      // for a given approach tilt is often only 1-8mm wide (or nonexistent)
-      // — narrower than the run-to-run jitter of the point-cloud-detected
-      // object pose/dimensions. Rather than gamble on one configured value,
-      // try a ladder of (standoff, pitch) candidates around it via a
-      // Fallbacks container: MTC tries each in order and uses the first
-      // that actually yields a collision-free, reachable solution for
-      // *this* run's real detected object, instead of failing outright.
+      // A single fixed grasp_frame_transform is fragile for objects close to
+      // the arm's base — the collision-free/reachable window is often only
+      // 1-8mm wide or nonexistent (see README). Try a ladder of (standoff,
+      // pitch) candidates via Fallbacks: MTC uses the first one that's
+      // actually collision-free and reachable for this run's real object.
       auto grasp_ik_candidates = std::make_unique<mtc::Fallbacks>("grasp pose IK");
       grasp->properties().exposeTo(grasp_ik_candidates->properties(), { "eef", "group", "ik_frame" });
       grasp_ik_candidates->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group", "ik_frame" });
 
-      // A fixed standoff only clears the object's top for the ONE height it
-      // was tuned for — investigation on 2026-08-04 (see README) found the
-      // collision-free-and-reachable window for a *fixed* standoff is often
-      // only 1-8mm wide (or nonexistent) for objects close to the arm's own
-      // base, a real UR/KDL wrist-singularity limitation, not a config bug.
-      // Scale the standoff candidates off the object's own detected height
-      // instead of a hardcoded number, so the ladder adapts to whatever
-      // perception actually reports this run (a thin coke can vs. a tall
-      // cylinder need very different standoffs to clear their own top).
-      double object_half_height = 0.0;
-      if (object_type == "cylinder" && !object_dimensions.empty()) {
-        object_half_height = object_dimensions[0] / 2.0;  // [height, radius]
-      } else if (object_type == "box" && object_dimensions.size() >= 3) {
-        object_half_height = object_dimensions[2] / 2.0;  // [x, y, z], z is up
-      }
+      // Scale standoff off the object's own detected height rather than a
+      // hardcoded number, so it adapts to whatever perception reports.
+      double object_half_height = object_height / 2.0;
 
       struct GraspCandidate { double standoff; double pitch; };
       std::vector<GraspCandidate> candidates = {
         { grasp_frame_transform[2], grasp_frame_transform[4] },  // configured value, tried first
       };
-      // candidate_transform's (0,0,standoff) translation is applied in
-      // gripper_frame's own untilted axes, before the pitch rotation (see
-      // vectorToEigen: Translation * RotX * RotY * RotZ). Working through
-      // the resulting IK equation, the gripper ends up
-      // `standoff * -cos(pitch)` above the object's center in world Z, not
-      // `standoff` — at pitch=pi that factor is 1.0 (pure top-down), but it
-      // drops to ~0.90/0.74/0.42 at pitch=2.7/2.4/2.0. Dividing the intended
-      // clearance by this factor recovers the actual vertical clearance the
-      // "clearance"/"offset" values below are meant to express; without it,
-      // the pitch=2.0 candidates were achieving under half their intended
-      // margin — likely inside the object rather than above it.
+      // The standoff translation is applied along gripper_frame's own
+      // untilted Z axis, before the pitch rotation — so the real vertical
+      // clearance is `standoff * -cos(pitch)`, not `standoff` (1.0 at
+      // pitch=pi, dropping to ~0.42 at pitch=2.0). Divide by that factor so
+      // "clearance"/"offset" below mean actual vertical clearance.
       auto standoff_for_clearance = [](double vertical_clearance, double pitch) {
         return vertical_clearance / -std::cos(pitch);
       };
 
+      // pitch=pi is straight top-down; the rest tilt off that wrist-singular
+      // orientation (see README), trading "no IK" for "in collision" at a
+      // nearby standoff — scan a few clearances per pitch for a shot at
+      // whatever narrow window exists.
       if (object_half_height > 0.0) {
-        // pitch=pi is a genuine top-down approach; the others tilt a few
-        // degrees off that exact wrist-singular orientation (see README) —
-        // empirically trades "no IK found" for "eef in collision" at a
-        // nearby standoff, so scanning several clearance margins per pitch
-        // gives a real shot at landing in whatever narrow window exists.
         for (double pitch : { 3.14159, 2.7, 2.4, 2.0 }) {
           for (double clearance : { 0.03, 0.04, 0.05, 0.06, 0.07 }) {
             candidates.push_back({ standoff_for_clearance(object_half_height + clearance, pitch), pitch });
           }
         }
       } else {
-        // Dimensions unavailable (shouldn't normally happen) — fall back to
-        // fixed offsets from the configured standoff instead of adapting.
+        // Dimensions unavailable (shouldn't normally happen) — offsets from
+        // the configured standoff instead of adapting to object height.
         for (double pitch : { 3.14159, 2.7, 2.4, 2.0 }) {
           for (double offset : { 0.02, 0.04, 0.06, 0.08, 0.10 }) {
             candidates.push_back({ standoff_for_clearance(grasp_frame_transform[2] + offset, pitch), pitch });
@@ -884,7 +904,12 @@ mtc::Task MTCTaskNode::createTask()
       geometry_msgs::msg::PoseStamped target_pose_msg;
       target_pose_msg.header.frame_id = world_frame;
       target_pose_msg.pose = vectorToPose(place_pose);
-      target_pose_msg.pose.position.z += place_pose_z_offset_factor * object_dimensions[0];
+      // object_dimensions[0] is only the object's height for a cylinder — for
+      // a box it's the X dimension, which would halve the intended clearance
+      // for a tall, narrow box (see object_height above). Use the
+      // type-aware height so placement clears the surface by the same
+      // fraction of the object's actual height regardless of its shape.
+      target_pose_msg.pose.position.z += place_pose_z_offset_factor * object_height;
       stage->setPose(target_pose_msg);
       stage->setMonitoredStage(attach_object_stage);  // hook into successful pick solutions
 
