@@ -47,6 +47,7 @@
 #include <type_traits>
 #include <numeric>
 #include <cmath>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -100,6 +101,33 @@ geometry_msgs::msg::Pose vectorToPose(const std::vector<double>& values) {
  * produced `solution` — used to report which Fallbacks grasp candidate
  * actually succeeded, since the winning branch isn't otherwise surfaced.
  */
+/**
+ * @brief Log every failing leaf stage's failure reasons, not just the first
+ * one. Task::explainFailure() (see container.cpp's ContainerBase::
+ * explainFailure) returns as soon as it finds ONE failing child — with a
+ * Fallbacks container of 21 grasp candidates that all produced 0 solutions,
+ * that means 20 of the 21 failure reasons are silently discarded. Distinct
+ * failure comments are deduped with a count so 24 near-identical "in
+ * collision" messages per candidate collapse to one line.
+ */
+void logAllFailures(const rclcpp::Logger& logger, const moveit::task_constructor::ContainerBase& root) {
+  root.traverseRecursively([&logger](const moveit::task_constructor::Stage& stage, unsigned int /*depth*/) {
+    if (!stage.solutions().empty() || stage.numFailures() == 0) {
+      return true;  // keep descending; this stage isn't a failing leaf
+    }
+    std::map<std::string, size_t> reason_counts;
+    for (const auto& failure : stage.failures()) {
+      reason_counts[failure->comment()]++;
+    }
+    std::ostringstream reasons;
+    for (const auto& [comment, count] : reason_counts) {
+      reasons << "\n    (" << count << "x) " << comment;
+    }
+    RCLCPP_ERROR(logger, "  %s (0/%zu):%s", stage.name().c_str(), stage.numFailures(), reasons.str().c_str());
+    return true;
+  });
+}
+
 const moveit::task_constructor::Stage* findStageByNamePrefix(
     const moveit::task_constructor::SolutionBase& solution, const std::string& name_prefix) {
   if (solution.creator() && solution.creator()->name().rfind(name_prefix, 0) == 0) {
@@ -414,8 +442,13 @@ void MTCTaskNode::doTask()
     // targeting a stream we actually log, so the failure reason is visible.
     std::ostringstream diagnostics;
     task_.printState(diagnostics);
-    task_.explainFailure(diagnostics);
     RCLCPP_ERROR(this->get_logger(), "Task failure diagnostics:\n%s", diagnostics.str().c_str());
+    // task_.explainFailure() only reports the FIRST failing child it finds
+    // (see ContainerBase::explainFailure in container.cpp) — with a
+    // Fallbacks container of many grasp candidates that all fail, that
+    // hides every reason but the first. Walk the whole tree instead.
+    RCLCPP_ERROR(this->get_logger(), "Failing stage(s), all leaves:");
+    logAllFailures(this->get_logger(), *task_.stages());
     return;
   }
 
@@ -718,6 +751,11 @@ mtc::Task MTCTaskNode::createTask()
             candidates.push_back({ standoff_for_clearance(grasp_frame_transform[2] + offset, pitch), pitch });
           }
         }
+      }
+
+      for (size_t i = 0; i < candidates.size(); ++i) {
+        RCLCPP_INFO(this->get_logger(), "  grasp candidate %zu: standoff=%.4f pitch=%.4f", i,
+                    candidates[i].standoff, candidates[i].pitch);
       }
 
       for (size_t i = 0; i < candidates.size(); ++i) {

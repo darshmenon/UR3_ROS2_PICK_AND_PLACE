@@ -2,9 +2,14 @@
 """
 object_reconstructor_node.py — multi-view point cloud fusion via a moving camera.
 
-Registration is TF-based (not ICP): each RGBD frame is transformed into
-base_link using the camera pose from forward kinematics and merged into a
-voxel grid. Optional second camera (e.g. fixed head) is fused the same way.
+Registration is TF-based: each RGBD frame is transformed into base_link using
+the camera pose from forward kinematics and merged into a voxel grid.
+Optional second camera (e.g. fixed head) is fused the same way. Each
+viewpoint's depth reading has its own small bias, which TF alignment alone
+doesn't reconcile — when open3d is installed, an optional ICP refinement pass
+(use_icp, default true) corrects each incoming frame against the
+already-accumulated map before merging, closing that few-cm spread. Falls
+back to pure TF alignment (previous behaviour) if open3d is unavailable.
 
 Services:
     /ur_perception/reconstruct/start  (std_srvs/Trigger)
@@ -39,6 +44,12 @@ from std_msgs.msg import Header
 from std_srvs.srv import Trigger
 
 from ur_grasp.cylinder_grasp_detector import decode_pointcloud2, colour_mask
+
+try:
+    import open3d as o3d
+    _HAVE_OPEN3D = True
+except ImportError:
+    _HAVE_OPEN3D = False
 
 BASE_FRAME = "base_link"
 
@@ -83,6 +94,36 @@ def _statistical_outlier_filter(
     sigma = float(mean_dist.std())
     keep = mean_dist <= (mu + std_ratio * sigma)
     return cloud[keep]
+
+
+def _icp_refine(
+    frame_xyz: np.ndarray,
+    target_xyz: np.ndarray,
+    max_correspondence_distance: float,
+    max_iteration: int,
+    min_fitness: float,
+) -> tuple[Optional[np.ndarray], float, float]:
+    """Register frame_xyz onto target_xyz with point-to-point ICP.
+
+    Returns (4x4 transform or None, fitness, inlier_rmse). None means the fit
+    was too poor to trust (below min_fitness) — caller should fall back to
+    the raw TF-aligned points rather than apply a runaway correction.
+    """
+    source = o3d.geometry.PointCloud()
+    source.points = o3d.utility.Vector3dVector(frame_xyz.astype(np.float64))
+    target = o3d.geometry.PointCloud()
+    target.points = o3d.utility.Vector3dVector(target_xyz.astype(np.float64))
+
+    result = o3d.pipelines.registration.registration_icp(
+        source, target, max_correspondence_distance,
+        np.eye(4),
+        o3d.pipelines.registration.TransformationEstimationPointToPoint(),
+        o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_iteration),
+    )
+
+    if result.fitness < min_fitness:
+        return None, result.fitness, result.inlier_rmse
+    return np.asarray(result.transformation), result.fitness, result.inlier_rmse
 
 
 class VoxelMap:
@@ -154,6 +195,11 @@ class ObjectReconstructorNode(Node):
         self.declare_parameter("save_path", "")
         self.declare_parameter("export_mesh", False)
         self.declare_parameter("save_metadata", True)
+        self.declare_parameter("use_icp", True)
+        self.declare_parameter("icp_max_correspondence_distance", 0.01)
+        self.declare_parameter("icp_max_iteration", 30)
+        self.declare_parameter("icp_min_fitness", 0.3)
+        self.declare_parameter("icp_min_target_points", 50)
 
         self._camera_topic = self.get_parameter("camera_topic").value
         self._secondary_topic = str(self.get_parameter("secondary_camera_topic").value).strip()
@@ -169,6 +215,16 @@ class ObjectReconstructorNode(Node):
         self._save_path = self.get_parameter("save_path").value
         self._export_mesh = _as_bool(self.get_parameter("export_mesh").value)
         self._save_metadata = _as_bool(self.get_parameter("save_metadata").value)
+        self._use_icp = _as_bool(self.get_parameter("use_icp").value) and _HAVE_OPEN3D
+        if _as_bool(self.get_parameter("use_icp").value) and not _HAVE_OPEN3D:
+            self.get_logger().warn(
+                "use_icp=true but open3d is not installed — pip install open3d. "
+                "Falling back to TF-only alignment."
+            )
+        self._icp_max_corr_dist = float(self.get_parameter("icp_max_correspondence_distance").value)
+        self._icp_max_iter = int(self.get_parameter("icp_max_iteration").value)
+        self._icp_min_fitness = float(self.get_parameter("icp_min_fitness").value)
+        self._icp_min_target_points = int(self.get_parameter("icp_min_target_points").value)
 
         self._voxels = VoxelMap(float(self.get_parameter("voxel_size").value))
         self._lock = threading.Lock()
@@ -178,6 +234,8 @@ class ObjectReconstructorNode(Node):
         self._frames_empty_after_filter = 0
         self._frames_tf_failed = 0
         self._frames_outlier_emptied = 0
+        self._frames_icp_refined = 0
+        self._frames_icp_rejected = 0
         self._view_az_hist = np.zeros(8, dtype=np.int64)  # occlusion coverage bins
 
         self._tf_buffer = tf2_ros.Buffer()
@@ -208,7 +266,8 @@ class ObjectReconstructorNode(Node):
             f"secondary={self._secondary_topic or '(none)'}  "
             f"roi_center={self._roi_center.tolist()}  roi_radius={self._roi_radius}  "
             f"colour={self._colour}  remove_table={self._remove_table}  "
-            f"outlier_filter={self._outlier_filter}  export_mesh={self._export_mesh}"
+            f"outlier_filter={self._outlier_filter}  export_mesh={self._export_mesh}  "
+            f"use_icp={self._use_icp}"
         )
 
     def _grasp_pose_cb(self, msg: PoseStamped) -> None:
@@ -223,6 +282,8 @@ class ObjectReconstructorNode(Node):
             self._frames_empty_after_filter = 0
             self._frames_tf_failed = 0
             self._frames_outlier_emptied = 0
+            self._frames_icp_refined = 0
+            self._frames_icp_rejected = 0
             self._view_az_hist[:] = 0
             self._active = True
         response.success = True
@@ -238,6 +299,8 @@ class ObjectReconstructorNode(Node):
             empty_after_filter = self._frames_empty_after_filter
             tf_failed = self._frames_tf_failed
             outlier_emptied = self._frames_outlier_emptied
+            icp_refined = self._frames_icp_refined
+            icp_rejected = self._frames_icp_rejected
             n_vox = len(self._voxels)
             az = self._view_az_hist.copy()
         if not active:
@@ -261,7 +324,8 @@ class ObjectReconstructorNode(Node):
             covered = int(np.count_nonzero(az))
             self.get_logger().info(
                 f"reconstruction progress: {merged}/{received} frames, "
-                f"{n_vox} voxels, azimuth_bins={covered}/8, tf_fail={tf_failed}"
+                f"{n_vox} voxels, azimuth_bins={covered}/8, tf_fail={tf_failed}, "
+                f"icp_refined={icp_refined}, icp_rejected={icp_rejected}"
             )
 
     def _stop_cb(self, _req, response):
@@ -273,6 +337,8 @@ class ObjectReconstructorNode(Node):
             az = self._view_az_hist.copy()
             received = self._frames_received
             outlier_emptied = self._frames_outlier_emptied
+            icp_refined = self._frames_icp_refined
+            icp_rejected = self._frames_icp_rejected
 
         save_path = self.get_parameter("save_path").value
         export_mesh = _as_bool(self.get_parameter("export_mesh").value)
@@ -289,6 +355,9 @@ class ObjectReconstructorNode(Node):
                     "n_frames_merged": int(n_frames),
                     "n_frames_received": int(received),
                     "n_frames_outlier_emptied": int(outlier_emptied),
+                    "use_icp": self._use_icp,
+                    "n_frames_icp_refined": int(icp_refined),
+                    "n_frames_icp_rejected": int(icp_rejected),
                     "camera_topic": self._camera_topic,
                     "secondary_camera_topic": self._secondary_topic,
                     "voxel_size": float(self.get_parameter("voxel_size").value),
@@ -309,9 +378,11 @@ class ObjectReconstructorNode(Node):
                 else:
                     saved_msg += ", mesh export skipped (open3d missing or failed)"
 
+        icp_msg = f", icp_refined={icp_refined}/{n_frames}" if self._use_icp else ""
         response.success = True
         response.message = (
-            f"Reconstruction stopped — {n_points} voxels from {n_frames} frames{saved_msg}"
+            f"Reconstruction stopped — {n_points} voxels from {n_frames} frames"
+            f"{icp_msg}{saved_msg}"
         )
         self.get_logger().info(response.message)
         return response
@@ -352,6 +423,8 @@ class ObjectReconstructorNode(Node):
                     self._frames_outlier_emptied += 1
                 return
 
+        cloud = self._icp_correct(cloud)
+
         with self._lock:
             self._voxels.add(cloud)
             self._frames_merged += 1
@@ -359,6 +432,51 @@ class ObjectReconstructorNode(Node):
             fused = self._voxels.as_array()
 
         self._publish_cloud(fused)
+
+    def _icp_correct(self, cloud: np.ndarray) -> np.ndarray:
+        """Refine a TF-aligned frame against the already-accumulated map.
+
+        TF alignment alone leaves each viewpoint's own small depth bias
+        uncorrected (see module docstring / README's multi-view fusion known
+        limitation). ICP here is a *refinement* on top of an already-good TF
+        alignment, not registration from scratch — init is identity, and the
+        correspondence distance is small (default 1cm), so a stray frame
+        can't drag the accumulated map somewhere wrong. Returns the frame
+        unmodified (falls back to pure TF alignment) if open3d is
+        unavailable, the accumulated map is too small to register against
+        yet, or the fit is too poor to trust.
+        """
+        if not self._use_icp:
+            return cloud
+
+        with self._lock:
+            target_xyz = self._voxels.as_array()[:, :3]
+
+        if len(target_xyz) < self._icp_min_target_points:
+            return cloud  # nothing to align against yet — seed the map as-is
+
+        transform, fitness, rmse = _icp_refine(
+            cloud[:, :3], target_xyz,
+            self._icp_max_corr_dist, self._icp_max_iter, self._icp_min_fitness,
+        )
+        if transform is None:
+            with self._lock:
+                self._frames_icp_rejected += 1
+            self.get_logger().debug(
+                f"ICP fit rejected (fitness={fitness:.2f} < {self._icp_min_fitness}) "
+                "— using raw TF alignment for this frame"
+            )
+            return cloud
+
+        with self._lock:
+            self._frames_icp_refined += 1
+        self.get_logger().debug(f"ICP refined frame: fitness={fitness:.2f} rmse={rmse:.4f}")
+
+        refined = cloud.copy()
+        r = transform[:3, :3]
+        t = transform[:3, 3]
+        refined[:, :3] = cloud[:, :3] @ r.T + t
+        return refined
 
     def _update_azimuth_hist(self, cloud: np.ndarray) -> None:
         """Track which azimuth sectors around roi_center have been observed."""

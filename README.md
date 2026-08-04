@@ -742,11 +742,17 @@ Two fixes since, both found by re-testing live:
   0.2s and tightening `max_tf_age_sec` to 0.05. Confirmed: a stationary
   viewpoint now reconstructs the cube at 4.8x4.85x4.63cm.
 
-**Known limitation**: multi-view fusion still shows a few cm of spread on one
-axis, since registration is TF-based, not ICP — each viewpoint's depth reading
-has its own small bias, and nothing reconciles that across views. Real
-accuracy ceiling of this approach, not a bug; closing it needs an ICP
-registration pass, not a parameter tweak.
+**Fixed (2026-08-05):** the few-cm spread from each viewpoint's own small depth
+bias (registration was TF-only, nothing reconciled that across views) is now
+corrected by an optional ICP refinement pass (`use_icp`, default true) — each
+incoming frame is registered against the already-accumulated map (point-to-point,
+small correspondence distance since it's refining an already-good TF alignment,
+not registering from scratch) before merging. Falls back to pure TF alignment
+if `open3d` isn't installed. Verified on synthetic data: a deliberate 4.3mm
+per-frame bias was corrected to 0.4mm mean error; an obviously-bad alignment
+(no real correspondence) is correctly rejected via a fitness threshold rather
+than silently corrupting the map. Not yet re-verified against a live multi-view
+sweep.
 
 Run the node directly:
 
