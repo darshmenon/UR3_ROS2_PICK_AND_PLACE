@@ -34,6 +34,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/qos.hpp>
 #include <thread>
+#include <limits>
 #include "ur_mtc_pick_place_demo/cluster_extraction.h"
 #include "ur_mtc_pick_place_demo/normals_curvature_and_rsd_estimation.h"
 #include "ur_mtc_pick_place_demo/object_segmentation.h"
@@ -703,13 +704,26 @@ class GetPlanningSceneServer : public rclcpp::Node {
       Eigen::Vector3f center(best_fit.coefficients->values[0], best_fit.coefficients->values[1], best_fit.coefficients->values[2]);
       primitive.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_RADIUS] = best_fit.coefficients->values[6];
 
-      // Calculate cylinder height
-      Eigen::Vector4f min_pt, max_pt;
-      pcl::getMinMax3D(*cluster, min_pt, max_pt);
-      Eigen::Vector3f min_vec = min_pt.head<3>();
-      Eigen::Vector3f max_vec = max_pt.head<3>();
-      Eigen::Vector3f diff = max_vec - min_vec;
-      primitive.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_HEIGHT] = diff.dot(axis.normalized());
+      // Calculate cylinder height by projecting every point onto the fitted
+      // axis and taking (max projection - min projection). Dotting the AABB
+      // diagonal with the axis (the previous approach) only equals the true
+      // axis extent when the axis happens to be exactly coordinate-aligned —
+      // for any tilted fit it mixes in the box's extent along the other two
+      // axes too, over- or under-estimating height. Upright cylinders in
+      // this project's scenes mostly kept the old formula accidentally
+      // correct, but a noisy/tilted RANSAC fit would silently mis-measure
+      // height, which is exactly the kind of few-cm error that turns into a
+      // grasp collision given how thin the reachable margins are (see
+      // mtc_node.cpp's grasp candidate ladder).
+      Eigen::Vector3f axis_unit = axis.normalized();
+      float min_proj = std::numeric_limits<float>::max();
+      float max_proj = std::numeric_limits<float>::lowest();
+      for (const auto& point : cluster->points) {
+        float proj = point.getVector3fMap().dot(axis_unit);
+        min_proj = std::min(min_proj, proj);
+        max_proj = std::max(max_proj, proj);
+      }
+      primitive.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_HEIGHT] = max_proj - min_proj;
 
       Eigen::Quaternionf quat = Eigen::Quaternionf::FromTwoVectors(Eigen::Vector3f::UnitZ(), axis);
       pose.position.x = center[0];

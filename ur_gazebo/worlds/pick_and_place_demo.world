@@ -96,7 +96,7 @@
          further from the arm base for the same reason as red_cylinder above. -->
     <include>
       <uri>model://mustard</uri>
-      <pose>0.36 0.05 1.135 0 0 0</pose>
+      <pose>0.39 0.09 1.135 0 0 0</pose>
     </include>
 
     <include>

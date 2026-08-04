@@ -26,7 +26,11 @@ mtc_node:
     object_type: "cylinder"
     object_reference_frame: "base_link"
     object_dimensions: [0.35, 0.018]  # Match cylinder radius
-    object_pose: [0.22, 0.12, 0.15, 0.0, 0.0, 0.0]  # Z increased +0.05
+    # x=0.30 matches the world file's red_cylinder pose (moved off the base
+    # singularity zone, see pick_and_place_demo.world) — only used if the
+    # planning scene service returns no detected objects and this fallback
+    # kicks in (see setupPlanningScene()).
+    object_pose: [0.30, 0.12, 0.15, 0.0, 0.0, 0.0]
 
     # Grasp parameters (key collision fixes)
     # z = distance from gripper_frame (robotiq_arg2f_base_link) to the fingertip
