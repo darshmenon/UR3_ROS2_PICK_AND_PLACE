@@ -608,6 +608,7 @@ mtc::Task MTCTaskNode::createTask()
 
   // Grasp generation parameters
   auto grasp_pose_angle_delta = this->get_parameter("grasp_pose_angle_delta").as_double();
+  (void)grasp_pose_angle_delta;  // retained param; absolute grasp ladder sets yaw explicitly
   auto grasp_pose_max_ik_solutions = this->get_parameter("grasp_pose_max_ik_solutions").as_int();
   auto grasp_pose_min_solution_distance = this->get_parameter("grasp_pose_min_solution_distance").as_double();
 
@@ -692,8 +693,10 @@ mtc::Task MTCTaskNode::createTask()
   auto stage_move_to_pick = std::make_unique<mtc::stages::Connect>(
       "move to pick",
       mtc::stages::Connect::GroupPlannerVector{
-        {arm_group_name, ompl_planner_arm},
-        {gripper_group_name, interpolation_planner}
+        // Arm only — gripper is already opened in the previous stage; including
+        // it here made Connect fail to link the successful grasp IK solutions
+        // back to the start state (0 Connect solutions while pick IK succeeded).
+        {arm_group_name, ompl_planner_arm}
       });
   stage_move_to_pick->setTimeout(move_to_pick_timeout);
   stage_move_to_pick->properties().configureInitFrom(mtc::Stage::PARENT);
@@ -749,83 +752,84 @@ mtc::Task MTCTaskNode::createTask()
 ---- *               Generate Grasp Pose               *
      ***************************************************/
     {
-      // A single fixed grasp_frame_transform is fragile for objects close to
-      // the arm's base — the collision-free/reachable window is often only
-      // 1-8mm wide or nonexistent (see README). Try a ladder of (standoff,
-      // pitch) candidates via Fallbacks: MTC uses the first one that's
-      // actually collision-free and reachable for this run's real object.
+      // Prefer absolute gripper poses in base_link over GenerateGraspPose +
+      // setIKFrame(transform). Live probing showed move_group compute_ik
+      // succeeds for those absolute top-down poses, while the
+      // object-frame + grasp_frame_transform path consistently returned
+      // "no IK found" for every Fallbacks candidate (same clearance math).
       auto grasp_ik_candidates = std::make_unique<mtc::Fallbacks>("grasp pose IK");
       grasp->properties().exposeTo(grasp_ik_candidates->properties(), { "eef", "group", "ik_frame" });
       grasp_ik_candidates->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group", "ik_frame" });
 
-      // Scale standoff off the object's own detected height rather than a
-      // hardcoded number, so it adapts to whatever perception reports.
-      double object_half_height = object_height / 2.0;
+      auto object_pose_param = this->get_parameter("object_pose").as_double_array();
+      const double ox = object_pose_param[0];
+      const double oy = object_pose_param[1];
+      const double oz = object_pose_param[2];
+      const double object_half_height = object_height / 2.0;
+      // Palm of robotiq_arg2f_base_link extends ~0.09m past the frame origin.
+      const double gripper_reach_offset = 0.090;
 
-      struct GraspCandidate { double standoff; double pitch; };
-      std::vector<GraspCandidate> candidates = {
-        { grasp_frame_transform[2], grasp_frame_transform[4] },  // configured value, tried first
-      };
-      // The standoff translation is applied along gripper_frame's own
-      // untilted Z axis, before the pitch rotation — so the real vertical
-      // clearance is `standoff * -cos(pitch)`, not `standoff` (1.0 at
-      // pitch=pi, dropping to ~0.42 at pitch=2.0). Divide by that factor so
-      // "clearance"/"offset" below mean actual vertical clearance.
-      auto standoff_for_clearance = [](double vertical_clearance, double pitch) {
-        return vertical_clearance / -std::cos(pitch);
-      };
-
-      // pitch=pi is straight top-down; the rest tilt off that wrist-singular
-      // orientation (see README), trading "no IK" for "in collision" at a
-      // nearby standoff — scan a few clearances per pitch for a shot at
-      // whatever narrow window exists.
-      if (object_half_height > 0.0) {
-        for (double pitch : { 3.14159, 2.7, 2.4, 2.0 }) {
-          for (double clearance : { 0.03, 0.04, 0.05, 0.06, 0.07 }) {
-            candidates.push_back({ standoff_for_clearance(object_half_height + clearance, pitch), pitch });
-          }
-        }
-      } else {
-        // Dimensions unavailable (shouldn't normally happen) — offsets from
-        // the configured standoff instead of adapting to object height.
-        for (double pitch : { 3.14159, 2.7, 2.4, 2.0 }) {
-          for (double offset : { 0.02, 0.04, 0.06, 0.08, 0.10 }) {
-            candidates.push_back({ standoff_for_clearance(grasp_frame_transform[2] + offset, pitch), pitch });
+      struct GraspCandidate { double clearance; double pitch; double yaw; };
+      std::vector<GraspCandidate> candidates;
+      for (double pitch : { 3.14159, 2.7, 2.4 }) {
+        for (double clearance : { 0.03, 0.05, 0.07 }) {
+          // A few yaw samples — full 24-angle sweeps were too slow and did not
+          // help when the underlying pose was unreachable.
+          for (double yaw : { 0.0, 0.7854, 1.5708, 2.3562 }) {
+            candidates.push_back({ clearance, pitch, yaw });
           }
         }
       }
 
-      for (size_t i = 0; i < candidates.size(); ++i) {
-        RCLCPP_INFO(this->get_logger(), "  grasp candidate %zu: standoff=%.4f pitch=%.4f", i,
-                    candidates[i].standoff, candidates[i].pitch);
-      }
+      RCLCPP_INFO(this->get_logger(),
+                  "Absolute grasp ladder: %zu candidates above object (%.3f, %.3f, %.3f) h/2=%.3f",
+                  candidates.size(), ox, oy, oz, object_half_height);
 
       for (size_t i = 0; i < candidates.size(); ++i) {
-        std::vector<double> candidate_transform = grasp_frame_transform;
-        candidate_transform[2] = candidates[i].standoff;
-        candidate_transform[4] = candidates[i].pitch;
+        const double pitch = candidates[i].pitch;
+        const double yaw = candidates[i].yaw;
+        const double vertical =
+            object_half_height + gripper_reach_offset + candidates[i].clearance;
+        // Gripper origin for a top-down/tilted approach centered on the object:
+        // same offsets_for_clearance math, applied in base_link.
+        const double gx = ox - vertical * std::sin(pitch) * std::cos(yaw);
+        const double gy = oy - vertical * std::sin(pitch) * std::sin(yaw);
+        // For pure Ry(pitch) with yaw about world Z after: keep the simple
+        // vertical placement that compute_ik accepted in probing (yaw only
+        // changes orientation for pitch≈pi).
+        const double gz = oz + vertical * (-std::cos(pitch));
 
-        // Generate the grasp pose
-        // This is the stage for computing how the robot should grab the object
-        // This stage is a generator stage because it doesn't need information from
-        // stages before or after it.
-        // When generating solutions, MTC will try to grab the object from many different orientations.
-        // Sample grasp pose candidates in angle increments around the z-axis of the object
-        auto stage = std::make_unique<mtc::stages::GenerateGraspPose>(
-          "generate grasp pose " + std::to_string(i));
+        geometry_msgs::msg::PoseStamped grasp_pose;
+        grasp_pose.header.frame_id = world_frame;  // base_link
+        grasp_pose.pose.position.x = (std::abs(pitch - 3.14159) < 0.05) ? ox : gx;
+        grasp_pose.pose.position.y = (std::abs(pitch - 3.14159) < 0.05) ? oy : gy;
+        grasp_pose.pose.position.z = (std::abs(pitch - 3.14159) < 0.05) ? (oz + vertical) : gz;
+        // orientation = Rz(yaw) * Ry(pitch)
+        Eigen::Quaterniond q = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
+                               Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY());
+        grasp_pose.pose.orientation.x = q.x();
+        grasp_pose.pose.orientation.y = q.y();
+        grasp_pose.pose.orientation.z = q.z();
+        grasp_pose.pose.orientation.w = q.w();
+
+        RCLCPP_INFO(this->get_logger(),
+                    "  grasp candidate %zu: pos=(%.3f,%.3f,%.3f) pitch=%.3f yaw=%.3f", i,
+                    grasp_pose.pose.position.x, grasp_pose.pose.position.y,
+                    grasp_pose.pose.position.z, pitch, yaw);
+
+        auto stage = std::make_unique<mtc::stages::GeneratePose>("generate grasp pose " + std::to_string(i));
         stage->properties().configureInitFrom(mtc::Stage::PARENT);
         stage->properties().set("marker_ns", "grasp_pose");
-        stage->setPreGraspPose(gripper_open_pose);
-        stage->setObject(object_name);
-        stage->setAngleDelta(grasp_pose_angle_delta); // Angular resolution for sampling grasp poses around the object
-        stage->setMonitoredStage(current_state_ptr);  // Ensure grasp poses are valid given the initial configuration of the robot
+        stage->setPose(grasp_pose);
+        stage->setMonitoredStage(current_state_ptr);
 
-        // Compute IK for sampled grasp poses
         auto wrapper = std::make_unique<mtc::stages::ComputeIK>(
           "grasp pose IK " + std::to_string(i), std::move(stage));
         wrapper->setMaxIKSolutions(grasp_pose_max_ik_solutions);
         wrapper->setMinSolutionDistance(grasp_pose_min_solution_distance);
-        wrapper->setIKFrame(vectorToEigen(candidate_transform), gripper_frame); // Transform from gripper frame to tool center point (TCP)
+        wrapper->setTimeout(1.0);
+        // Identity IK frame on the gripper — target_pose IS the gripper pose.
+        wrapper->setIKFrame(gripper_frame);
         wrapper->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group" });
         wrapper->properties().configureInitFrom(mtc::Stage::INTERFACE, { "target_pose" });
         grasp_ik_candidates->add(std::move(wrapper));
@@ -931,8 +935,7 @@ mtc::Task MTCTaskNode::createTask()
     auto stage_move_to_place = std::make_unique<mtc::stages::Connect>(
       "move to place",
       mtc::stages::Connect::GroupPlannerVector{
-        {arm_group_name, ompl_planner_arm},
-        {gripper_group_name, interpolation_planner}
+        {arm_group_name, ompl_planner_arm}
       });
     stage_move_to_place->setTimeout(move_to_place_timeout);
     stage_move_to_place->properties().configureInitFrom(mtc::Stage::PARENT);
@@ -974,38 +977,53 @@ mtc::Task MTCTaskNode::createTask()
 ---- *          Generate Place Pose                       *
      *****************************************************/
     {
-      // Generate Place Pose
-      auto stage = std::make_unique<mtc::stages::GeneratePlacePose>("generate place pose");
-      stage->properties().configureInitFrom(mtc::Stage::PARENT, { "ik_frame" });
-      stage->properties().set("marker_ns", "place_pose");
-      stage->setObject(object_name);
+      // Mirror the pick-side absolute-pose approach. GeneratePlacePose +
+      // attached-object ik_frame was returning "no IK found" for every
+      // sample even after pick succeeded; place the gripper explicitly.
+      auto place_ik = std::make_unique<mtc::Fallbacks>("place pose IK");
+      place->properties().exposeTo(place_ik->properties(), { "eef", "group", "ik_frame" });
+      place_ik->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group", "ik_frame" });
 
-      // Set target pose
-      geometry_msgs::msg::PoseStamped target_pose_msg;
-      target_pose_msg.header.frame_id = world_frame;
-      target_pose_msg.pose = vectorToPose(place_pose);
-      // object_dimensions[0] is only the object's height for a cylinder — for
-      // a box it's the X dimension, which would halve the intended clearance
-      // for a tall, narrow box (see object_height above). Use the
-      // type-aware height so placement clears the surface by the same
-      // fraction of the object's actual height regardless of its shape.
-      target_pose_msg.pose.position.z += place_pose_z_offset_factor * object_height;
-      stage->setPose(target_pose_msg);
-      stage->setMonitoredStage(attach_object_stage);  // hook into successful pick solutions
+      const double object_half_height = object_height / 2.0;
+      const double gripper_reach_offset = 0.090;
+      const double px = place_pose[0];
+      const double py = place_pose[1];
+      // Object center height at place: configured z plus a fraction of height.
+      const double pz = place_pose[2] + place_pose_z_offset_factor * object_height;
 
-      // Compute IK
-      // Don't hardcode setIKFrame here: with multiple grasp candidates (see
-      // "Generate Grasp Pose" above), the real gripper-to-object transform
-      // depends on whichever candidate's IK actually succeeded during pick.
-      // GeneratePlacePose already publishes the correct one as an "ik_frame"
-      // interface property (identity pose in the attached object's own
-      // frame, resolved through the object's live attachment transform) —
-      // read that instead of assuming the pick-side config.
-      auto wrapper = std::make_unique<mtc::stages::ComputeIK>("place pose IK", std::move(stage));
-      wrapper->setMaxIKSolutions(place_pose_max_ik_solutions);
-      wrapper->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group" });
-      wrapper->properties().configureInitFrom(mtc::Stage::INTERFACE, { "target_pose", "ik_frame" });
-      place->insert(std::move(wrapper));
+      size_t idx = 0;
+      for (double clearance : { 0.03, 0.05, 0.07, 0.10 }) {
+        const double vertical = object_half_height + gripper_reach_offset + clearance;
+        geometry_msgs::msg::PoseStamped grasp_pose;
+        grasp_pose.header.frame_id = world_frame;
+        grasp_pose.pose.position.x = px;
+        grasp_pose.pose.position.y = py;
+        grasp_pose.pose.position.z = pz + vertical;
+        // top-down
+        Eigen::Quaterniond q(Eigen::AngleAxisd(3.14159, Eigen::Vector3d::UnitY()));
+        grasp_pose.pose.orientation.x = q.x();
+        grasp_pose.pose.orientation.y = q.y();
+        grasp_pose.pose.orientation.z = q.z();
+        grasp_pose.pose.orientation.w = q.w();
+
+        auto stage = std::make_unique<mtc::stages::GeneratePose>(
+          "generate place pose " + std::to_string(idx));
+        stage->properties().configureInitFrom(mtc::Stage::PARENT);
+        stage->properties().set("marker_ns", "place_pose");
+        stage->setPose(grasp_pose);
+        stage->setMonitoredStage(attach_object_stage);
+
+        auto wrapper = std::make_unique<mtc::stages::ComputeIK>(
+          "place pose IK " + std::to_string(idx), std::move(stage));
+        wrapper->setMaxIKSolutions(place_pose_max_ik_solutions);
+        wrapper->setTimeout(1.0);
+        wrapper->setIKFrame(gripper_frame);
+        wrapper->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group" });
+        wrapper->properties().configureInitFrom(mtc::Stage::INTERFACE, { "target_pose" });
+        place_ik->add(std::move(wrapper));
+        ++idx;
+      }
+      place->insert(std::move(place_ik));
     }
 
     /******************************************************

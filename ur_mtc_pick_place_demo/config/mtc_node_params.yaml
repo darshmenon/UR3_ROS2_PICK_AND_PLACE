@@ -93,7 +93,8 @@ mtc_node:
     # regardless of standoff. Reverted to the documented pitch=pi/0.135
     # baseline rather than commit a millimeter-fragile tilt value.
     grasp_frame_transform: [0.0, 0.0, 0.135, 0.0, 3.14159, 0.0]  # top-down grasp
-    place_pose: [-0.30, 0.05, 0.0, 0.0, 0.0, 0.0]  # Place on opposite side
+    # Place near the right bin, object-center height ~table/bin surface in base_link.
+    place_pose: [-0.15, -0.25, 0.06, 0.0, 0.0, 0.0]
 
     # Motion planning (critical IK parameters)
     approach_object_min_dist: 0.05
@@ -107,8 +108,11 @@ mtc_node:
 
     # Grasp generation (critical fixes)
     grasp_pose_angle_delta: 0.2618  # ~15 degrees
-    grasp_pose_max_ik_solutions: 25
-    grasp_pose_min_solution_distance: 0.5
+    # Was 25 / 0.5 — with KDL near top-down poses, demanding 25 mutually
+    # ≥0.5rad-apart solutions burns the timeout and yields 0 successes.
+    # Prefer fewer solutions so each setFromIK call can finish.
+    grasp_pose_max_ik_solutions: 1
+    grasp_pose_min_solution_distance: 0.1
 
     # Place generation
     place_pose_max_ik_solutions: 15
