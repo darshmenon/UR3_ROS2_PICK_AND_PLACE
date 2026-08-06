@@ -546,305 +546,53 @@ Pull requests and issues are welcome, especially around simulation stability, tr
 
 ## Work in Progress
 
-The following features are actively being developed and are not yet fully integrated.
+Features under active development — useful, but not fully polished end-to-end.
 
 ### Grasp Detection (`ur_grasp`)
 
-Point-cloud grasp estimation for tabletop objects from the Intel D435 depth stream. Note: `camera_head` is **not** a wrist/eye-in-hand camera — it's a simulated D435 fixed to a stand bolted to `base_link` (`ur_description/urdf/intel_rgbd_cam_d435.urdf.xacro`), so it doesn't move with the arm.
-
-Verified live in Gazebo Harmonic (2026-07-30), full chain: camera → point cloud → colour-filtered centroid detection → base_link pose → visual servo → gripper close.
-
-- camera publishes real RGB, depth, and `PointCloud2` data (`/camera_head/color/image_raw`, `/camera_head/depth/image_rect_raw`, `/camera_head/depth/color/points`) at ~3-6 Hz
-- `colour:=red` detection now returns an accurate `base_link`-frame pose (verified against Gazebo's ground-truth object pose, error < 2 cm)
-
-**Fixed (2026-07-30):**
-- `cylinder_grasp_detector.decode_pointcloud2` crashed `grasp_node` on every real detection request — `sensor_msgs_py.point_cloud2.read_points()` returns a structured numpy array on this ROS distro, and casting it straight to `float32` raised `TypeError`, killing the node. Switched to `read_points_numpy()`.
-- `grasp_node`'s `colour` parameter was cached once in `__init__` and never re-read, so `ros2 param set /grasp_node colour red` (as documented below) silently had no effect. Now re-read from the parameter server on every detection.
-- The real reason detection found nothing even with the colour fix: `estimate_cylinder_grasp()`'s workspace filters (table height, reach radius) are documented as base_link-frame bounds, but `grasp_node` ran them on the raw camera-frame cloud *before* transforming to base_link — camera-frame Z is depth, not height, so every real point was rejected. `grasp_node` now transforms the whole cloud to `base_link` first.
-- `camera_tilt_angle_deg` in the D435 xacro was `25`, aiming the camera mostly at the far wall/floor — the table and object were outside its vertical FOV. Raised to `55` so the workspace is actually in frame (confirmed visually by dumping a camera frame to PNG).
-
-**Fixed (2026-08-01):**
-- `ur_visual_servo` tracked `tool0` directly as the grasp point — the Robotiq 2F-85 fingertip sits ~0.145 m along `tool0`'s +Z, so the arm reached the right height but closed ~0.12 m away in X/Y. `servo_node.py` now servos a virtual TCP (`tool0_origin + R_tool0 * tcp_offset_xyz`) instead of `tool0` — see `_ee_to_tcp`/`_tcp_to_ee`.
-
-**Fixed (2026-08-02):**
-- The LLM-planner/BT-planner/sorting-demo pick-and-place path had no TCP offset at all — `motion_executor.py`'s `_make_downward_pose()` drove `tool0` straight to the object's raw height, putting the fingertips ~0.145 m too low. Fixed with the same offset convention (`GRIPPER_TCP_OFFSET_Z = 0.145`) at every pick/place call site.
-
-Launch:
+Point-cloud grasp estimation from the D435. Head cam is fixed to `base_link`; use `wrist_camera:=true` for eye-in-hand (`/camera_wrist/*`).
 
 ```bash
-source install/setup.bash
-ros2 run ur_grasp grasp_node
-
-# Or with optional args (colour filter and backend):
-ros2 launch ur_grasp grasp_detection.launch.py colour:=red backend:=auto
-```
-
-Trigger one detection:
-
-```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
+ros2 launch ur_grasp grasp_detection.launch.py colour:=red \
+  camera_topic:=/camera_wrist/depth/color/points continuous_detect_hz:=0.0
 ros2 service call /ur_grasp/detect std_srvs/srv/Trigger {}
 ```
 
-Healthy signs:
+Publishes `/ur_grasp/grasp_pose` and `/ur_grasp/grasp_marker`. Leave continuous detect off during servo approach (pose drift).
 
-- advertises `/ur_grasp/detect`
-- subscribes to `/camera_head/depth/color/points`
-- publishes `/ur_grasp/grasp_pose`
-- publishes `/ur_grasp/grasp_marker` for RViz
-- falls back to the built-in numpy centroid detector if `simple_grasping` is not installed
-- warns and returns no grasp if a point cloud has not arrived yet
+### MoveIt Task Constructor (`ur_mtc_pick_place_demo`)
 
-#### Wrist-Mounted Camera Option (2026-07-30)
-
-A second D435 mount is available, bolted to `tool0` (eye-in-hand) instead of
-the fixed head stand described above:
-
-- `ur_description/urdf/intel_rgbd_cam_d435_wrist.urdf.xacro` — the camera itself
-- `ur_description/urdf/ur_wrist_cam.urdf.xacro`, `moveit_config/config/ur_wrist_cam.{urdf,srdf}.xacro` — full-robot variants that include it instead of the head camera (the originals are untouched)
-- publishes on `/camera_wrist/*` (same topic shapes as `/camera_head/*`)
-
-Launch with it instead of the head camera:
+Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`); **execution still aborts** on a zero-duration trajectory segment from a non-motion MTC stage.
 
 ```bash
-ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
+ros2 launch ur_gazebo full_demo.launch.py
+# or: Gazebo + get_planning_scene_server + pick_place_demo.launch.py
 ```
 
-`grasp_node` can target either camera via a parameter (default is now the
-wrist camera):
+### Vision (`ur_perception`)
+
+Color / optional YOLO detection, plus multi-view reconstruction (`object_reconstructor_node`) that fuses wrist-cam clouds via TF (+ optional ICP). Reconstruction is inspection-only — the pick pipeline does not consume it yet.
 
 ```bash
-ros2 launch ur_grasp grasp_detection.launch.py colour:=red \
-  camera_topic:=/camera_wrist/depth/color/points \
-  continuous_detect_hz:=0.0
-```
-
-Verified live (2026-07-30): sensor correctly attached under `wrist_3_link`,
-streams real data. Detection works well once the arm is posed so the wrist
-camera can see the table — from home pose it only sees the gripper itself
-(a real eye-in-hand geometry constraint, not a bug).
-
-Servo-loop findings, in order:
-- `continuous_detect_hz > 0` isn't stable — re-detecting each frame during
-  approach let the recomputed grasp pose drift several cm and sent the servo
-  into a wrong IK branch. Leave `continuous_detect_hz:=0.0` (one-shot).
-- **2026-08-04:** after the `tcp_offset_xyz` fix in `servo_node.py`, that
-  plateau was gone — converges in 4 steps instead of hitting `max_iterations`.
-- Grasp still didn't succeed, though: gripper closed on air (`finger_joint`
-  fully closed, no resistance) and the box didn't move on lift. Root cause:
-  `xy_tolerance` (default 1.5cm) was letting the loop call "converged" while
-  still off-center enough for a finger to clip a ~4.2cm box sideways.
-- **Fixed:** tightened `xy_tolerance` to 6mm. Re-tested end-to-end on
-  `ROS_DOMAIN_ID=77` — servo converges, gripper closes with real resistance,
-  lift + swing carries the box with it. detect → servo → grasp → lift now
-  works end-to-end.
-
-### MoveIt Task Constructor Pick-and-Place (`ur_mtc_pick_place_demo`)
-
-The MTC demo (`pick_and_place_demo.world` + `get_planning_scene_server` + `mtc_node`) is a separate, less mature path than the `ur_grasp`/`ur_visual_servo` pipeline above — perception now works, motion planning does not yet succeed end-to-end.
-
-**Fixed (2026-08-04):**
-- `pick_and_place_demo.world` had no real support surface — objects floated directly above the bare ground plane with nothing distinct for `get_planning_scene_server`'s RANSAC plane segmentation to fit, so it always came back empty and `mtc_node` silently fell back to a hardcoded dummy object. Added a `table` model (matching the `mount_table` pattern already used in `colored_blocks.world`) and re-raised all objects/bins to sit on it. Verified: the server now finds a real support surface *and* the actual detected collision objects from the live point cloud.
-- `identifyTargetObject()` in `get_planning_scene_server.cpp` could match the table itself (`support_surface`) as a pickable object when searching for a `"box"` type (the table is also box-shaped) — it's never excluded from candidacy. Now skipped explicitly.
-- `grasp_frame_transform`'s standoff (`ur_mtc_pick_place_demo/config/mtc_node_params.yaml`) was `0.10`/`0.12` — too short for the real Robotiq 2F-85 geometry (same ~0.135m measurement documented in `ur_visual_servo/servo_node.py`, adjusted for `gripper_frame` being `robotiq_arg2f_base_link` rather than `tool0`). At the old value every sampled grasp angle put the gripper base in collision with the object.
-- The grasp approach itself was a bigger bug: `grasp_frame_transform`'s pitch (`1.5708`, "sideways") swept the gripper around at the object's own height, colliding with the table at most angles for any object resting low/flush on it — verified against both a cylinder and a box target. Switched to a genuine top-down approach (`pitch=3.14159`, standoff sign flipped accordingly) by reading `GenerateGraspPose`'s source directly (it samples pure rotations about the object's own origin, position never changes) — confirmed zero table/object collisions at the corrected values.
-
-**Known limitation / investigation (2026-08-04):** `mtc_node` reported "Task planning failed" with no reason — `explainFailure()` was being logged to an unflushed `std::cout` that never printed since the node stays alive afterward for visualization. Fixed by routing it through `RCLCPP_ERROR`. With real diagnostics:
-- The failures are genuine collisions, not IK non-convergence: the ~0.135m grasp standoff leaves too little clearance above taller objects (e.g. a ~0.174m cylinder), which reports `eef in collision` at every sampled angle.
-- Neither a bigger IK search budget (5x timeout/attempts, reverted — no effect) nor sweeping the standoff (0.14–0.20m) nor tilting the pitch off the top-down singularity (3.0–2.0 rad instead of `pi`) opens a stable margin: at every configuration tried, the collision-free-and-reachable window is only 1-8mm wide (or nonexistent) — narrower than the run-to-run jitter of the point-cloud-detected object pose/dimensions.
-- Root cause looks structural, not a config bug: the pick targets sit close to the arm's own base in both position and height, a tight reach for any steep top-down approach regardless of standoff or tilt. Rather than commit one fragile tuned value, `mtc_node.cpp` now tries a ladder of (standoff, pitch) candidates via an MTC `Fallbacks` container and uses whichever one actually clears collision and finds IK for the real detected object at runtime. The `explainFailure()` logging fix is kept regardless — it's what made this diagnosis possible.
-
-**Also since 2026-08-04:**
-- `pick_and_place_demo.world`'s `red_cylinder` (and the other tabletop objects) were nudged +0.08m further from the arm base (x=0.22→0.30). UR's own singularity documentation names this exact failure mode — a wrist forced into its q5=±π/2 singularity by a compact, close-to-base reach — matching the razor-thin collision-vs-no-IK margins above. This is their first recommended mitigation (keep the task out of the base's "central cylinder"); the Fallbacks ladder's pitch tilts are their second (tilt the tool orientation off the singular alignment). `mtc_node_params.yaml`'s hardcoded fallback `object_pose` (only used if the planning scene service returns no detected objects) was updated to match.
-- `target_pose_msg`'s place-pose Z offset used `object_dimensions[0]` directly, which is only the object's height for a cylinder — for a box `dimensions[0]` is the X extent, silently halving (or worse) the intended placement clearance for a tall, narrow box. `mtc_node.cpp` now resolves height type-aware (cylinder → `dimensions[0]`, box → `dimensions[2]`) and uses that everywhere height is needed.
-- Added a log line reporting which `Fallbacks` grasp candidate actually won (`findStageByNamePrefix` in `mtc_node.cpp`), since the container otherwise hides which (standoff, pitch) combination succeeded — needed to know which part of the ladder is actually doing the work.
-- Not yet re-verified live end-to-end after these changes.
-
-### Vision-Based Perception (`ur_perception`)
-
-Color-based object detection with optional YOLO and PCL cluster extraction from the Intel D435 camera.
-
-Launch:
-
-```bash
-source install/setup.bash
 ros2 launch ur_perception perception.launch.py
-```
-
-Watch detections:
-
-```bash
 ros2 topic echo /detected_objects
-```
 
-#### Multi-View 3D Reconstruction (2026-07-30)
-
-`object_reconstructor_node` fuses point cloud frames from a moving camera into
-a single accumulated cloud, using TF (not ICP) for registration — the wrist
-camera's pose relative to `base_link` is already known exactly from forward
-kinematics, so each frame just gets transformed into `base_link` and merged
-into a voxel grid. Moving the arm around an object fills in the occlusions any
-single fixed viewpoint would miss.
-
-**This is a standalone perception/inspection tool** — nothing in the pick-and-place
-pipeline consumes `/ur_perception/reconstructed_points` yet (`ur_grasp` still
-detects grasps off a single raw frame, and `object_reconstructor_node` only
-*listens* to `/ur_grasp/grasp_pose` to auto-recenter its ROI). Use it to build
-and export a fused point cloud for inspection; it won't by itself sharpen the
-grasp the arm executes.
-
-Two things that will give you zero fused points if missed — the node now logs
-a `warn` every 3s while active and stuck at zero, naming which of these it is,
-instead of silently sitting at "0 frames" forever:
-
-- **The wrist camera must be launched with `wrist_camera:=true`** — it's opt-in
-  (default `false`), so `/camera_wrist/depth/color/points` won't exist at all
-  without it. Shows up as: `no messages received on '<topic>' yet — is the
-  wrist camera launched...?`.
-- **The arm has to actually be pointed at the object.** The default `home` pose
-  aims the wrist camera up and away from the table — the reconstructor will
-  merge nothing until the arm is at a pose (e.g. a pre-grasp hover over the
-  object) that puts the target inside `roi_radius` of `roi_center`. Shows up
-  as: `frame(s) received but 0 merged ... is the arm pointed so the camera
-  sees roi_center=...?`.
-
-```bash
-source install/setup.bash
-ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
-# ...move the arm so the wrist camera is looking at the object...
-
+# Reconstruction (needs wrist_camera:=true and arm aimed at the object)
 ros2 launch ur_perception reconstruct.launch.py \
-  camera_topic:=/camera_wrist/depth/color/points \
-  roi_radius:=0.20 \
-  save_path:=/tmp/object.ply
-
+  camera_topic:=/camera_wrist/depth/color/points save_path:=/tmp/object.ply
 ros2 service call /ur_perception/reconstruct/start std_srvs/srv/Trigger {}
-# ...move the arm / let the wrist camera sweep the object...
+# …sweep the arm…
 ros2 service call /ur_perception/reconstruct/stop std_srvs/srv/Trigger {}
 ```
 
-Live fused cloud publishes on `/ur_perception/reconstructed_points`
-(`base_link` frame) while accumulating, viewable in RViz. The service response
-reports `saved to <path>` once `stop` finishes writing the PLY — check for that
-line if you passed `save_path`.
-
-Verified live (2026-07-30): 5-waypoint sweep around a red box accumulated 154
-frames into 35k voxels, valid PLY output. `roi_radius` is a plain sphere
-around a fixed `roi_center` or the last `/ur_grasp/grasp_pose` — it keeps the
-table and nearby clutter in frame too, not just the target object.
-
-Two fixes since, both found by re-testing live:
-- **2026-07-31:** a single hover pose only merged 1-2 of ~50 possible frames —
-  `VoxelMap.add()` merged points one at a time in Python, slow enough to starve
-  the node's own TF listener. Fixed by vectorising the voxel merge with numpy.
-- **2026-08-01:** a 5cm test cube came out ~11cm elongated — the stamped TF
-  lookup only got 0.05s, so most frames fell back to a stale transform and
-  smeared points along the arm's motion. Fixed by widening that timeout to
-  0.2s and tightening `max_tf_age_sec` to 0.05. Confirmed: a stationary
-  viewpoint now reconstructs the cube at 4.8x4.85x4.63cm.
-
-**Fixed (2026-08-05):** the few-cm spread from each viewpoint's own small depth
-bias (registration was TF-only, nothing reconciled that across views) is now
-corrected by an optional ICP refinement pass (`use_icp`, default true) — each
-incoming frame is registered against the already-accumulated map (point-to-point,
-small correspondence distance since it's refining an already-good TF alignment,
-not registering from scratch) before merging. Falls back to pure TF alignment
-if `open3d` isn't installed. Verified on synthetic data: a deliberate 4.3mm
-per-frame bias was corrected to 0.4mm mean error; an obviously-bad alignment
-(no real correspondence) is correctly rejected via a fitness threshold rather
-than silently corrupting the map. Not yet re-verified against a live multi-view
-sweep.
-
-Run the node directly:
-
-```bash
-source install/setup.bash
-ros2 run ur_perception object_reconstructor_node.py
-```
-
-#### Viewing the camera feed
-
-To see what either camera (`camera_head` or `camera_wrist`) is actually
-looking at, without needing RViz:
-
-```bash
-source install/setup.bash
-ros2 run rqt_image_view rqt_image_view /camera_wrist/color/image_raw
-# or: /camera_head/color/image_raw
-```
-
-To add it in RViz instead (already open from `ur.gazebo.launch.py`):
-
-1. Bottom-left **Displays** panel → **Add** button.
-2. Pick the **By topic** tab, not **By display type** — it lists only topics
-   that currently have data, so you can't pick the wrong message type by accident.
-3. Expand `/camera_wrist` (or `/camera_head`) and choose:
-   - `color/image_raw` → **Image** — adds a separate 2D image panel showing the RGB feed.
-   - `depth/color/points` → **PointCloud2** — adds the raw 3D depth cloud into the main 3D view.
-   - (once reconstruction is running) `/ur_perception/reconstructed_points` → **PointCloud2** — the fused, accumulated cloud.
-4. Click **OK**. If a `PointCloud2` display stays empty, check the **Global
-   Options → Fixed Frame** at the top of the Displays panel is set to
-   `base_link` — a cloud published in a different frame than the fixed frame
-   won't render.
-
-Verified in this workspace:
-
-- package imports successfully after `source install/setup.bash`
-- installed executable: `ros2 run ur_perception object_detector_node.py`
-
-Healthy signs:
-
-- publishes detected objects on `/detected_objects`
-- publishes annotated images on `/detection_image`
-- publishes collision objects on `/planning_scene`
-- waits for `/camera_head/color/image_raw`, `/camera_head/depth/image_rect_raw`, and `/camera_head/camera_info`
-- warns and keeps color detection enabled if `use_yolo:=true` is set but `ultralytics` is missing
-
 ### LLM Task Planner (`ur_llm_planner`)
 
-Natural-language task planning backed by a local Ollama model and connected to perception plus the MoveIt/gripper execution path.
-
-Verified in this workspace:
-
-- package imports successfully after `source install/setup.bash`
-- installed executable: `ros2 run ur_llm_planner llm_planner_node.py`
-- command topic exists in code at `/llm_planner/command`
-- planner converts text into a JSON task list and passes it to `MotionExecutor`
-
-Launch:
+Natural-language plans via local Ollama → MoveIt / gripper actions.
 
 ```bash
-source install/setup.bash
-ros2 run ur_llm_planner llm_planner_node.py
-```
-
-Or use the launch file:
-
-```bash
-source install/setup.bash
-ros2 launch ur_llm_planner llm_planner.launch.py
-```
-
-Send a text instruction:
-
-```bash
+ollama serve && ollama pull llama3.2:3b
+ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
 ros2 topic pub --once /llm_planner/command std_msgs/msg/String \
   "{data: 'pick up the red object and place it to the left of the robot'}"
-```
-
-Healthy signs:
-
-- subscribes to `/detected_objects`
-- listens on `/llm_planner/command`
-- asks Ollama for a JSON task plan
-- executes actions like `move_to_named_pose`, `pick`, `place`, `open_gripper`, and `close_gripper`
-- retries up to 2 times on execution failure, sending failure context back to the LLM for a simpler re-plan
-- warns and returns an empty task list if Ollama is not available at `http://localhost:11434`
-- may plan successfully but fail execution if MoveIt or gripper action servers are unavailable
-
-Ollama setup:
-
-```bash
-ollama serve
-ollama pull llama3.2:3b
-ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
 ```
