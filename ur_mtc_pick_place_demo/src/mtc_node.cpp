@@ -315,6 +315,21 @@ void MTCTaskNode::setupPlanningScene()
   // Create a planning scene interface to interact with the world
   moveit::planning_interface::PlanningSceneInterface psi;
 
+  // move_group's planning scene persists across mtc_node restarts (it's a
+  // separate long-lived process) — setupPlanningScene() below only ever
+  // ADDS objects, so without this, stale collision geometry from a
+  // previous run/session (a leftover "cylinder_1" fallback, an old
+  // detection at a since-moved pose, etc.) stays in the scene forever and
+  // can silently affect collision checking. Clear everything this node
+  // could have added before repopulating from the current detection.
+  auto stale_object_ids = psi.getKnownObjectNames();
+  if (!stale_object_ids.empty()) {
+    RCLCPP_INFO(this->get_logger(), "Clearing %zu stale collision object(s) from a previous run",
+                stale_object_ids.size());
+    psi.removeCollisionObjects(stale_object_ids);
+    rclcpp::sleep_for(std::chrono::milliseconds(500));
+  }
+
   // Get target object parameters
   auto object_name = this->get_parameter("object_name").as_string();
   auto object_type = this->get_parameter("object_type").as_string();
@@ -367,10 +382,37 @@ void MTCTaskNode::setupPlanningScene()
     }
   }
 
-  // If the service returned no objects, add the hardcoded target from params so MTC has something to pick
-  if (scene_world_.collision_objects.empty()) {
+  // If perception didn't identify a target of the requested type, add the
+  // hardcoded object from params. This also covers the case where the service
+  // returns other collision objects (support surface / clutter) but
+  // target_object_id is empty — previously we only fell back when the entire
+  // collision_objects list was empty, so MTC would plan against object_name
+  // (e.g. "cylinder_1") that was never actually inserted into the scene.
+  if (target_object_id_.empty()) {
     RCLCPP_WARN(this->get_logger(),
-      "Planning scene service returned no objects. Adding fallback '%s' from params.", object_name.c_str());
+      "Planning scene service did not identify a '%s' target (objects returned: %zu). "
+      "Adding fallback '%s' from params.",
+      object_type.c_str(), scene_world_.collision_objects.size(), object_name.c_str());
+
+    // Drop non-support clutter from a failed detection pass. Mis-segmented
+    // "box_0" sheets and partial YCB clusters near the fallback pose can
+    // block an otherwise reachable grasp while we are deliberately using a
+    // known-good hardcoded target.
+    std::vector<std::string> clutter_ids;
+    for (const auto& collision_object : scene_world_.collision_objects) {
+      if (collision_object.id != support_surface_id_ && !support_surface_id_.empty()) {
+        clutter_ids.push_back(collision_object.id);
+      } else if (support_surface_id_.empty() && collision_object.id != "support_surface") {
+        clutter_ids.push_back(collision_object.id);
+      }
+    }
+    if (!clutter_ids.empty()) {
+      RCLCPP_WARN(this->get_logger(),
+        "Removing %zu non-support collision object(s) before inserting fallback target",
+        clutter_ids.size());
+      psi.removeCollisionObjects(clutter_ids);
+      rclcpp::sleep_for(std::chrono::milliseconds(500));
+    }
 
     moveit_msgs::msg::CollisionObject fallback;
     fallback.id = object_name;

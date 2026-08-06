@@ -83,20 +83,30 @@
          task out of the base's "central cylinder" and (2) tilt the tool
          orientation off the singular alignment — this nudge is (1); the
          pitch-tilted candidates in mtc_node.cpp's Fallbacks ladder are (2).
-         Stays well inside the table (0.125-0.425 span) and the UR3's ~0.5m
-         reach while giving the wrist more room to angle into a top-down
-         approach without folding in tight to the base. -->
+         2026-08-05: that +0.08m wasn't enough — live testing (see README)
+         found the collision-vs-no-IK transition at this radius (~0.323m
+         from base_link) is under 1mm wide across the whole Fallbacks ladder,
+         i.e. still squarely inside the dead zone. Pushed diagonally (both x
+         and y, not just x) to ~0.42m radius — a diagonal move buys more
+         radial distance per mm of on-table budget than an x-only push,
+         since the table's x span tops out at 0.425. Still comfortably
+         inside the table (0.125-0.425 x, -0.185-0.245 y) and the UR3's
+         ~0.5m reach. Not yet live-verified this is actually clear of the
+         dead zone — the zone's radial extent isn't known, only that 0.323m
+         is inside it. -->
     <include>
       <uri>model://red_cylinder</uri>
       <name>red_cylinder</name>
-      <pose>0.30 0.12 1.255 0 0 0</pose>
+      <pose>0.36 0.0 1.115 0 0 0</pose>
     </include>
 
     <!-- YCB objects for richer scene — z raised the same way, x nudged
          further from the arm base for the same reason as red_cylinder above. -->
+    <!-- Kept clear of red_cylinder (0.38, 0.18) so cylinder circle-fitting
+         isn't swallowed by the mustard cluster / occluded from the head cam. -->
     <include>
       <uri>model://mustard</uri>
-      <pose>0.39 0.09 1.135 0 0 0</pose>
+      <pose>0.25 0.20 1.135 0 0 0</pose>
     </include>
 
     <include>
@@ -104,9 +114,12 @@
       <pose>0.33 -0.10 1.13 0 0 0</pose>
     </include>
 
+    <!-- Was at 0.38 0.18 — same XY as red_cylinder after the 2026-08-05
+         base-distance push; moved to free table space so the two don't
+         spawn interleaved and poison collision checks. -->
     <include>
       <uri>model://cheezit_big_original</uri>
-      <pose>0.38 0.18 1.095 0 0 0</pose>
+      <pose>0.22 -0.12 1.095 0 0 0</pose>
     </include>
 
     <!-- Bin / drop zone — sit on the raised ground (mount_table's floor

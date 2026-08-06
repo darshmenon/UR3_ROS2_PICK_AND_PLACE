@@ -18,7 +18,10 @@
         <geometry>
           <cylinder>
             <radius>0.018</radius>
-            <length>0.35</length>
+            <!-- Shortened from 0.35 so a top-down grasp at ~0.42m from the
+                 UR3 base stays inside the arm's ~0.5m reach (see
+                 mtc_node_params.yaml / README). -->
+            <length>0.12</length>
           </cylinder>
         </geometry>
         <surface>
@@ -56,7 +59,10 @@
         <geometry>
           <cylinder>
             <radius>0.018</radius>
-            <length>0.35</length>
+            <!-- Shortened from 0.35 so a top-down grasp at ~0.42m from the
+                 UR3 base stays inside the arm's ~0.5m reach (see
+                 mtc_node_params.yaml / README). -->
+            <length>0.12</length>
           </cylinder>
         </geometry>
         <material>

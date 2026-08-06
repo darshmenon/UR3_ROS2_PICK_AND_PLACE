@@ -25,12 +25,16 @@ mtc_node:
     object_name: "cylinder_1"
     object_type: "cylinder"
     object_reference_frame: "base_link"
-    object_dimensions: [0.35, 0.018]  # Match cylinder radius
-    # x=0.30 matches the world file's red_cylinder pose (moved off the base
-    # singularity zone, see pick_and_place_demo.world) — only used if the
-    # planning scene service returns no detected objects and this fallback
-    # kicks in (see setupPlanningScene()).
-    object_pose: [0.30, 0.12, 0.15, 0.0, 0.0, 0.0]
+    # Short cylinder (~0.12m). The original model.sdf was 0.35m tall — at the
+    # ~0.42m base-distance needed to clear the wrist singularity dead zone,
+    # a top-down grasp above a 0.35m object puts the EE at ~0.63m spherical
+    # from base_link (beyond UR3's ~0.5m reach), so every Fallbacks candidate
+    # returned "no IK found". 0.12m keeps EE ≈sqrt(0.42^2+0.24^2)≈0.48m.
+    object_dimensions: [0.12, 0.018]
+    # On the +X axis (y=0) at 0.36m — far enough to leave the ~0.32m
+    # singularity dead zone, close enough that a top-down grasp above a
+    # 0.12m cylinder stays inside UR3 reach (~0.45m spherical).
+    object_pose: [0.36, 0.0, 0.10, 0.0, 0.0, 0.0]
 
     # Grasp parameters (key collision fixes)
     # z = distance from gripper_frame (robotiq_arg2f_base_link) to the fingertip
