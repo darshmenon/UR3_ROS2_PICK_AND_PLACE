@@ -563,7 +563,7 @@ Publishes `/ur_grasp/grasp_pose` and `/ur_grasp/grasp_marker`. Leave continuous 
 
 ### MoveIt Task Constructor (`ur_mtc_pick_place_demo`)
 
-Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`); **execution still aborts** on a zero-duration trajectory segment from a non-motion MTC stage.
+Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`). Execution was aborting on a zero-duration trajectory segment from a non-motion MTC stage (`arm_controller`: "Time between points 0 and 1 is not strictly increasing") — `mtc_node` now repairs/drops those degenerate segments before sending the solution for execution.
 
 ```bash
 ros2 launch ur_gazebo full_demo.launch.py

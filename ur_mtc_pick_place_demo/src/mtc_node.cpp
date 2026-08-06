@@ -42,6 +42,9 @@
 #include <moveit/task_constructor/solvers.h>
 #include <moveit/task_constructor/stages.h>
 #include <moveit/task_constructor/storage.h>
+#include <rclcpp_action/rclcpp_action.hpp>
+#include <moveit_task_constructor_msgs/action/execute_task_solution.hpp>
+#include <moveit_task_constructor_msgs/msg/solution.hpp>
 
 // Other utilities
 #include <type_traits>
@@ -128,6 +131,70 @@ void logAllFailures(const rclcpp::Logger& logger, const moveit::task_constructor
   });
 }
 
+/**
+ * @brief MTC's Connect/MoveRelative stages can legitimately return a
+ * trivial "no motion needed" solution when the start state already
+ * satisfies the goal: every waypoint at the same joint position, all
+ * stamped time_from_start=0. That's a valid MTC solution, but
+ * arm_controller's joint_trajectory_controller rejects any >=2-point
+ * FollowJointTrajectory goal whose time_from_start values aren't
+ * strictly increasing ("Time between points 0 and 1 is not strictly
+ * increasing"), aborting the whole task execution over a stage that
+ * never needed to move. Represent "no motion" the way every other
+ * non-motion MTC stage (ModifyPlanningScene, ComputeIK) already is: an
+ * empty trajectory, which execute_task_solution simply skips.
+ */
+void repairDegenerateSubTrajectories(moveit_task_constructor_msgs::msg::Solution& solution,
+                                      const rclcpp::Logger& logger) {
+  for (auto& sub_traj : solution.sub_trajectory) {
+    auto& points = sub_traj.trajectory.joint_trajectory.points;
+    if (points.size() < 2) {
+      continue;
+    }
+
+    bool strictly_increasing = true;
+    for (size_t i = 1; i < points.size(); ++i) {
+      if (rclcpp::Duration(points[i].time_from_start) <= rclcpp::Duration(points[i - 1].time_from_start)) {
+        strictly_increasing = false;
+        break;
+      }
+    }
+    if (strictly_increasing) {
+      continue;
+    }
+
+    bool all_same_position = true;
+    for (size_t i = 1; i < points.size(); ++i) {
+      if (points[i].positions != points.front().positions) {
+        all_same_position = false;
+        break;
+      }
+    }
+
+    if (all_same_position) {
+      RCLCPP_WARN(logger,
+                  "Stage %u: dropping degenerate zero-motion trajectory (%zu identical "
+                  "waypoints, non-increasing times) so arm_controller doesn't reject it",
+                  sub_traj.info.stage_id, points.size());
+      sub_traj.trajectory.joint_trajectory.points.clear();
+      sub_traj.trajectory.joint_trajectory.joint_names.clear();
+      continue;
+    }
+
+    // Real (non-identical) waypoints with broken timing shouldn't happen in
+    // practice, but re-stamp monotonically rather than let the controller
+    // reject an otherwise-legitimate plan.
+    RCLCPP_WARN(logger, "Stage %u: re-stamping non-monotonic trajectory timing (%zu points)",
+                sub_traj.info.stage_id, points.size());
+    rclcpp::Duration t(0, 0);
+    const rclcpp::Duration step = rclcpp::Duration::from_seconds(0.1);
+    for (auto& point : points) {
+      point.time_from_start = t;
+      t = t + step;
+    }
+  }
+}
+
 const moveit::task_constructor::Stage* findStageByNamePrefix(
     const moveit::task_constructor::SolutionBase& solution, const std::string& name_prefix) {
   if (solution.creator() && solution.creator()->name().rfind(name_prefix, 0) == 0) {
@@ -164,6 +231,13 @@ public:
 private:
   mtc::Task task_;
   mtc::Task createTask();
+
+  // Builds the same goal message Task::execute() would, but repairs any
+  // degenerate zero-motion sub-trajectories first (see
+  // repairDegenerateSubTrajectories) before sending it to
+  // execute_task_solution — Task::execute() builds and sends that message
+  // internally, giving us no hook to patch it otherwise.
+  moveit::core::MoveItErrorCode executeSolution(const mtc::SolutionBase& solution);
 
   void updateObjectParameters(const moveit_msgs::msg::CollisionObject& collision_object);
 
@@ -449,6 +523,54 @@ void MTCTaskNode::setupPlanningScene()
 /**
  * @brief Plan and/or execute the pick and place task.
  */
+moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBase& solution)
+{
+  using ExecuteTaskSolution = moveit_task_constructor_msgs::action::ExecuteTaskSolution;
+
+  moveit_task_constructor_msgs::msg::Solution solution_msg;
+  solution.toMsg(solution_msg, &task_.introspection());
+  repairDegenerateSubTrajectories(solution_msg, this->get_logger());
+
+  auto client_node = rclcpp::Node::make_shared("mtc_execute_repaired_" + std::to_string(this->now().nanoseconds()));
+  auto client = rclcpp_action::create_client<ExecuteTaskSolution>(client_node, "execute_task_solution");
+
+  moveit_msgs::msg::MoveItErrorCodes error_code;
+  error_code.val = moveit_msgs::msg::MoveItErrorCodes::FAILURE;
+
+  if (!client->wait_for_action_server(std::chrono::milliseconds(500))) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to connect to the 'execute_task_solution' action server");
+    return error_code;
+  }
+
+  ExecuteTaskSolution::Goal goal;
+  goal.solution = solution_msg;
+
+  auto goal_handle_future = client->async_send_goal(goal);
+  if (rclcpp::spin_until_future_complete(client_node, goal_handle_future) != rclcpp::FutureReturnCode::SUCCESS) {
+    RCLCPP_ERROR(this->get_logger(), "Send goal call failed");
+    return error_code;
+  }
+
+  auto goal_handle = goal_handle_future.get();
+  if (!goal_handle) {
+    RCLCPP_ERROR(this->get_logger(), "Goal was rejected by server");
+    return error_code;
+  }
+
+  auto result_future = client->async_get_result(goal_handle);
+  if (rclcpp::spin_until_future_complete(client_node, result_future, std::chrono::seconds(120)) !=
+      rclcpp::FutureReturnCode::SUCCESS) {
+    RCLCPP_ERROR(this->get_logger(), "Get result call failed or timed out");
+    return error_code;
+  }
+
+  auto result = result_future.get();
+  if (result.code != rclcpp_action::ResultCode::SUCCEEDED) {
+    RCLCPP_ERROR(this->get_logger(), "Goal was aborted or canceled");
+  }
+  return result.result->error_code;
+}
+
 void MTCTaskNode::doTask()
 {
   RCLCPP_INFO(this->get_logger(), "Starting the pick and place task");
@@ -510,7 +632,7 @@ void MTCTaskNode::doTask()
   {
     // Execute the planned task
     RCLCPP_INFO(this->get_logger(), "Executing the planned task");
-    auto result = task_.execute(*task_.solutions().front());
+    auto result = executeSolution(*task_.solutions().front());
     if (result.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS)
     {
       RCLCPP_ERROR(this->get_logger(), "Task execution failed with error code: %d", result.val);

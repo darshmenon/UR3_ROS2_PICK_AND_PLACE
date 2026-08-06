@@ -67,6 +67,7 @@ set(REQUIRED_PACKAGES
   pcl_conversions
   pcl_ros
   rclcpp
+  rclcpp_action
   sensor_msgs
   shape_msgs
   tf2_eigen
