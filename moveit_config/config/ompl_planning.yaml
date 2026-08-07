@@ -1,12 +1,15 @@
 planning_plugin: ompl_interface/OMPLPlanner
-# To optionally use Ruckig for jerk-limited smoothing, add it to request_adapters below
+# AddTimeOptimalParameterization must be a *request* adapter on this stack.
+# Putting it only under response_adapters left trajectories with t=0 stamps,
+# so arm_controller rejected Execute ("Time between points ... not strictly increasing").
 request_adapters: >-
+  default_planner_request_adapters/AddTimeOptimalParameterization
   default_planner_request_adapters/ResolveConstraintFrames
   default_planner_request_adapters/FixWorkspaceBounds
   default_planner_request_adapters/FixStartStateBounds
   default_planner_request_adapters/FixStartStateCollision
+  default_planner_request_adapters/FixStartStatePathConstraints
 response_adapters: >-
-  default_planning_response_adapters/AddTimeParameterization
   default_planning_response_adapters/ValidateSolution
   default_planning_response_adapters/DisplayMotionPath
 planner_configs:
@@ -16,7 +19,9 @@ planner_configs:
     hybridize: 1  # Compute hybrid solution trajectories
     max_hybrid_paths: 36  # Number of hybrid paths generated per iteration
     num_planners: 8  # The number of default planners to use for planning
-    planners: "RRTConnect,RRTConnect,RRTConnect,RRTConnect,RRTConnect,RRTConnect,RRTConnect,RRTConnect"  # A comma-separated list of planner types (e.g., "PRM,EST,RRTConnect"Optionally, planner parameters can be passed to change the default:"PRM[max_nearest_neighbors=5],EST[goal_bias=.5],RRT[range=10. goal_bias=.1]"
+    # Mixed set for narrow passages (table between base and pick). Pure
+    # RRTConnect×8 was the previous default and still grazes intermittently.
+    planners: "LBKPIECE,LazyPRM,RRTConnect,BiTRRT,LBKPIECE,LazyPRM,RRTConnect,BiTRRT"
   SBLkConfigDefault:
     type: geometric::SBL
     range: 0.0  # Max motion added to tree. ==> maxDistance_ default: 0.0, if 0.0, set on setup()
@@ -146,18 +151,16 @@ trajectory_execution:
   allowed_start_tolerance: 0.1
   execution_duration_monitoring: false
 arm:
+  # Transit stages override this via PipelinePlanner::setPlannerId to APS /
+  # LBKPIECE; leave RRTConnect as the generic default for other requests.
   default_planner_config: RRTConnectkConfigDefault
-  # Default (0.01 = 1% of joint-space extent per collision-check segment) is
-  # coarse enough that RRTConnect can accept an edge that grazes an obstacle
-  # between checked states — plan passes, then execution's unpadded
-  # per-waypoint re-check catches the graze and aborts. 0.002 stopped a table
-  # graze but let a graze against the thin (0.036m) target cylinder through.
-  # 0.0005 caught that too, but the resulting path was pathologically long —
-  # 232 waypoints, ~270s to execute one transit (confirmed: arm_controller
-  # "Goal reached" 270s after "started execution") — indicating the extra
-  # resolution was producing an unsimplified, wiggly path rather than a
-  # tighter direct one, not just finer checking. 0.001 as a middle ground.
-  longest_valid_segment_fraction: 0.001
+  # Plan coarse / validate-with-margin: search at the default 1% joint-space
+  # segment (fast, non-wiggly). Grazes that used to slip between checked
+  # states are rejected by planning-time link/object padding applied in
+  # mtc_node (not by tightening this fraction — 0.0005 produced ~270s paths).
+  # simplify_solutions shortens accepted paths before ValidateSolution runs.
+  longest_valid_segment_fraction: 0.01
+  simplify_solutions: 1
   planner_configs:
     - APSConfigDefault
     - SBLkConfigDefault

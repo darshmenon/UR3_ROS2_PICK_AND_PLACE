@@ -1,12 +1,9 @@
 
 # UR Robotic Arm with Robotiq 2-Finger Gripper for ROS 2
 
-Related Blog Post: For behind-the-scenes details and the full development journey, check out the companion Medium article:
-[How I'm Building an Autonomous Pick-and-Place System with ROS 2 Jazzy and Gazebo Harmonic](https://medium.com/@darshmenon02/how-i-am-building-an-autonomous-pick-and-place-system-with-ros-2-jazzy-and-gazebo-harmonic-6474cbcc8dc7)
+Blog post (dev journey, engineering details): [How I'm Building an Autonomous Pick-and-Place System with ROS 2 Jazzy and Gazebo Harmonic](https://medium.com/@darshmenon02/how-i-am-building-an-autonomous-pick-and-place-system-with-ros-2-jazzy-and-gazebo-harmonic-6474cbcc8dc7)
 
-The blog dives into simulation setup, robotic control, MoveIt Task Constructor, and lessons learned — perfect if you're curious about the engineering side or want to replicate the project from scratch.
-
-This project integrates the Robotiq 2-Finger Gripper with a Universal Robots UR3 arm using **ROS 2 Humble** and **Gazebo Harmonic**. It includes URDF models, ROS 2 control configuration, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
+Integrates the Robotiq 2-Finger Gripper with a UR3 arm on **ROS 2 Humble** + **Gazebo Harmonic**: URDF models, ros2_control config, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
 
 ---
 
@@ -139,7 +136,167 @@ ros2 launch ur_gazebo ur.gazebo.launch.py gripper:=onrobot_rg6
 
 # Wrist-mounted camera (eye-in-hand) instead of the fixed head camera
 ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
+
+# Empty floor + red cylinder only (no table) — for MotionPlanning / pick-and-place tests
+ros2 launch ur_gazebo ur.gazebo.launch.py \
+  world_file:=empty_red_cylinder.world \
+  table_height:=0.0 \
+  use_rviz:=true \
+  use_move_group:=true \
+  use_gazebo_gui:=true
 ```
+
+| World | Table | Objects |
+|---|---|---|
+| `empty.world` | no | none |
+| `empty_red_cylinder.world` | no (`table_height:=0.0`) | red cylinder only at `(0.36, 0, 0.06)` |
+| `pick_and_place_demo.world` | yes (`table_height` default `1.015`) | red cylinder + YCB props |
+
+### Interactive MoveIt 2 Planning in RViz
+
+`ur.gazebo.launch.py` already starts **move_group** + **RViz** (`use_rviz:=true`, `use_move_group:=true` by default) with pipelines **`ompl`** (default) and **`pilz_industrial_motion_planner`**.
+
+#### How to use (quick start)
+
+Recommended test scene (empty floor + red cylinder, no table):
+
+```bash
+source /opt/ros/$ROS_DISTRO/setup.bash
+source install/setup.bash
+
+ros2 launch ur_gazebo ur.gazebo.launch.py \
+  world_file:=empty_red_cylinder.world \
+  table_height:=0.0 \
+  use_rviz:=true \
+  use_move_group:=true \
+  use_gazebo_gui:=true
+```
+
+Wait ~15 s for controllers, then in RViz **MotionPlanning**:
+
+1. **Planning Group** → `arm` (prefer this over `arm_with_gripper` for free-space tests).
+2. **Context** → Planning Library → `OMPL`.
+3. **Planning** → Planner → `RRTConnectkConfigDefault`.
+4. Drag the orange interactive marker to a reachable goal (avoid folding into the torso).
+5. Click **Plan & Execute** (or **Plan**, then **Execute** right away).
+
+You should see one solid robot (current state) and one ghost/orange robot (query goal) — that is normal, not two arms.
+
+OMPL trajectories are time-stamped by **TOTG** (`AddTimeOptimalParameterization` in `moveit_config/config/ompl_planning.yaml`). Without that adapter, `arm_controller` rejects Execute with `Time between points ... not strictly increasing`.
+
+**If Execute fails**
+
+| Symptom | Fix |
+|---|---|
+| `start point deviates from current robot state` | Re-**Plan** then **Execute** (stale plan after the arm moved) |
+| `Computed path is not valid` / self-collision | Soften the goal; use `RRTConnectkConfigDefault`, not a colliding pose |
+| `No ContextLoader for planner_id ''` | Using Pilz — set Planner to `LIN`, `PTP`, or `CIRC` |
+| RViz `Detected jump back in time` / segfault | Kill duplicate Gazebo/RViz stacks; launch **one** full command above |
+
+#### Launch for interactive control
+
+```bash
+source /opt/ros/$ROS_DISTRO/setup.bash
+source install/setup.bash
+
+# Full stack: Gazebo + move_group + RViz (plan/execute from MotionPlanning)
+ros2 launch ur_gazebo ur.gazebo.launch.py \
+  use_rviz:=true \
+  use_move_group:=true \
+  use_gazebo_gui:=true
+
+# Headless Gazebo GUI, keep MoveIt RViz for planning
+ros2 launch ur_gazebo ur.gazebo.launch.py \
+  use_rviz:=true \
+  use_move_group:=true \
+  use_gazebo_gui:=false
+
+# Sim already running without RViz — attach RViz only
+ros2 launch moveit_config move_group.launch.py \
+  use_move_group:=false \
+  use_rviz:=true \
+  use_sim_time:=true
+
+# MoveIt + RViz only (no Gazebo; useful if robot/controllers are already up)
+ros2 launch moveit_config move_group.launch.py \
+  use_move_group:=true \
+  use_rviz:=true \
+  use_sim_time:=true
+```
+
+Useful launch args on `ur.gazebo.launch.py`:
+
+| Arg | Default | Control |
+|---|---|---|
+| `use_rviz` | `true` | Start RViz with MotionPlanning |
+| `use_move_group` | `true` | Start MoveIt `move_group` (needed to Plan/Execute) |
+| `use_gazebo_gui` | `true` | Gazebo client window |
+| `gripper` | `robotiq_2f_85` | Gripper model |
+
+After launch, wait ~10–15 s then confirm controllers:
+
+```bash
+ros2 control list_controllers
+```
+
+You should see `arm_controller` and `gripper_controller` **active**. Cartesian planning uses `/compute_cartesian_path`; joint planning uses `/move_action`.
+
+In RViz, open the **MotionPlanning** panel (Displays → MotionPlanning):
+
+1. **Planning Group** → `arm` (or `gripper`).
+2. Drag the interactive marker to a goal pose (or use **Query** → random/valid goal).
+3. **Plan** then **Execute** (or **Plan & Execute**).
+
+#### OMPL + RRTConnect (joint-space)
+
+Default pipeline is OMPL; default planner for `arm` is **`RRTConnectkConfigDefault`**.
+
+| Control | Where in RViz MotionPlanning |
+|---|---|
+| Pipeline | **Context** tab → Planning Library → `OMPL` |
+| Planner | **Planning** tab → Planner → `RRTConnectkConfigDefault` (or others: `RRTkConfigDefault`, `RRTstarkConfigDefault`, `LBKPIECEkConfigDefault`, …) |
+| Time / attempts | **Planning** tab → Planning Time / Planning Attempts |
+
+Configs live in `moveit_config/config/ompl_planning.yaml`.
+
+#### Cartesian path planning (how to control it)
+
+Cartesian mode moves the **end-effector in a (near) straight line in XYZ**, instead of OMPL wandering in joint space. Two ways:
+
+**A. RViz → MotionPlanning → Cartesian Path tab** (recommended for interactive control)
+
+```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py
+```
+
+1. In RViz, select the **MotionPlanning** panel (bottom or side panel).
+2. **Planning Group** = `arm`.
+3. Open the **Cartesian Path** tab (next to Context / Planning / Query).
+4. Suggested settings:
+   - **Cart. step size** ≈ `0.01` (1 cm); smaller = denser/slower path
+   - **Jump threshold** ≈ `0.0` (reject discontinuous IK jumps) or `2.0` if planning fails
+   - Check **Approx IK solutions** if exact IK fails on some waypoints
+   - Uncheck **Avoid Collisions** only for debugging (keep it on normally)
+5. Drag the interactive marker to the goal (or nudge X/Y/Z with the rings/arrows).
+6. Click **Plan Cartesian Path** — status shows fraction succeeded (want `1.0`).
+7. Click **Execute** to run it on the simulated arm.
+
+If Plan Cartesian Path reports e.g. `0.4` (40%), the arm cannot reach a straight line all the way — shorten the goal or switch to OMPL/RRTConnect for that move.
+
+**B. Pilz `LIN` planner** (same MotionPlanning panel, industrial Cartesian)
+
+1. **Context** tab → Planning Library → `pilz_industrial_motion_planner`.
+2. **Planning** tab → Planner → **`LIN`** (straight Cartesian). Use `PTP` for joint moves, `CIRC` for arcs.
+3. Set goal with the marker → **Plan** → **Execute**.
+4. Speed limits come from `moveit_config/config/pilz_cartesian_limits.yaml`.
+
+**When to use which**
+
+| Goal | Use |
+|---|---|
+| Straight approach / retreat / slide | Cartesian Path tab or Pilz `LIN` |
+| Around obstacles / free space | OMPL + `RRTConnectkConfigDefault` |
+| Fast joint-space reorient | Pilz `PTP` or OMPL |
 
 ---
 
@@ -542,7 +699,7 @@ Publishes `/ur_grasp/grasp_pose` and `/ur_grasp/grasp_marker`. Leave continuous 
 
 ### MoveIt Task Constructor (`ur_mtc_pick_place_demo`)
 
-Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`). Execution had two blockers: (1) zero-duration trajectory segments from non-motion MTC stages — `mtc_node` now repairs/drops those before `execute_task_solution`; (2) `plan_execution` aborting move-to-pick with `support_surface` vs `wrist_3_link` because RANSAC latched onto `mount_table` at z≈0 — crop_min_z excludes that plane, support boxes get real thickness aligned to the table top, and fallback mode installs the known pick-table collision box.
+Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`). Two execution blockers fixed: zero-duration trajectory segments from non-motion MTC stages (`mtc_node` now repairs/drops them before `execute_task_solution`), and move-to-pick aborting on `support_surface` vs `wrist_3_link` collisions caused by RANSAC latching onto `mount_table` at z≈0 (fixed via `crop_min_z`, real-thickness support boxes, and a known pick-table collision box in fallback mode).
 
 ```bash
 ros2 launch ur_gazebo full_demo.launch.py
