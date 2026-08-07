@@ -673,7 +673,9 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
   }
 
   auto result_future = client->async_get_result(goal_handle);
-  if (rclcpp::spin_until_future_complete(client_node, result_future, std::chrono::seconds(120)) !=
+  // Full pick-place has many sub-trajectories; 120s was too short once the
+  // arm actually starts moving under Gazebo.
+  if (rclcpp::spin_until_future_complete(client_node, result_future, std::chrono::seconds(300)) !=
       rclcpp::FutureReturnCode::SUCCESS) {
     RCLCPP_ERROR(this->get_logger(), "Get result call failed or timed out");
     return error_code;
@@ -940,6 +942,13 @@ mtc::Task MTCTaskNode::createTask()
   stage_move_to_pick->properties().set(
       "trajectory_execution_info",
       mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+  // NOTE: tried a "stay above table" PositionConstraint on this stage
+  // (2026-08-07) to stop RRTConnect's random dips into the table/object —
+  // technically correct (rejected unsafe paths instead of accepting them)
+  // but OMPL's constrained/rejection sampling never found ANY solution
+  // within 40s (vs ~10s unconstrained). Reverted; see
+  // project_mtc_execution_collision_debug.md for the full writeup and
+  // untried alternatives (geometric via-point, alternate OMPL planner).
   task.add(std::move(stage_move_to_pick));
 
   // Create a pointer for the stage that will attach the object (to be used later)

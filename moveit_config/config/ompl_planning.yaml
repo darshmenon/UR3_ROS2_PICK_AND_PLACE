@@ -148,11 +148,16 @@ trajectory_execution:
 arm:
   default_planner_config: RRTConnectkConfigDefault
   # Default (0.01 = 1% of joint-space extent per collision-check segment) is
-  # coarse enough that RRTConnect can accept an edge that grazes the table
+  # coarse enough that RRTConnect can accept an edge that grazes an obstacle
   # between checked states — plan passes, then execution's unpadded
-  # per-waypoint re-check catches the graze and aborts. Tighten so planning
-  # itself catches it.
-  longest_valid_segment_fraction: 0.002
+  # per-waypoint re-check catches the graze and aborts. 0.002 stopped a table
+  # graze but let a graze against the thin (0.036m) target cylinder through.
+  # 0.0005 caught that too, but the resulting path was pathologically long —
+  # 232 waypoints, ~270s to execute one transit (confirmed: arm_controller
+  # "Goal reached" 270s after "started execution") — indicating the extra
+  # resolution was producing an unsimplified, wiggly path rather than a
+  # tighter direct one, not just finer checking. 0.001 as a middle ground.
+  longest_valid_segment_fraction: 0.001
   planner_configs:
     - APSConfigDefault
     - SBLkConfigDefault

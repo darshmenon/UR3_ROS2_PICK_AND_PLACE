@@ -112,7 +112,13 @@ mtc_node:
     lift_object_max_dist: 0.3
 
     # Timeout parameters
-    move_to_pick_timeout: 10.0
+    # move_to_pick_timeout raised 10.0 -> 40.0: this transit is a tight
+    # narrow-passage motion (table/object close to the arm base — see
+    # project_mtc_execution_collision_debug.md), so RRTConnect sometimes
+    # needs more than 10s of search to land on a solution that isn't a
+    # near-miss graze. Extra budget costs nothing when planning succeeds
+    # quickly, which is the common case.
+    move_to_pick_timeout: 40.0
     move_to_place_timeout: 10.0
 
     # Grasp generation (critical fixes)
