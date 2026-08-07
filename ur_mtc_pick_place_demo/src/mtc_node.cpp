@@ -45,13 +45,18 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 #include <moveit_task_constructor_msgs/action/execute_task_solution.hpp>
 #include <moveit_task_constructor_msgs/msg/solution.hpp>
+#include <moveit_msgs/srv/get_planning_scene.hpp>
+#include <moveit_msgs/srv/apply_planning_scene.hpp>
 
 // Other utilities
 #include <type_traits>
 #include <numeric>
 #include <cmath>
+#include <chrono>
+#include <algorithm>
 #include <map>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -241,6 +246,11 @@ private:
 
   void updateObjectParameters(const moveit_msgs::msg::CollisionObject& collision_object);
 
+  bool waitForMoveGroupServices(double timeout_sec);
+  bool isSupportSurfaceSane(const moveit_msgs::msg::CollisionObject& support,
+                            double support_min_z, double support_max_xy_area) const;
+  void installFallbackSupportAndTarget(moveit::planning_interface::PlanningSceneInterface& psi);
+
   // Variables for calling the GetPlanningScene service
   std::shared_ptr<GetPlanningSceneClient> planning_scene_client;
   moveit_msgs::msg::PlanningSceneWorld scene_world_;
@@ -291,6 +301,18 @@ MTCTaskNode::MTCTaskNode(const rclcpp::NodeOptions& options)
   declare_parameter("object_reference_frame", "base_link", "Reference frame for the object");
   declare_parameter("object_dimensions", std::vector<double>{0.35, 0.0125}, "Dimensions of the object [height, radius]");
   declare_parameter("object_pose", std::vector<double>{0.22, 0.12, 0.0, 0.0, 0.0, 0.0}, "Initial pose of the object [x, y, z, roll, pitch, yaw]");
+  declare_parameter("fallback_support_dimensions", std::vector<double>{0.30, 0.45, 0.04},
+                    "Fallback support surface box [x, y, z] in metres");
+  declare_parameter("fallback_support_pose", std::vector<double>{0.275, 0.04, 0.02, 0.0, 0.0, 0.0},
+                    "Fallback support surface pose [x, y, z, roll, pitch, yaw] in object_reference_frame");
+  declare_parameter("force_fallback_scene", true,
+                    "If true, ignore perception collision objects and install fallback table+target");
+  declare_parameter("support_min_z", 0.015,
+                    "Reject perceived support whose top face is below this z in object_reference_frame");
+  declare_parameter("support_max_xy_area", 0.25,
+                    "Reject perceived support whose XY area (m^2) exceeds this (mount_table is ~0.4)");
+  declare_parameter("move_group_wait_timeout", 30.0,
+                    "Seconds to wait for /get_planning_scene and /apply_planning_scene before aborting setup");
 
   // Grasp and place parameters
 declare_parameter("grasp_frame_transform", 
@@ -380,22 +402,145 @@ void MTCTaskNode::updateObjectParameters(const moveit_msgs::msg::CollisionObject
   }
 }
 
+bool MTCTaskNode::waitForMoveGroupServices(double timeout_sec)
+{
+  auto get_client = this->create_client<moveit_msgs::srv::GetPlanningScene>("/get_planning_scene");
+  auto apply_client = this->create_client<moveit_msgs::srv::ApplyPlanningScene>("/apply_planning_scene");
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::duration<double>(timeout_sec);
+
+  RCLCPP_INFO(this->get_logger(),
+              "Waiting up to %.1fs for /get_planning_scene and /apply_planning_scene...",
+              timeout_sec);
+  while (rclcpp::ok() && std::chrono::steady_clock::now() < deadline) {
+    if (get_client->service_is_ready() && apply_client->service_is_ready()) {
+      RCLCPP_INFO(this->get_logger(), "move_group planning-scene services are ready");
+      return true;
+    }
+    rclcpp::sleep_for(std::chrono::milliseconds(200));
+  }
+  RCLCPP_ERROR(this->get_logger(),
+               "Timed out after %.1fs waiting for move_group planning-scene services. "
+               "Is move_group running on this ROS_DOMAIN_ID?",
+               timeout_sec);
+  return false;
+}
+
+bool MTCTaskNode::isSupportSurfaceSane(const moveit_msgs::msg::CollisionObject& support,
+                                       double support_min_z, double support_max_xy_area) const
+{
+  if (support.primitives.empty() || support.primitive_poses.empty()) {
+    return false;
+  }
+  const auto& prim = support.primitives.front();
+  const auto& pose = support.primitive_poses.front();
+  if (prim.type != shape_msgs::msg::SolidPrimitive::BOX || prim.dimensions.size() < 3) {
+    return false;
+  }
+  const double xy_area = prim.dimensions[0] * prim.dimensions[1];
+  const double top_z = pose.position.z + 0.5 * prim.dimensions[2];
+  if (top_z < support_min_z) {
+    RCLCPP_WARN(this->get_logger(),
+                "Support '%s' top_z=%.4f < support_min_z=%.4f (likely mount_table)",
+                support.id.c_str(), top_z, support_min_z);
+    return false;
+  }
+  if (xy_area > support_max_xy_area) {
+    RCLCPP_WARN(this->get_logger(),
+                "Support '%s' XY area=%.3f m^2 > max=%.3f (likely mount_table)",
+                support.id.c_str(), xy_area, support_max_xy_area);
+    return false;
+  }
+  return true;
+}
+
+void MTCTaskNode::installFallbackSupportAndTarget(
+    moveit::planning_interface::PlanningSceneInterface& psi)
+{
+  auto object_name = this->get_parameter("object_name").as_string();
+  auto object_type = this->get_parameter("object_type").as_string();
+  auto object_dimensions = this->get_parameter("object_dimensions").as_double_array();
+  auto object_pose_param = this->get_parameter("object_pose").as_double_array();
+  auto object_reference_frame = this->get_parameter("object_reference_frame").as_string();
+  auto support_dims = this->get_parameter("fallback_support_dimensions").as_double_array();
+  auto support_pose = this->get_parameter("fallback_support_pose").as_double_array();
+
+  std::vector<std::string> remove_ids = psi.getKnownObjectNames();
+  for (const auto& collision_object : scene_world_.collision_objects) {
+    if (std::find(remove_ids.begin(), remove_ids.end(), collision_object.id) == remove_ids.end()) {
+      remove_ids.push_back(collision_object.id);
+    }
+  }
+  if (!remove_ids.empty()) {
+    RCLCPP_WARN(this->get_logger(),
+                "Removing %zu collision object(s) before inserting fallback support+target",
+                remove_ids.size());
+    psi.removeCollisionObjects(remove_ids);
+    rclcpp::sleep_for(std::chrono::milliseconds(500));
+  }
+
+  if (support_surface_id_.empty()) {
+    support_surface_id_ = "support_surface";
+  }
+
+  moveit_msgs::msg::CollisionObject support;
+  support.id = support_surface_id_;
+  support.header.frame_id = object_reference_frame;
+  support.operation = moveit_msgs::msg::CollisionObject::ADD;
+  shape_msgs::msg::SolidPrimitive support_prim;
+  support_prim.type = shape_msgs::msg::SolidPrimitive::BOX;
+  support_prim.dimensions = {
+      support_dims.size() > 0 ? support_dims[0] : 0.30,
+      support_dims.size() > 1 ? support_dims[1] : 0.45,
+      support_dims.size() > 2 ? support_dims[2] : 0.04};
+  support.primitives.push_back(support_prim);
+  support.primitive_poses.push_back(vectorToPose(support_pose));
+
+  moveit_msgs::msg::CollisionObject fallback;
+  fallback.id = object_name;
+  fallback.header.frame_id = object_reference_frame;
+  fallback.operation = moveit_msgs::msg::CollisionObject::ADD;
+
+  shape_msgs::msg::SolidPrimitive prim;
+  if (object_type == "cylinder") {
+    prim.type = shape_msgs::msg::SolidPrimitive::CYLINDER;
+    prim.dimensions.resize(2);
+    prim.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_HEIGHT] = object_dimensions[0];
+    prim.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_RADIUS] = object_dimensions[1];
+  } else {
+    prim.type = shape_msgs::msg::SolidPrimitive::BOX;
+    prim.dimensions.resize(3);
+    prim.dimensions[0] = object_dimensions[0];
+    prim.dimensions[1] = (object_dimensions.size() > 1) ? object_dimensions[1] : object_dimensions[0];
+    prim.dimensions[2] = (object_dimensions.size() > 2) ? object_dimensions[2] : object_dimensions[0];
+  }
+  fallback.primitives.push_back(prim);
+  fallback.primitive_poses.push_back(vectorToPose(object_pose_param));
+
+  psi.addCollisionObjects({support, fallback});
+  rclcpp::sleep_for(std::chrono::milliseconds(3000));
+  RCLCPP_INFO(this->get_logger(),
+              "Fallback support '%s' at (%.3f, %.3f, %.3f) size [%.3f, %.3f, %.3f]",
+              support.id.c_str(), support_pose[0], support_pose[1], support_pose[2],
+              support_prim.dimensions[0], support_prim.dimensions[1], support_prim.dimensions[2]);
+  RCLCPP_INFO(this->get_logger(), "Fallback object '%s' added at (%.3f, %.3f, %.3f)",
+              object_name.c_str(), object_pose_param[0], object_pose_param[1], object_pose_param[2]);
+  target_object_id_ = object_name;
+}
+
 /**
  * @brief Set up the planning scene with collision objects.
  */
 void MTCTaskNode::setupPlanningScene()
 {
+  const double wait_timeout = this->get_parameter("move_group_wait_timeout").as_double();
+  if (!waitForMoveGroupServices(wait_timeout)) {
+    throw std::runtime_error(
+        "move_group planning-scene services unavailable; aborting setupPlanningScene");
+  }
 
-  // Create a planning scene interface to interact with the world
   moveit::planning_interface::PlanningSceneInterface psi;
 
-  // move_group's planning scene persists across mtc_node restarts (it's a
-  // separate long-lived process) — setupPlanningScene() below only ever
-  // ADDS objects, so without this, stale collision geometry from a
-  // previous run/session (a leftover "cylinder_1" fallback, an old
-  // detection at a since-moved pose, etc.) stays in the scene forever and
-  // can silently affect collision checking. Clear everything this node
-  // could have added before repopulating from the current detection.
   auto stale_object_ids = psi.getKnownObjectNames();
   if (!stale_object_ids.empty()) {
     RCLCPP_INFO(this->get_logger(), "Clearing %zu stale collision object(s) from a previous run",
@@ -404,12 +549,13 @@ void MTCTaskNode::setupPlanningScene()
     rclcpp::sleep_for(std::chrono::milliseconds(500));
   }
 
-  // Get target object parameters
   auto object_name = this->get_parameter("object_name").as_string();
   auto object_type = this->get_parameter("object_type").as_string();
   auto object_dimensions = this->get_parameter("object_dimensions").as_double_array();
-  auto object_pose_param = this->get_parameter("object_pose").as_double_array();
   auto object_reference_frame = this->get_parameter("object_reference_frame").as_string();
+  const bool force_fallback = this->get_parameter("force_fallback_scene").as_bool();
+  const double support_min_z = this->get_parameter("support_min_z").as_double();
+  const double support_max_xy_area = this->get_parameter("support_max_xy_area").as_double();
 
   RCLCPP_INFO(this->get_logger(), "Initial target object parameters:");
   RCLCPP_INFO(this->get_logger(), "  Name: %s", object_name.c_str());
@@ -421,100 +567,69 @@ void MTCTaskNode::setupPlanningScene()
                                 return std::move(a) + ", " + std::to_string(b);
                               }).c_str());
   RCLCPP_INFO(this->get_logger(), "  Reference frame: %s", object_reference_frame.c_str());
+  RCLCPP_INFO(this->get_logger(), "  force_fallback_scene: %s", force_fallback ? "true" : "false");
 
-  RCLCPP_INFO(this->get_logger(), "Sending GetPlanningScene service request...");
+  bool use_fallback = force_fallback;
+  std::string fallback_reason = force_fallback ? "force_fallback_scene=true" : "";
 
-  // Call the service
-  auto response = planning_scene_client->call_service(object_type, object_dimensions);
+  if (!force_fallback) {
+    RCLCPP_INFO(this->get_logger(), "Sending GetPlanningScene service request...");
+    auto response = planning_scene_client->call_service(object_type, object_dimensions);
+    RCLCPP_INFO(this->get_logger(), "Service call to the GetPlanningScene service completed.");
 
-  RCLCPP_INFO(this->get_logger(), "Service call to the GetPlanningScene service completed.");
+    scene_world_ = response.scene_world;
+    full_cloud_ = response.full_cloud;
+    rgb_image_ = response.rgb_image;
+    target_object_id_ = response.target_object_id;
+    support_surface_id_ = response.support_surface_id;
+    service_success_ = response.success;
 
-  // Store the results
-  scene_world_ = response.scene_world;
-  full_cloud_ = response.full_cloud;
-  rgb_image_ = response.rgb_image;
-  target_object_id_ = response.target_object_id;
-  support_surface_id_ = response.support_surface_id;
-  service_success_ = response.success;
-
-  // Add all collision objects to the planning scene (non-blocking topic publish to avoid DDS response timeout)
-  RCLCPP_INFO(this->get_logger(), "Adding %zu collision objects from service response to the planning scene...",
-    scene_world_.collision_objects.size());
-  if (!scene_world_.collision_objects.empty()) {
-    psi.addCollisionObjects(scene_world_.collision_objects);
-    rclcpp::sleep_for(std::chrono::milliseconds(3000));
-    RCLCPP_INFO(this->get_logger(), "Successfully added %zu collision objects to the planning scene",
-      scene_world_.collision_objects.size());
-  }
-
-  // Find the target object in the collision objects and update parameters
-  RCLCPP_INFO(this->get_logger(), "Received target_object_id from service: '%s'", target_object_id_.c_str());
-  for (const auto& collision_object : scene_world_.collision_objects) {
-    if (collision_object.id == target_object_id_) {
-      updateObjectParameters(collision_object);
-      break;
+    RCLCPP_INFO(this->get_logger(),
+                "Adding %zu collision objects from service response to the planning scene...",
+                scene_world_.collision_objects.size());
+    if (!scene_world_.collision_objects.empty()) {
+      psi.addCollisionObjects(scene_world_.collision_objects);
+      rclcpp::sleep_for(std::chrono::milliseconds(3000));
+      RCLCPP_INFO(this->get_logger(), "Successfully added %zu collision objects to the planning scene",
+                  scene_world_.collision_objects.size());
     }
-  }
 
-  // If perception didn't identify a target of the requested type, add the
-  // hardcoded object from params. This also covers the case where the service
-  // returns other collision objects (support surface / clutter) but
-  // target_object_id is empty — previously we only fell back when the entire
-  // collision_objects list was empty, so MTC would plan against object_name
-  // (e.g. "cylinder_1") that was never actually inserted into the scene.
-  if (target_object_id_.empty()) {
-    RCLCPP_WARN(this->get_logger(),
-      "Planning scene service did not identify a '%s' target (objects returned: %zu). "
-      "Adding fallback '%s' from params.",
-      object_type.c_str(), scene_world_.collision_objects.size(), object_name.c_str());
-
-    // Drop non-support clutter from a failed detection pass. Mis-segmented
-    // "box_0" sheets and partial YCB clusters near the fallback pose can
-    // block an otherwise reachable grasp while we are deliberately using a
-    // known-good hardcoded target.
-    std::vector<std::string> clutter_ids;
+    RCLCPP_INFO(this->get_logger(), "Received target_object_id from service: '%s'",
+                target_object_id_.c_str());
     for (const auto& collision_object : scene_world_.collision_objects) {
-      if (collision_object.id != support_surface_id_ && !support_surface_id_.empty()) {
-        clutter_ids.push_back(collision_object.id);
-      } else if (support_surface_id_.empty() && collision_object.id != "support_surface") {
-        clutter_ids.push_back(collision_object.id);
+      if (collision_object.id == target_object_id_) {
+        updateObjectParameters(collision_object);
+        break;
       }
     }
-    if (!clutter_ids.empty()) {
-      RCLCPP_WARN(this->get_logger(),
-        "Removing %zu non-support collision object(s) before inserting fallback target",
-        clutter_ids.size());
-      psi.removeCollisionObjects(clutter_ids);
-      rclcpp::sleep_for(std::chrono::milliseconds(500));
-    }
 
-    moveit_msgs::msg::CollisionObject fallback;
-    fallback.id = object_name;
-    fallback.header.frame_id = object_reference_frame;
-    fallback.operation = moveit_msgs::msg::CollisionObject::ADD;
-
-    shape_msgs::msg::SolidPrimitive prim;
-    if (object_type == "cylinder") {
-      prim.type = shape_msgs::msg::SolidPrimitive::CYLINDER;
-      prim.dimensions.resize(2);
-      prim.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_HEIGHT] = object_dimensions[0];
-      prim.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_RADIUS] = object_dimensions[1];
+    if (target_object_id_.empty()) {
+      use_fallback = true;
+      fallback_reason = "no target object from perception";
     } else {
-      prim.type = shape_msgs::msg::SolidPrimitive::BOX;
-      prim.dimensions.resize(3);
-      prim.dimensions[0] = object_dimensions[0];
-      prim.dimensions[1] = (object_dimensions.size() > 1) ? object_dimensions[1] : object_dimensions[0];
-      prim.dimensions[2] = (object_dimensions.size() > 2) ? object_dimensions[2] : object_dimensions[0];
+      const moveit_msgs::msg::CollisionObject* support_ptr = nullptr;
+      for (const auto& collision_object : scene_world_.collision_objects) {
+        if (collision_object.id == support_surface_id_) {
+          support_ptr = &collision_object;
+          break;
+        }
+      }
+      if (!support_ptr) {
+        use_fallback = true;
+        fallback_reason = "missing support_surface in perception response";
+      } else if (!isSupportSurfaceSane(*support_ptr, support_min_z, support_max_xy_area)) {
+        use_fallback = true;
+        fallback_reason = "perceived support_surface failed sanity checks";
+      }
     }
+  } else {
+    support_surface_id_ = "support_surface";
+    service_success_ = false;
+  }
 
-    fallback.primitives.push_back(prim);
-    fallback.primitive_poses.push_back(vectorToPose(object_pose_param));
-
-    psi.addCollisionObjects({fallback});
-    rclcpp::sleep_for(std::chrono::milliseconds(3000));
-    RCLCPP_INFO(this->get_logger(), "Fallback object '%s' added at (%.3f, %.3f, %.3f)",
-      object_name.c_str(), object_pose_param[0], object_pose_param[1], object_pose_param[2]);
-    target_object_id_ = object_name;
+  if (use_fallback) {
+    RCLCPP_WARN(this->get_logger(), "Using fallback pick-table scene (%s).", fallback_reason.c_str());
+    installFallbackSupportAndTarget(psi);
   }
 
   RCLCPP_INFO(this->get_logger(), "Planning scene setup completed");
@@ -822,6 +937,9 @@ mtc::Task MTCTaskNode::createTask()
       });
   stage_move_to_pick->setTimeout(move_to_pick_timeout);
   stage_move_to_pick->properties().configureInitFrom(mtc::Stage::PARENT);
+  stage_move_to_pick->properties().set(
+      "trajectory_execution_info",
+      mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
   task.add(std::move(stage_move_to_pick));
 
   // Create a pointer for the stage that will attach the object (to be used later)
@@ -1061,6 +1179,9 @@ mtc::Task MTCTaskNode::createTask()
       });
     stage_move_to_place->setTimeout(move_to_place_timeout);
     stage_move_to_place->properties().configureInitFrom(mtc::Stage::PARENT);
+    stage_move_to_place->properties().set(
+        "trajectory_execution_info",
+        mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
     task.add(std::move(stage_move_to_place));
   }
 

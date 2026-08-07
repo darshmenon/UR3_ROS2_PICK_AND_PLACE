@@ -359,107 +359,86 @@ python3 ur_rl_training/scripts/eval_headless.py \
 
 ## Force Control / Compliant Grasping (`ur_force_control`)
 
-Monitors `finger_joint` effort from `/joint_states` to detect contact during gripper closure. Stops the gripper automatically when force exceeds the configured threshold, giving soft compliant grasps without crushing fragile objects.
-
-**Topics:**
+Monitors `finger_joint` effort to detect contact during gripper closure and stops before crushing the object.
 
 | Topic | Type | Description |
 |---|---|---|
 | `/ft/finger_effort` | `std_msgs/Float32` | Raw finger joint effort [Nm] |
 | `/ft/contact_detected` | `std_msgs/Bool` | True when effort > threshold |
 
-**Service:** `/ft/compliant_close` (`std_srvs/Trigger`) — incrementally closes the gripper and stops on contact.
-
-**Launch:**
+Service: `/ft/compliant_close` (`std_srvs/Trigger`) — closes incrementally, stops on contact.
 
 ```bash
 source install/setup.bash
 ros2 launch ur_force_control ft_monitor.launch.py
 ```
 
-The `MotionExecutor` class also exposes `compliant_close_gripper(max_effort=5.0)` and `compliant_pick()` for use from any node.
+Also exposed via `MotionExecutor.compliant_close_gripper(max_effort=5.0)` / `.compliant_pick()`.
 
 ### External Wrench Estimator (arm-level, for admittance control)
 
-No wrist F/T sensor is modeled on this robot, so `external_wrench_estimator` estimates external force/torque at the end-effector from arm joint effort readings via a damped-least-squares Jacobian-transpose inverse (`F ≈ pinv_damped(Jᵀ) · τ_ext`), where `τ_ext` is measured joint effort minus a real gravity torque `g(q)` computed every cycle by [Pinocchio](https://github.com/stack-of-tasks/pinocchio) RNEA from the full-body URDF (gripper mass included). This is the building block for admittance/contact-based control on the arm, as opposed to `ft_monitor_node`'s gripper-only effort threshold.
+No wrist F/T sensor is modeled, so `external_wrench_estimator` infers external force/torque at the end-effector from arm joint effort: `F ≈ pinv_damped(Jᵀ) · τ_ext`, where `τ_ext` = measured effort − gravity torque `g(q)` (Pinocchio RNEA, full-body URDF).
 
-**Limitations:** `g(q)` is a rigid-body model, not a measurement — it doesn't capture joint friction or PID steady-state error, so a repeatable residual (observed up to ~25 N away from the idle pose in testing) remains even at rest; `/ft/zero_wrench` trims that residual at the current pose, but it's a per-pose correction, not a global fix. The damping also rolls off near kinematic singularities (this robot's idle pose sits at the UR wrist singularity, `wrist_2_joint ≈ 0`) instead of blowing up, but readings are less trustworthy there.
+**Limitations:** `g(q)` is a rigid-body model and doesn't capture friction/PID error, leaving a residual (up to ~25 N at rest in testing); `/ft/zero_wrench` trims it at the current pose only, not globally. Estimates are also less trustworthy near the wrist singularity (idle pose has `wrist_2_joint ≈ 0`).
 
-**Fixed (2026-07-24):** `τ_ext` was computed as measured effort *minus* `g(q)`, the same sign bug found in `joint_impedance_controller` — corrected to measured effort *plus* `g(q)` to match. **Still unresolved:** live testing also found that `/joint_states` effort for these effort-interface joints doesn't reliably track the torque actually commanded through `forward_command_controller_effort` (seen off by up to ~15x with no consistent scale factor across joints) — likely a deeper gz_ros2_control state-readback issue that the sign fix alone can't correct, and probably a large contributor to the residual noted above. Needs further investigation before trusting absolute wrench values.
-
-**Topics:**
+**Status:** sign bug fixed 2026-07-24 (was `effort − g(q)`, now `effort + g(q)`). Still unresolved: `/joint_states` effort doesn't reliably track commanded torque (off by up to ~15x, inconsistent scale) — likely a gz_ros2_control readback issue, probably contributing to the residual above. Don't trust absolute wrench values yet.
 
 | Topic | Type | Description |
 |---|---|---|
-| `/ft/estimated_wrench` | `geometry_msgs/WrenchStamped` | Estimated external force/torque at the end-effector |
-| `/ft/arm_contact_detected` | `std_msgs/Bool` | True when estimated force norm > `force_threshold_n` |
+| `/ft/estimated_wrench` | `geometry_msgs/WrenchStamped` | Estimated external wrench at the end-effector |
+| `/ft/arm_contact_detected` | `std_msgs/Bool` | True when force norm > `force_threshold_n` |
 
-**Service:** `/ft/zero_wrench` (`std_srvs/Trigger`) — trims the residual bias (friction/PID error not captured by the gravity model) at the current pose.
-
-**Launch and use:**
+Service: `/ft/zero_wrench` (`std_srvs/Trigger`) — trims residual bias at the current pose.
 
 ```bash
-# Terminal 1 — full simulation:
+# Terminal 1 — sim:
 source install/setup.bash
 ros2 launch ur_gazebo ur.gazebo.launch.py
 
-# Terminal 2 — wrench estimator (wait for controllers to spawn first, ~10-15 s):
-source install/setup.bash
+# Terminal 2 — estimator (after controllers spawn, ~10-15s):
 ros2 launch ur_force_control wrench_estimator.launch.py
 
-# Terminal 3 — watch the estimate:
+# Terminal 3:
 ros2 topic echo /ft/estimated_wrench
-
-# Trim residual bias at the arm's current pose (gravity is already compensated by
-# the model — this corrects friction/PID error the model doesn't capture):
 ros2 service call /ft/zero_wrench std_srvs/srv/Trigger {}
-
-# Watch for a contact event (goes true when force norm > force_threshold_n):
 ros2 topic echo /ft/arm_contact_detected
 ```
 
-Parameters: `planning_group` (default `arm`), `publish_rate_hz` (`30.0`), `force_threshold_n` (`15.0`), `damping_lambda` (`0.05`).
+Params: `planning_group` (`arm`), `publish_rate_hz` (`30.0`), `force_threshold_n` (`15.0`), `damping_lambda` (`0.05`).
 
 ### Joint Impedance Controller (arm-level, torque control)
 
-Direct joint-space torque control: `τ = K(q_des − q) − D·q̇ + g(q)`, with `g(q)` computed every cycle by Pinocchio RNEA (same approach as `external_wrench_estimator`) so the arm doesn't sag under its own weight even at zero stiffness. The arm's raw `forward_command_controller_effort` is spawned inactive alongside `arm_controller`, so switching to torque control means explicitly deactivating position control and activating the effort command controller.
+Joint-space torque control: `τ = K(q_des − q) − D·q̇ + g(q)`, `g(q)` via Pinocchio RNEA so the arm holds pose at zero stiffness. `forward_command_controller_effort` spawns inactive alongside `arm_controller` — switching to torque control means deactivating one and activating the other.
 
-Equilibrium pose defaults to wherever the arm is when the node starts (hold-current-pose) and can be moved via a target topic or re-captured at any time.
+Equilibrium pose defaults to wherever the arm is on startup; movable via topic or re-latchable to current pose.
 
-**Topic:** `/joint_impedance_controller/target_positions` (`std_msgs/Float64MultiArray`) — 6 values, one per arm joint, in `joint_names` order.
-
-**Service:** `/joint_impedance_controller/hold_current_pose` (`std_srvs/Trigger`) — re-latches the equilibrium pose to the arm's current position.
-
-**Motion planning:** MoveIt planning/execution should use the normal `arm_controller`. The custom impedance node is not a `FollowJointTrajectory` action server; it holds or shifts an equilibrium pose through `/joint_impedance_controller/target_positions`. For planned motion, execute with `arm_controller`, then switch to `forward_command_controller_effort` when you want compliant hold/contact behavior.
-
-**Launch and use:**
+- Topic: `/joint_impedance_controller/target_positions` (`std_msgs/Float64MultiArray`, 6 values in `joint_names` order)
+- Service: `/joint_impedance_controller/hold_current_pose` (`std_srvs/Trigger`)
+- Use `arm_controller` for MoveIt planning/execution — the impedance node isn't a `FollowJointTrajectory` server. Switch to `forward_command_controller_effort` only for compliant hold/contact.
 
 ```bash
-# Terminal 1 — full simulation:
+# Terminal 1 — sim:
 source install/setup.bash
 ros2 launch ur_gazebo ur.gazebo.launch.py
 
-# Terminal 2 — start the impedance controller BEFORE switching interfaces, so it's
-# already commanding valid torque the instant the switch happens:
-source install/setup.bash
+# Terminal 2 — start before switching interfaces:
 ros2 launch ur_force_control joint_impedance.launch.py
 
-# Terminal 3 — hand control from arm_controller to the torque controller:
+# Terminal 3 — hand off control:
 ros2 control switch_controllers --deactivate arm_controller --activate forward_command_controller_effort
 
-# Move the equilibrium pose:
 ros2 topic pub --once /joint_impedance_controller/target_positions std_msgs/msg/Float64MultiArray \
   "{data: [0.0, -1.57, 1.57, 0.0, 1.57, 0.0]}"
 
-# Hand control back to position control when done:
+# Hand back when done:
 ros2 control switch_controllers --deactivate forward_command_controller_effort --activate arm_controller
 ```
 
-Parameters: `joint_names`, `stiffness` (default `[80, 80, 60, 15, 15, 15]`), `damping` (default `[8, 8, 6, 1.5, 1.5, 1.5]`), `effort_limits` (default `[56, 56, 28, 12, 12, 12]`, matching `ur.ros2_control.xacro`), `publish_rate_hz` (`200.0`), `debug_logging` (`false`), `debug_log_period_ms` (`200`).
+Params: `joint_names`, `stiffness` (`[80, 80, 60, 15, 15, 15]`), `damping` (`[8, 8, 6, 1.5, 1.5, 1.5]`), `effort_limits` (`[56, 56, 28, 12, 12, 12]`, matches `ur.ros2_control.xacro`), `publish_rate_hz` (`200.0`), `debug_logging` (`false`), `debug_log_period_ms` (`200`).
 
-**Debugging note:** enable `debug_logging` for one controlled run to print `q`, `qdot`, `target`, `gravity`, spring torque, damping torque, raw torque, clamped command torque, and saturation state. This is intended for diagnosing sign/unit issues in the effort-control loop.
+`debug_logging` prints q, qdot, target, gravity, spring/damping/raw/clamped torque, and saturation state — useful for diagnosing sign/unit issues.
 
-**Fixed (2026-07-24):** the gravity feedforward term was applied with the wrong sign (`+ gravity(q)` instead of `- gravity(q)`), so commanding pure gravity feedforward (stiffness and damping both zero) doubled the joints' downward acceleration instead of canceling it — the arm collapsed faster than free-fall, with wrist joints spinning past ±2π into their limits. Verified live in Gazebo Harmonic: with the corrected sign, the arm now holds its pose under zero stiffness/damping (drift <0.001 rad over several seconds).
+**Fixed (2026-07-24):** gravity feedforward had the wrong sign (`+g(q)` instead of `-g(q)`), causing the arm to collapse faster than free-fall at zero stiffness/damping. Verified fixed in Gazebo Harmonic (drift <0.001 rad over several seconds).
 
 ---
 
@@ -563,7 +542,7 @@ Publishes `/ur_grasp/grasp_pose` and `/ur_grasp/grasp_marker`. Leave continuous 
 
 ### MoveIt Task Constructor (`ur_mtc_pick_place_demo`)
 
-Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`). Execution was aborting on a zero-duration trajectory segment from a non-motion MTC stage (`arm_controller`: "Time between points 0 and 1 is not strictly increasing") — `mtc_node` now repairs/drops those degenerate segments before sending the solution for execution.
+Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`). Execution had two blockers: (1) zero-duration trajectory segments from non-motion MTC stages — `mtc_node` now repairs/drops those before `execute_task_solution`; (2) `plan_execution` aborting move-to-pick with `support_surface` vs `wrist_3_link` because RANSAC latched onto `mount_table` at z≈0 — crop_min_z excludes that plane, support boxes get real thickness aligned to the table top, and fallback mode installs the known pick-table collision box.
 
 ```bash
 ros2 launch ur_gazebo full_demo.launch.py

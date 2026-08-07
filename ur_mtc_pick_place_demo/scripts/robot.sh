@@ -2,13 +2,30 @@
 # Launch Gazebo + MoveIt + MTC pick-and-place demo
 # Usage: bash robot.sh [gripper]
 #   gripper: robotiq_2f_85 (default) | robotiq_2f_140 | onrobot_rg2 | onrobot_rg6
+#
+# Isolates this demo on ROS_DOMAIN_ID=113 by default so leftover stacks on
+# other domains (42/53/91/99/…) cannot poison DDS discovery.
 
 GRIPPER="${1:-robotiq_2f_85}"
+export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-113}"
+export ROS_LOCALHOST_ONLY="${ROS_LOCALHOST_ONLY:-1}"
+
+LAUNCH_PIDS=()
 
 cleanup() {
-    echo "Cleaning up..."
-    sleep 2.0
-    pkill -9 -f "ros2|gazebo|gz|rviz2|robot_state_publisher|joint_state_publisher|move_group"
+    echo "Cleaning up UR3 MTC demo (domain ${ROS_DOMAIN_ID})..."
+    for pid in "${LAUNCH_PIDS[@]:-}"; do
+        kill "$pid" 2>/dev/null || true
+    done
+    sleep 1
+    # Scoped — do not pkill every ros2 process on the machine.
+    pkill -f "ur.gazebo.launch.py" 2>/dev/null || true
+    pkill -f "pick_place_demo.launch.py" 2>/dev/null || true
+    pkill -f "get_planning_scene_server.launch.py" 2>/dev/null || true
+    pkill -f "lib/ur_mtc_pick_place_demo/" 2>/dev/null || true
+    pkill -f "pick_and_place_demo.world" 2>/dev/null || true
+    # move_group started by ur_gazebo; only kill if our domain's child remains
+    pkill -f "moveit_ros_move_group/move_group" 2>/dev/null || true
 }
 
 trap 'cleanup' SIGINT SIGTERM
@@ -38,11 +55,14 @@ mkdir -p "$ROS_LOG_DIR"
 find /dev/shm -name 'fastrtps_*' -delete 2>/dev/null || true
 find /dev/shm -name 'sem.fastrtps_*' -delete 2>/dev/null || true
 
-if [ -z "${DISPLAY:-}" ]; then
+USE_GUI="${USE_GAZEBO_GUI:-true}"
+if [ "$USE_GUI" = "true" ] && [ -z "${DISPLAY:-}" ]; then
     echo "DISPLAY is not set. Gazebo GUI needs an active desktop session."
-    echo "Set DISPLAY first, or run headless by passing use_gazebo_gui:=false manually."
+    echo "Set DISPLAY, or run headless: USE_GAZEBO_GUI=false bash robot.sh"
     exit 1
 fi
+
+echo "[UR3 MTC] ROS_DOMAIN_ID=$ROS_DOMAIN_ID ROS_LOCALHOST_ONLY=$ROS_LOCALHOST_ONLY gripper=$GRIPPER"
 
 echo "Launching Gazebo + MoveIt move_group (gripper: $GRIPPER)..."
 # use_move_group:=true launches move_group inside ur_gazebo — more stable than a
@@ -52,38 +72,63 @@ ros2 launch ur_gazebo ur.gazebo.launch.py \
     gripper:="$GRIPPER" \
     use_rviz:=false \
     use_move_group:=true \
-    use_gazebo_gui:=true &
+    use_gazebo_gui:="$USE_GUI" &
+LAUNCH_PIDS+=($!)
 
-echo "Waiting for move_group to be ready..."
-until ros2 service list 2>/dev/null | grep -q "/get_planning_scene"; do
+echo "Waiting for move_group / controllers / camera..."
+READY=0
+for i in $(seq 1 90); do
+    HAS_SCENE=0
+    HAS_ARM=0
+    HAS_POINTS=0
+    if timeout 2 ros2 service list 2>/dev/null | grep -q "/get_planning_scene"; then
+        HAS_SCENE=1
+    fi
+    if timeout 2 ros2 action list 2>/dev/null | grep -q "/arm_controller/follow_joint_trajectory"; then
+        HAS_ARM=1
+    fi
+    if timeout 3 ros2 topic hz /camera_head/depth/color/points 2>&1 | grep -q average; then
+        HAS_POINTS=1
+    fi
+    if [ "$HAS_SCENE" -eq 1 ] && [ "$HAS_ARM" -eq 1 ] && [ "$HAS_POINTS" -eq 1 ]; then
+        READY=1
+        echo "Ready at attempt $i (scene+arm+points)."
+        break
+    fi
+    echo "  wait $i: scene=$HAS_SCENE arm=$HAS_ARM points=$HAS_POINTS"
     sleep 2
 done
-echo "move_group ready."
+if [ "$READY" -ne 1 ]; then
+    echo "ERROR: timed out waiting for move_group readiness on domain $ROS_DOMAIN_ID"
+    cleanup
+    exit 1
+fi
 
-sleep 5
+if [ "$USE_GUI" = "true" ]; then
+    sleep 2
+    echo "Adjusting Gazebo GUI camera..."
+    gz service -s /gui/move_to/pose \
+        --reqtype gz.msgs.GUICamera \
+        --reptype gz.msgs.Boolean \
+        --timeout 2000 \
+        --req "pose: {position: {x: 1.36, y: -0.58, z: 0.95} orientation: {x: -0.26, y: 0.1, z: 0.89, w: 0.35}}" \
+        || echo "Gazebo GUI camera move service not available yet; continuing without it."
 
-echo "Adjusting Gazebo GUI camera..."
-gz service -s /gui/move_to/pose \
-    --reqtype gz.msgs.GUICamera \
-    --reptype gz.msgs.Boolean \
-    --timeout 2000 \
-    --req "pose: {position: {x: 1.36, y: -0.58, z: 0.95} orientation: {x: -0.26, y: 0.1, z: 0.89, w: 0.35}}" \
-    || echo "Gazebo GUI camera move service not available yet; continuing without it."
-
-echo "Launching RViz..."
-# use_move_group:=false — move_group is already running from ur_gazebo launch above
-ros2 launch moveit_config move_group.launch.py \
-    gripper:="$GRIPPER" \
-    use_rviz:=true \
-    use_move_group:=false \
-    rviz_config_file:=mtc_demos.rviz \
-    rviz_config_package:=ur_mtc_pick_place_demo &
-
-sleep 5
+    echo "Launching RViz..."
+    # use_move_group:=false — move_group is already running from ur_gazebo launch above
+    ros2 launch moveit_config move_group.launch.py \
+        gripper:="$GRIPPER" \
+        use_rviz:=true \
+        use_move_group:=false \
+        rviz_config_file:=mtc_demos.rviz \
+        rviz_config_package:=ur_mtc_pick_place_demo &
+    LAUNCH_PIDS+=($!)
+    sleep 5
+fi
 
 echo "Launching planning scene server..."
 ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py &
-
+LAUNCH_PIDS+=($!)
 sleep 5
 
 echo "Launching Pick and Place demo..."

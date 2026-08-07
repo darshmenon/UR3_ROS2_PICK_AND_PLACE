@@ -12,7 +12,12 @@ get_planning_scene_server:
     crop_max_x: 0.80
     crop_min_y: -0.40
     crop_max_y: 0.50
-    crop_min_z: -0.10
+    # Exclude mount_table's top face (≈z=0 in base_link). If those points are
+    # kept, RANSAC prefers the huge mount plane over the small pick table and
+    # publishes a near-zero-z "support_surface" that plan_execution then
+    # treats as a floor slab — canceling move-to-pick when wrist_3 clips it
+    # (Trajectory component invalid / support_surface vs wrist_3_link).
+    crop_min_z: 0.02
     crop_max_z: 0.60
 
     # Plane and object segmentation parameters
@@ -34,7 +39,11 @@ get_planning_scene_server:
 
     # Support surface parameters
     support_surface_name: "support_surface"
-    min_surface_thickness: 0.0001
+    # Must be thick enough for stable FCL contacts. Sub-mm wafers give
+    # inconsistent plan-vs-execute collision results on the same path.
+    min_surface_thickness: 0.02
+    # Reject RANSAC fits whose top face is below this (mount_table ≈ z=0).
+    support_min_z: 0.015
 
     # Normal, curvature, and RSD estimation parameters
     k_neighbors: 30

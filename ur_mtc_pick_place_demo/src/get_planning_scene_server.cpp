@@ -96,6 +96,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
   // Parameters for creating the support plane
   std::string support_surface_name;
   double min_surface_thickness;
+  double support_min_z;
 
   // Parameters for normal, curvature, and RSD estimation
   int k_neighbors;
@@ -203,7 +204,9 @@ class GetPlanningSceneServer : public rclcpp::Node {
 
     // Declare parameters for creating the support surface
     declare_parameter("support_surface_name", "support_surface", "Name of the support surface collision object");
-    declare_parameter("min_surface_thickness", 0.0001, "Minimum thickness for the support surface (in meters)");
+    declare_parameter("min_surface_thickness", 0.02, "Minimum thickness for the support surface (in meters)");
+    declare_parameter("support_min_z", 0.015,
+                     "Reject fitted support whose top face z is below this (filters mount_table at z≈0)");
 
     // Declare parameters for normal, curvature, and RSD estimation
     declare_parameter("k_neighbors", 30, "Number of neighbors to consider for normal estimation");
@@ -286,6 +289,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
     // Get parameters for creating the support plane
     support_surface_name = this->get_parameter("support_surface_name").as_string();
     min_surface_thickness = this->get_parameter("min_surface_thickness").as_double();
+    support_min_z = this->get_parameter("support_min_z").as_double();
 
     // Get parameters for normal, curvature, and RSD estimation
     k_neighbors = this->get_parameter("k_neighbors").as_int();
@@ -536,15 +540,27 @@ class GetPlanningSceneServer : public rclcpp::Node {
       geometry_msgs::msg::Pose box_pose;
       Eigen::Vector3d normal(plane_coefficients->values[0], plane_coefficients->values[1], plane_coefficients->values[2]);
       normal.normalize();
+      // Point the box "up" toward the camera/workspace so thickness extends
+      // into the table, not into free space above the plane.
+      if (normal.z() < 0.0) {
+        normal = -normal;
+      }
 
       // Calculate rotation to align the plane normal with the z-axis
       Eigen::Quaterniond rotation;
       rotation.setFromTwoVectors(Eigen::Vector3d::UnitZ(), normal);
 
-      // Set the pose
-      box_pose.position.x = centroid[0];
-      box_pose.position.y = centroid[1];
-      box_pose.position.z = centroid[2];
+      // Plane fit is the TABLE TOP. Shift the box center down along the
+      // normal by half its thickness so the top face stays on the plane
+      // (same convention as moveit_task_constructor demo's spawn_table).
+      const double half_thickness =
+          0.5 * box_primitive.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Z];
+      const Eigen::Vector3d center =
+          Eigen::Vector3d(centroid[0], centroid[1], centroid[2]) - normal * half_thickness;
+
+      box_pose.position.x = center.x();
+      box_pose.position.y = center.y();
+      box_pose.position.z = center.z();
       box_pose.orientation.x = rotation.x();
       box_pose.orientation.y = rotation.y();
       box_pose.orientation.z = rotation.z();
@@ -1012,11 +1028,21 @@ class GetPlanningSceneServer : public rclcpp::Node {
     if (support_surface.id.empty()) {
       RCLCPP_WARN(this->get_logger(), "Support surface collision object creation failed or resulted in an invalid object");
     } else {
-      RCLCPP_INFO(this->get_logger(), "Adding support surface collision object to the planning scene");
-      // Add the support surface to the planning scene
-      response->scene_world.collision_objects.push_back(support_surface);
-      // Set the support_surface_id in the response
-      response->support_surface_id = support_surface.id;
+      const double half_z =
+          support_surface.primitives.empty() ? 0.0 : 0.5 * support_surface.primitives[0].dimensions[2];
+      const double top_z =
+          support_surface.primitive_poses.empty() ? 0.0 :
+          support_surface.primitive_poses[0].position.z + half_z;
+      if (top_z < support_min_z) {
+        RCLCPP_WARN(this->get_logger(),
+                    "Rejecting support_surface at top_z=%.4f < support_min_z=%.4f "
+                    "(likely mount_table, not the pick table)",
+                    top_z, support_min_z);
+      } else {
+        RCLCPP_INFO(this->get_logger(), "Adding support surface collision object to the planning scene");
+        response->scene_world.collision_objects.push_back(support_surface);
+        response->support_surface_id = support_surface.id;
+      }
     }
 
     /***********************************************************************************

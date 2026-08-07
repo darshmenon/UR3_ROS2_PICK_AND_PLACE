@@ -147,6 +147,12 @@ trajectory_execution:
   execution_duration_monitoring: false
 arm:
   default_planner_config: RRTConnectkConfigDefault
+  # Default (0.01 = 1% of joint-space extent per collision-check segment) is
+  # coarse enough that RRTConnect can accept an edge that grazes the table
+  # between checked states — plan passes, then execution's unpadded
+  # per-waypoint re-check catches the graze and aborts. Tighten so planning
+  # itself catches it.
+  longest_valid_segment_fraction: 0.002
   planner_configs:
     - APSConfigDefault
     - SBLkConfigDefault

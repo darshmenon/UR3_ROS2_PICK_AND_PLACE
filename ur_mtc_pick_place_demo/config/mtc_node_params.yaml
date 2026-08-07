@@ -35,6 +35,15 @@ mtc_node:
     # singularity dead zone, close enough that a top-down grasp above a
     # 0.12m cylinder stays inside UR3 reach (~0.45m spherical).
     object_pose: [0.36, 0.0, 0.10, 0.0, 0.0, 0.0]
+    # Pick-table box in base_link (see pick_and_place_demo.world). Used when
+    # perception falls back so we don't keep a RANSAC mount_table slab at z≈0.
+    fallback_support_dimensions: [0.30, 0.45, 0.04]
+    fallback_support_pose: [0.275, 0.04, 0.02, 0.0, 0.0, 0.0]
+    # Reliable demo path: always use known pick-table + cylinder geometry.
+    force_fallback_scene: true
+    support_min_z: 0.015
+    support_max_xy_area: 0.25
+    move_group_wait_timeout: 30.0
 
     # Grasp parameters (key collision fixes)
     # z = distance from gripper_frame (robotiq_arg2f_base_link) to the fingertip
