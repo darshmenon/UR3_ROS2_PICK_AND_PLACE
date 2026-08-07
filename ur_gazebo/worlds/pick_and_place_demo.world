@@ -34,46 +34,19 @@
       <pose>0 0 0 0 0 0</pose>
     </include>
 
-    <!-- Flat work surface for the perception pipeline's plane segmentation to
-         detect as the support surface — previously this world had objects
-         floating directly above the bare ground plane with no distinct
-         horizontal surface to fit, so get_planning_scene_server's RANSAC
-         plane fit found nothing and MTC always fell back to a dummy object.
-         Table bottom sits at table_height (1.015); top face at 1.055.
-         2026-08-04: tried dropping this 0.285m below mount_table's surface
-         to give the arm more top-down reach clearance (this height is only
-         2cm above the robot's own base_link, a likely cause of the razor-thin
-         collision-vs-no-IK grasp margins documented below). Reverted: the
-         drop broke get_planning_scene_server's RANSAC — with the pick table
-         no longer occluding it, the much larger mount_table plane (32k+
-         points vs ~350 object points) won as "best fit" support surface
-         instead, and the real fix (robust across whatever object geometry
-         perception reports) belongs in the grasp strategy, not the scene —
-         see the Fallbacks-based multi-candidate grasp in mtc_node.cpp. -->
-    <model name="table">
-      <static>true</static>
-      <pose>0.275 0.04 1.035 0 0 0</pose>
-      <link name="link">
-        <collision name="collision">
-          <geometry>
-            <box><size>0.30 0.45 0.04</size></box>
-          </geometry>
-        </collision>
-        <visual name="visual">
-          <geometry>
-            <box><size>0.30 0.45 0.04</size></box>
-          </geometry>
-          <material>
-            <ambient>0.8 0.6 0.4 1</ambient>
-            <diffuse>0.8 0.6 0.4 1</diffuse>
-            <specular>0.2 0.2 0.2 1</specular>
-          </material>
-        </visual>
-      </link>
-    </model>
+    <!-- 2026-08-07: removed the small pick "table" prop (was a 0.30x0.45x0.04
+         box at 0.275 0.04 1.035, top face 1.055) that previously gave
+         get_planning_scene_server's RANSAC plane fit a distinct horizontal
+         surface to detect — without it, perception will find no support
+         surface and MTC falls back to the dummy object / fallback
+         collision box in mtc_node.cpp, same as before this prop existed.
+         Objects below now rest directly on the raised ground (mount_table's
+         floor, table_height=1.015) — z values dropped by 0.04m (the table's
+         thickness) to land in the same place relative to that floor. -->
 
     <!-- Red cylinder — reachable by UR3 arm. z raised so it rests on the
-         table's top face (1.055) instead of the original bare ground (0).
+         raised ground (table_height=1.015) instead of the original bare
+         ground (0).
          2026-08-04: x nudged +0.08m (0.22->0.30) further from the arm base —
          Universal Robots' own singularity documentation names this exact
          failure mode: a wrist forced into its q5=+-pi/2 singularity by a
@@ -97,7 +70,7 @@
     <include>
       <uri>model://red_cylinder</uri>
       <name>red_cylinder</name>
-      <pose>0.36 0.0 1.115 0 0 0</pose>
+      <pose>0.36 0.0 1.075 0 0 0</pose>
     </include>
 
     <!-- YCB objects for richer scene — z raised the same way, x nudged
@@ -106,12 +79,12 @@
          isn't swallowed by the mustard cluster / occluded from the head cam. -->
     <include>
       <uri>model://mustard</uri>
-      <pose>0.25 0.20 1.135 0 0 0</pose>
+      <pose>0.25 0.20 1.095 0 0 0</pose>
     </include>
 
     <include>
       <uri>model://coke_can</uri>
-      <pose>0.33 -0.10 1.13 0 0 0</pose>
+      <pose>0.33 -0.10 1.09 0 0 0</pose>
     </include>
 
     <!-- Was at 0.38 0.18 — same XY as red_cylinder after the 2026-08-05
@@ -119,7 +92,7 @@
          spawn interleaved and poison collision checks. -->
     <include>
       <uri>model://cheezit_big_original</uri>
-      <pose>0.22 -0.12 1.095 0 0 0</pose>
+      <pose>0.22 -0.12 1.055 0 0 0</pose>
     </include>
 
     <!-- Bin / drop zone — sit on the raised ground (mount_table's floor

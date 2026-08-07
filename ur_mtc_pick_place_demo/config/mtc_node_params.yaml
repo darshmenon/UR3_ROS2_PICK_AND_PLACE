@@ -113,13 +113,17 @@ mtc_node:
 
     # Timeout parameters
     # move_to_pick_timeout raised 10.0 -> 40.0: this transit is a tight
-    # narrow-passage motion (table/object close to the arm base — see
-    # project_mtc_execution_collision_debug.md), so RRTConnect sometimes
-    # needs more than 10s of search to land on a solution that isn't a
-    # near-miss graze. Extra budget costs nothing when planning succeeds
-    # quickly, which is the common case.
+    # narrow-passage motion (table/object close to the arm base). Extra
+    # budget costs nothing when planning succeeds quickly.
     move_to_pick_timeout: 40.0
-    move_to_place_timeout: 10.0
+    move_to_place_timeout: 40.0
+
+    # Narrow-passage transit fixes (joint via + APS + planning margin)
+    arm_transit_clear_pose: "transit_clear"
+    use_transit_clear_via: true
+    transit_planner_id: "RRTConnectkConfigDefault"
+    planning_robot_padding: 0.004
+    planning_support_inflation: 0.005
 
     # Grasp generation (critical fixes)
     grasp_pose_angle_delta: 0.2618  # ~15 degrees

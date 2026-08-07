@@ -44,6 +44,12 @@ arm_controller:
 gripper_controller:
   ros__parameters:
     joint: finger_joint
+    # Robotiq in Gazebo often stalls short of the commanded finger position;
+    # without this, GripperCommand goals never finish and MTC execute hangs.
+    allow_stalling: true
+    stall_timeout: 0.5
+    stall_velocity_threshold: 0.001
+    goal_tolerance: 0.02
 # arm_with_gripper_controller:
 #   ros__parameters:
 #     joints:

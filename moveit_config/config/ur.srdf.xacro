@@ -68,6 +68,17 @@
         <joint name="wrist_2_joint" value="0"/>
         <joint name="wrist_3_joint" value="1.0"/>
     </group_state>
+    <!-- FK-screened joint-space via: tool0 ≈ (0.17, 0.00, 0.67), clear of
+         the pick-table AABB between base and object. -->
+    <group_state name="transit_clear" group="arm">
+        <!-- Rescreened: tool0≈(0.18,0.08,0.64), pan≈0 keeps gripper clear of torso. -->
+        <joint name="shoulder_pan_joint" value="-0.09"/>
+        <joint name="shoulder_lift_joint" value="-0.72"/>
+        <joint name="elbow_joint" value="-0.84"/>
+        <joint name="wrist_1_joint" value="-0.98"/>
+        <joint name="wrist_2_joint" value="1.79"/>
+        <joint name="wrist_3_joint" value="-0.04"/>
+    </group_state>
     <group_state name="half_closed" group="gripper">
         <joint name="finger_joint" value="0.60"/>
     </group_state>
@@ -242,6 +253,17 @@
         <joint name="wrist_1_joint" value="0"/>
         <joint name="wrist_2_joint" value="0"/>
         <joint name="wrist_3_joint" value="1.0"/>
+    </group_state>
+    <!-- FK-screened joint-space via: tool0 ≈ (0.17, 0.00, 0.67), clear of
+         the pick-table AABB between base and object. -->
+    <group_state name="transit_clear" group="arm">
+        <!-- Rescreened: tool0≈(0.18,0.08,0.64), pan≈0 keeps gripper clear of torso. -->
+        <joint name="shoulder_pan_joint" value="-0.09"/>
+        <joint name="shoulder_lift_joint" value="-0.72"/>
+        <joint name="elbow_joint" value="-0.84"/>
+        <joint name="wrist_1_joint" value="-0.98"/>
+        <joint name="wrist_2_joint" value="1.79"/>
+        <joint name="wrist_3_joint" value="-0.04"/>
     </group_state>
     <group_state name="open" group="gripper">
         <joint name="gripper_joint" value="0.0"/>

@@ -434,12 +434,20 @@ def generate_launch_description():
 
     # ExecuteTaskSolutionCapability is required for MTC pick-and-place execution
     mtc_capabilities = {"capabilities": "move_group/ExecuteTaskSolutionCapability"}
+    # Planning-time collision margin (mtc_node also applies per-link padding).
+    planning_padding = {
+        "robot_description_planning": {
+            "default_robot_padding": 0.004,
+            "default_object_padding": 0.003,
+            "default_attached_padding": 0.003,
+        }
+    }
 
     move_group_node_robotiq = Node(
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
-        parameters=[move_group_parameters_robotiq, {"use_sim_time": use_sim_time}, mtc_capabilities],
+        parameters=[move_group_parameters_robotiq, {"use_sim_time": use_sim_time}, mtc_capabilities, planning_padding],
         condition=robotiq_move_group_condition,
     )
 
@@ -447,7 +455,7 @@ def generate_launch_description():
         package="moveit_ros_move_group",
         executable="move_group",
         output="screen",
-        parameters=[move_group_parameters_onrobot, {"use_sim_time": use_sim_time}, mtc_capabilities],
+        parameters=[move_group_parameters_onrobot, {"use_sim_time": use_sim_time}, mtc_capabilities, planning_padding],
         condition=onrobot_move_group_condition,
     )
 

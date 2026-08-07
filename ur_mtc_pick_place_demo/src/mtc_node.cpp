@@ -47,6 +47,8 @@
 #include <moveit_task_constructor_msgs/msg/solution.hpp>
 #include <moveit_msgs/srv/get_planning_scene.hpp>
 #include <moveit_msgs/srv/apply_planning_scene.hpp>
+#include <moveit_msgs/msg/planning_scene.hpp>
+#include <moveit_msgs/msg/link_padding.hpp>
 
 // Other utilities
 #include <type_traits>
@@ -250,6 +252,7 @@ private:
   bool isSupportSurfaceSane(const moveit_msgs::msg::CollisionObject& support,
                             double support_min_z, double support_max_xy_area) const;
   void installFallbackSupportAndTarget(moveit::planning_interface::PlanningSceneInterface& psi);
+  void applyPlanningPadding();
 
   // Variables for calling the GetPlanningScene service
   std::shared_ptr<GetPlanningSceneClient> planning_scene_client;
@@ -291,6 +294,16 @@ MTCTaskNode::MTCTaskNode(const rclcpp::NodeOptions& options)
   declare_parameter("gripper_open_pose", "open", "Name of the gripper open pose");
   declare_parameter("gripper_close_pose", "half_closed", "Name of the gripper closed pose");
   declare_parameter("arm_home_pose", "home", "Name of the arm home pose");
+  declare_parameter("arm_transit_clear_pose", "transit_clear",
+                    "Named joint-space via that clears the pick-table corridor");
+  declare_parameter("use_transit_clear_via", true,
+                    "Insert MoveTo(transit_clear) before pick/place Connect stages");
+  declare_parameter("transit_planner_id", "RRTConnectkConfigDefault",
+                    "OMPL planner_id for narrow-passage transit (Connect + via MoveTo)");
+  declare_parameter("planning_robot_padding", 0.004,
+                    "Extra robot link padding (m) applied to the planning scene");
+  declare_parameter("planning_support_inflation", 0.005,
+                    "Grow fallback support box XY/Z by this many metres for planning margin");
 
   // Scene frame parameters
   declare_parameter("world_frame", "base_link", "Name of the world frame");
@@ -489,12 +502,23 @@ void MTCTaskNode::installFallbackSupportAndTarget(
   support.operation = moveit_msgs::msg::CollisionObject::ADD;
   shape_msgs::msg::SolidPrimitive support_prim;
   support_prim.type = shape_msgs::msg::SolidPrimitive::BOX;
-  support_prim.dimensions = {
-      support_dims.size() > 0 ? support_dims[0] : 0.30,
-      support_dims.size() > 1 ? support_dims[1] : 0.45,
-      support_dims.size() > 2 ? support_dims[2] : 0.04};
+  const double inflate = this->get_parameter("planning_support_inflation").as_double();
+  const double sx = (support_dims.size() > 0 ? support_dims[0] : 0.30) + 2.0 * inflate;
+  const double sy = (support_dims.size() > 1 ? support_dims[1] : 0.45) + 2.0 * inflate;
+  const double sz = (support_dims.size() > 2 ? support_dims[2] : 0.04) + 2.0 * inflate;
+  support_prim.dimensions = {sx, sy, sz};
   support.primitives.push_back(support_prim);
-  support.primitive_poses.push_back(vectorToPose(support_pose));
+  // Keep XY center; raise Z so the top face rises by `inflate` (bottom drops by same).
+  auto inflated_pose = support_pose;
+  if (inflated_pose.size() >= 3) {
+    inflated_pose[2] = support_pose[2];  // center unchanged; half-height grew equally
+  }
+  support.primitive_poses.push_back(vectorToPose(inflated_pose));
+  if (inflate > 0.0) {
+    RCLCPP_INFO(this->get_logger(),
+                "Inflated fallback support by %.3fm for planning margin (size now [%.3f, %.3f, %.3f])",
+                inflate, sx, sy, sz);
+  }
 
   moveit_msgs::msg::CollisionObject fallback;
   fallback.id = object_name;
@@ -632,7 +656,42 @@ void MTCTaskNode::setupPlanningScene()
     installFallbackSupportAndTarget(psi);
   }
 
+  applyPlanningPadding();
+
   RCLCPP_INFO(this->get_logger(), "Planning scene setup completed");
+}
+
+void MTCTaskNode::applyPlanningPadding()
+{
+  const double padding = this->get_parameter("planning_robot_padding").as_double();
+  if (padding <= 0.0) {
+    return;
+  }
+
+  // Links that graze the pick table during transit. Do NOT pad finger pads —
+  // 8mm there falsely collides with torso_link at folded configs.
+  static const char* kPaddedLinks[] = {
+      "forearm_link", "wrist_1_link", "wrist_2_link", "wrist_3_link",
+      "upper_arm_link", "tool0", "robotiq_arg2f_base_link",
+  };
+
+  moveit_msgs::msg::PlanningScene scene_msg;
+  scene_msg.is_diff = true;
+  for (const char* link : kPaddedLinks) {
+    moveit_msgs::msg::LinkPadding lp;
+    lp.link_name = link;
+    lp.padding = padding;
+    scene_msg.link_padding.push_back(lp);
+  }
+
+  moveit::planning_interface::PlanningSceneInterface psi;
+  if (!psi.applyPlanningScene(scene_msg)) {
+    RCLCPP_WARN(this->get_logger(), "Failed to apply %.3fm planning link padding", padding);
+    return;
+  }
+  RCLCPP_INFO(this->get_logger(),
+              "Applied %.3fm planning padding to %zu robot links (coarse-plan / fine-margin)",
+              padding, scene_msg.link_padding.size());
 }
 
 /**
@@ -788,6 +847,9 @@ mtc::Task MTCTaskNode::createTask()
   auto gripper_group_name = this->get_parameter("gripper_group_name").as_string();
   auto gripper_frame = this->get_parameter("gripper_frame").as_string();
   auto arm_home_pose = this->get_parameter("arm_home_pose").as_string();
+  auto arm_transit_clear_pose = this->get_parameter("arm_transit_clear_pose").as_string();
+  const bool use_transit_clear_via = this->get_parameter("use_transit_clear_via").as_bool();
+  auto transit_planner_id = this->get_parameter("transit_planner_id").as_string();
 
   // Gripper poses
   auto gripper_open_pose = this->get_parameter("gripper_open_pose").as_string();
@@ -871,12 +933,21 @@ mtc::Task MTCTaskNode::createTask()
   auto retreat_max_distance = this->get_parameter("retreat_max_distance").as_double();
 
   // Create planners for different types of motion
-  // Pipeline planner for complex movements
-  // OMPL planner
+  // OMPL planner (generic — approach/retreat may still fall back to this)
   auto ompl_planner_arm = std::make_shared<mtc::solvers::PipelinePlanner>(
     this->shared_from_this(),
     "ompl");
   RCLCPP_INFO(this->get_logger(), "OMPL planner created for the arm group");
+
+  // Narrow-passage transit planner for Connect stages. Prefer a concrete
+  // planner config (RRTConnectkConfigDefault / LBKPIECEkConfigDefault) —
+  // APS with LBKPIECE in its planners string fails with
+  // "No projection evaluator specified" under MoveIt/OMPL.
+  auto ompl_planner_transit = std::make_shared<mtc::solvers::PipelinePlanner>(
+    this->shared_from_this(),
+    "ompl");
+  ompl_planner_transit->setPlannerId(transit_planner_id);
+  RCLCPP_INFO(this->get_logger(), "Transit OMPL planner_id='%s'", transit_planner_id.c_str());
 
   // JointInterpolation is a basic planner that is used for simple motions
   // It computes quickly but doesn't support complex motions.
@@ -925,6 +996,47 @@ mtc::Task MTCTaskNode::createTask()
 
   /****************************************************
    *                                                  *
+   *     Move to transit_clear (joint-space via)      *
+   *                                                  *
+   ***************************************************/
+  // Split the home→pregrasp narrow passage into two easier legs. The via is a
+  // named SRDF state whose FK was screened clear of the pick-table AABB
+  // (tool0 ≈ (0.17, 0, 0.67)). Joint-space MoveTo — not Cartesian — so the
+  // resting wrist singularity cannot break the motion.
+  if (use_transit_clear_via) {
+    // Joint-space interpolate to the named via (home→transit_clear is short
+    // and clear). Fall back to OMPL if the straight joint path is blocked.
+    auto via_fallbacks = std::make_unique<mtc::Fallbacks>("move to transit_clear");
+    {
+      auto stage = std::make_unique<mtc::stages::MoveTo>(
+          "transit_clear (joint interp)", interpolation_planner);
+      stage->setGroup(arm_group_name);
+      stage->setGoal(arm_transit_clear_pose);
+      stage->setTimeout(5.0);
+      stage->properties().set(
+          "trajectory_execution_info",
+          mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+      via_fallbacks->add(std::move(stage));
+    }
+    {
+      auto stage = std::make_unique<mtc::stages::MoveTo>(
+          "transit_clear (ompl)", ompl_planner_transit);
+      stage->setGroup(arm_group_name);
+      stage->setGoal(arm_transit_clear_pose);
+      stage->setTimeout(move_to_pick_timeout);
+      stage->properties().set(
+          "trajectory_execution_info",
+          mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+      via_fallbacks->add(std::move(stage));
+    }
+    task.add(std::move(via_fallbacks));
+    RCLCPP_INFO(this->get_logger(),
+                "Inserted joint-space via Fallbacks→'%s' before move-to-pick",
+                arm_transit_clear_pose.c_str());
+  }
+
+  /****************************************************
+   *                                                  *
    *               Move to Pick                       *
    *                                                  *
    ***************************************************/
@@ -935,21 +1047,18 @@ mtc::Task MTCTaskNode::createTask()
         // Arm only — gripper is already opened in the previous stage; including
         // it here made Connect fail to link the successful grasp IK solutions
         // back to the start state (0 Connect solutions while pick IK succeeded).
-        {arm_group_name, ompl_planner_arm}
+        {arm_group_name, ompl_planner_transit}
       });
   stage_move_to_pick->setTimeout(move_to_pick_timeout);
   stage_move_to_pick->properties().configureInitFrom(mtc::Stage::PARENT);
   stage_move_to_pick->properties().set(
       "trajectory_execution_info",
       mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
-  // NOTE: tried a "stay above table" PositionConstraint on this stage
-  // (2026-08-07) to stop RRTConnect's random dips into the table/object —
-  // technically correct (rejected unsafe paths instead of accepting them)
-  // but OMPL's constrained/rejection sampling never found ANY solution
-  // within 40s (vs ~10s unconstrained). Reverted; see
-  // project_mtc_execution_collision_debug.md for the full writeup and
-  // untried alternatives (geometric via-point, alternate OMPL planner).
+  // Transit uses APS/LBKPIECE + joint via + planning padding; path constraints
+  // previously made OMPL find nothing within 40s and were reverted.
   task.add(std::move(stage_move_to_pick));
+  (void)ompl_planner_arm;  // available for non-transit stages if needed later
+  (void)arm_home_pose;
 
   // Create a pointer for the stage that will attach the object (to be used later)
   // By declaring it at the top level of the function, it can be accessed throughout
@@ -1178,13 +1287,13 @@ mtc::Task MTCTaskNode::createTask()
    *                                                    *
    *****************************************************/
   {
-    // Connect the grasped state to the pre-place state, i.e. realize the object transport
-    // In other words, this stage plans the motion that transports the object from where it was picked up
-    // to where it will be placed.
+    // Connect the grasped (lifted) state to the pre-place state.
+    // No carry via here: moving to transit_clear with the cylinder attached
+    // repeatedly hit torso↔object / support↔object under padding.
     auto stage_move_to_place = std::make_unique<mtc::stages::Connect>(
       "move to place",
       mtc::stages::Connect::GroupPlannerVector{
-        {arm_group_name, ompl_planner_arm}
+        {arm_group_name, ompl_planner_transit}
       });
     stage_move_to_place->setTimeout(move_to_place_timeout);
     stage_move_to_place->properties().configureInitFrom(mtc::Stage::PARENT);

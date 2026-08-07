@@ -80,6 +80,7 @@ READY=0
 for i in $(seq 1 90); do
     HAS_SCENE=0
     HAS_ARM=0
+    HAS_GRIP=0
     HAS_POINTS=0
     if timeout 2 ros2 service list 2>/dev/null | grep -q "/get_planning_scene"; then
         HAS_SCENE=1
@@ -87,15 +88,20 @@ for i in $(seq 1 90); do
     if timeout 2 ros2 action list 2>/dev/null | grep -q "/arm_controller/follow_joint_trajectory"; then
         HAS_ARM=1
     fi
-    if timeout 3 ros2 topic hz /camera_head/depth/color/points 2>&1 | grep -q average; then
+    # GripperActionController — without this, execute fails immediately with CONTROL_FAILED (-4)
+    if timeout 2 ros2 action list 2>/dev/null | grep -q "/gripper_controller/gripper_cmd"; then
+        HAS_GRIP=1
+    fi
+    # topic hz can hang under some sandboxes; treat points as optional soft check
+    if timeout --signal=KILL 3 ros2 topic hz /camera_head/depth/color/points 2>&1 | grep -q average; then
         HAS_POINTS=1
     fi
-    if [ "$HAS_SCENE" -eq 1 ] && [ "$HAS_ARM" -eq 1 ] && [ "$HAS_POINTS" -eq 1 ]; then
+    if [ "$HAS_SCENE" -eq 1 ] && [ "$HAS_ARM" -eq 1 ] && [ "$HAS_GRIP" -eq 1 ]; then
         READY=1
-        echo "Ready at attempt $i (scene+arm+points)."
+        echo "Ready at attempt $i (scene+arm+gripper; points=$HAS_POINTS)."
         break
     fi
-    echo "  wait $i: scene=$HAS_SCENE arm=$HAS_ARM points=$HAS_POINTS"
+    echo "  wait $i: scene=$HAS_SCENE arm=$HAS_ARM grip=$HAS_GRIP points=$HAS_POINTS"
     sleep 2
 done
 if [ "$READY" -ne 1 ]; then

@@ -114,10 +114,50 @@ For Humble/Jazzy API differences and troubleshooting, see [`ur_mtc_pick_place_de
 ### Full MTC Pick-and-Place Demo
 
 ```bash
-bash ur_mtc_pick_place_demo/scripts/robot.sh
+source install/setup.bash
+bash ur_mtc_pick_place_demo/scripts/robot.sh              # GUI
+USE_GAZEBO_GUI=false bash ur_mtc_pick_place_demo/scripts/robot.sh   # headless
 ```
 
-Launches Gazebo + MoveIt + planning scene server + MTC demo in sequence.
+Or two terminals (`ROS_DOMAIN_ID` must match; default `113`):
+
+```bash
+# T1
+export ROS_DOMAIN_ID=113 ROS_LOCALHOST_ONLY=1 GZ_VERSION=harmonic
+export GZ_SIM_SYSTEM_PLUGIN_PATH="$(ros2 pkg prefix gz_ros2_control)/lib:${GZ_SIM_SYSTEM_PLUGIN_PATH:-}"
+ros2 launch ur_gazebo ur.gazebo.launch.py \
+  world_file:=pick_and_place_demo.world gripper:=robotiq_2f_85 \
+  use_rviz:=false use_move_group:=true use_gazebo_gui:=true
+
+# T2 — after /get_planning_scene + arm/gripper controllers are up
+export ROS_DOMAIN_ID=113 ROS_LOCALHOST_ONLY=1
+ros2 launch ur_mtc_pick_place_demo pick_place_demo.launch.py
+```
+
+Success: `Task executed successfully`. Cold-stack execute `-3` → retry T2.
+
+`robot.sh` also starts `get_planning_scene_server` before MTC. Manual two-terminal flow: launch it between T1 and T2:
+
+```bash
+ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py
+```
+
+### Planning scene server (object + table from the camera)
+
+`get_planning_scene_server` turns the head depth cloud into MoveIt collision objects so MTC knows **what** to pick and **where** it is.
+
+Flow:
+1. Subscribes to `/camera_head/depth/color/points` (+ RGB), crops to the pick workspace (`crop_min_z: 0.02` drops the big `mount_table` at z≈0).
+2. RANSAC plane → `support_surface` (pick table). Rejects planes with top face below `support_min_z`.
+3. Remaining points → clusters; RANSAC cylinder/box fit → collision objects in `base_link`.
+4. Service `/get_planning_scene_ur` (`ur_interfaces/GetPlanningScene`): request `target_shape` + `target_dimensions`; response has `scene_world`, `target_object_id`, `support_surface_id`.
+
+`mtc_node` calls that service at startup, applies the objects into MoveIt’s planning scene, then builds the pick/place task around `target_object_id`. If perception fails (or `force_fallback_scene:=true`), it installs a known table+cylinder instead.
+
+```bash
+ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py
+# then MTC (or robot.sh, which starts both)
+```
 
 ### Launch Full Simulation in Gazebo
 
@@ -699,12 +739,13 @@ Publishes `/ur_grasp/grasp_pose` and `/ur_grasp/grasp_marker`. Leave continuous 
 
 ### MoveIt Task Constructor (`ur_mtc_pick_place_demo`)
 
-Separate from the `ur_grasp` / visual-servo path. **Planning works** (fallback cylinder at `(0.36, 0, 0.10)`). Two execution blockers fixed: zero-duration trajectory segments from non-motion MTC stages (`mtc_node` now repairs/drops them before `execute_task_solution`), and move-to-pick aborting on `support_surface` vs `wrist_3_link` collisions caused by RANSAC latching onto `mount_table` at z≈0 (fixed via `crop_min_z`, real-thickness support boxes, and a known pick-table collision box in fallback mode).
+**Plan + execute works** on the fallback scene (cylinder `(0.36, 0, 0.10)`). Object/table pose normally comes from the [planning scene server](#planning-scene-server-object--table-from-the-camera).
 
-```bash
-ros2 launch ur_gazebo full_demo.launch.py
-# or: Gazebo + get_planning_scene_server + pick_place_demo.launch.py
-```
+Fixed: zero-duration traj segments; phantom `mount_table` support; narrow-passage transit via FK-screened `transit_clear` + coarse OMPL + ~4 mm arm padding (2026-08-07).
+
+Still flaky: cold-stack execute `-3` (retry); non-fallback perception scenes.
+
+Launch: [Full MTC Pick-and-Place Demo](#full-mtc-pick-and-place-demo).
 
 ### Vision (`ur_perception`)
 

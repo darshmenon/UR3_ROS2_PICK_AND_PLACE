@@ -19,9 +19,9 @@ planner_configs:
     hybridize: 1  # Compute hybrid solution trajectories
     max_hybrid_paths: 36  # Number of hybrid paths generated per iteration
     num_planners: 8  # The number of default planners to use for planning
-    # Mixed set for narrow passages (table between base and pick). Pure
-    # RRTConnect×8 was the previous default and still grazes intermittently.
-    planners: "LBKPIECE,LazyPRM,RRTConnect,BiTRRT,LBKPIECE,LazyPRM,RRTConnect,BiTRRT"
+    # No LBKPIECE/KPIECE here — those need a projection evaluator and abort
+    # MTC MoveTo(transit_clear) with "No projection evaluator specified".
+    planners: "RRTConnect,BiTRRT,LazyPRM,RRTConnect,BiTRRT,LazyPRM,RRTConnect,BiTRRT"
   SBLkConfigDefault:
     type: geometric::SBL
     range: 0.0  # Max motion added to tree. ==> maxDistance_ default: 0.0, if 0.0, set on setup()
