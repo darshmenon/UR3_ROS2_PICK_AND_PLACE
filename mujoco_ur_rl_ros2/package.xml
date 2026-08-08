@@ -4,7 +4,7 @@
   <version>0.1.0</version>
   <description>ROS 2 policy runner and launch files for mujoco-ur-arm-rl.</description>
   <maintainer email="darshmenon02@gmail.com">darshmenon</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
 

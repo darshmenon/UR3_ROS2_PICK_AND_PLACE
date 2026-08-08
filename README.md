@@ -5,6 +5,31 @@ Blog post (dev journey, engineering details): [How I'm Building an Autonomous Pi
 
 Integrates the Robotiq 2-Finger Gripper with a UR3 arm on **ROS 2 Humble** + **Gazebo Harmonic**: URDF models, ros2_control config, simulation launch files, MoveIt Task Constructor pick-and-place, vision-based object detection, LLM-driven task planning (Ollama), and demonstration recording for behavior cloning.
 
+**New here? Start with [Full MTC Pick-and-Place Demo](#full-mtc-pick-and-place-demo)** — the flagship demo, one command to run.
+
+<details>
+<summary><strong>Table of Contents</strong></summary>
+
+- [Demo](#demo)
+- [Installation](#installation)
+- [MoveIt Task Constructor Setup](#moveit-task-constructor-setup)
+- [Launch Instructions](#launch-instructions)
+- [Supported Grippers](#supported-grippers)
+- [Move the Arm from CLI](#move-the-arm-from-cli)
+- [Run Arm-Gripper Automation Script](#run-arm-gripper-automation-script)
+- [Full Autonomous Pipeline](#full-autonomous-pipeline)
+- [Grasp Detection (ur_grasp)](#grasp-detection-ur_grasp)
+- [Standalone Robot Control GUI](#standalone-robot-control-gui)
+- [UR3 Reinforcement Learning (SAC)](#ur3-reinforcement-learning-sac)
+- [Force Control / Compliant Grasping (ur_force_control)](#force-control--compliant-grasping-ur_force_control)
+- [Behavior Tree Task Planner (ur_bt_planner)](#behavior-tree-task-planner-ur_bt_planner)
+- [Conveyor Belt Simulation (ur_conveyor)](#conveyor-belt-simulation-ur_conveyor)
+- [Contributing](#contributing)
+- [Future Scope](#future-scope)
+- [Work in Progress](#work-in-progress)
+
+</details>
+
 ---
 
 ## Demo
@@ -80,13 +105,7 @@ source install/setup.bash
 
 ## MoveIt Task Constructor Setup
 
-This project supports [MoveIt Task Constructor (MTC)](https://github.com/ros-planning/moveit_task_constructor) for advanced pick-and-place planning.
-
-**This repo already includes a patched MTC source** in `src/moveit_task_constructor/` that works for both **ROS 2 Humble and Jazzy** — no extra cloning needed. Just build normally:
-
-```bash
-colcon build --symlink-install
-```
+This project supports [MoveIt Task Constructor (MTC)](https://github.com/ros-planning/moveit_task_constructor) for advanced pick-and-place planning. **This repo already includes a patched MTC source** in `src/moveit_task_constructor/` that works for both **ROS 2 Humble and Jazzy** — no extra cloning or separate build needed, the `colcon build` from Installation step 4 covers it.
 
 ### MongoDB (required for warehouse_ros_mongo)
 
@@ -119,45 +138,40 @@ bash ur_mtc_pick_place_demo/scripts/robot.sh              # GUI
 USE_GAZEBO_GUI=false bash ur_mtc_pick_place_demo/scripts/robot.sh   # headless
 ```
 
-Or two terminals (`ROS_DOMAIN_ID` must match; default `113`):
+Or manually, in order — `robot.sh` above just runs these three for you:
 
 ```bash
-# T1
-export ROS_DOMAIN_ID=113 ROS_LOCALHOST_ONLY=1 GZ_VERSION=harmonic
+# T1 — sim + MoveIt
+export GZ_VERSION=harmonic
 export GZ_SIM_SYSTEM_PLUGIN_PATH="$(ros2 pkg prefix gz_ros2_control)/lib:${GZ_SIM_SYSTEM_PLUGIN_PATH:-}"
 ros2 launch ur_gazebo ur.gazebo.launch.py \
   world_file:=pick_and_place_demo.world gripper:=robotiq_2f_85 \
   use_rviz:=false use_move_group:=true use_gazebo_gui:=true
 
-# T2 — after /get_planning_scene + arm/gripper controllers are up
-export ROS_DOMAIN_ID=113 ROS_LOCALHOST_ONLY=1
+# T2 — after /get_planning_scene + arm/gripper controllers are up (see "Verify Controllers" below)
+ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py
+
+# T3 — after T2 logs "Get planning scene service created and ready"
 ros2 launch ur_mtc_pick_place_demo pick_place_demo.launch.py
 ```
 
-Success: `Task executed successfully`. Cold-stack execute `-3` → retry T2.
+Success: `Task executed successfully`.
 
-`robot.sh` also starts `get_planning_scene_server` before MTC. Manual two-terminal flow: launch it between T1 and T2:
+**Resolved:** zero-duration trajectory segments; phantom `mount_table` support surface; narrow-passage transit (FK-screened `transit_clear` + coarse OMPL + ~4 mm arm padding); depth-camera optical-frame convention — real point-cloud perception now runs at ~99% match confidence on the target object.
 
-```bash
-ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py
-```
+**Known flakiness:** occasional execute `-3` on a cold stack, caused by RRTConnect's random-seed variance rather than a deterministic bug — each attempt plans a genuinely different path. A manual retry (rerun T3) resolves it, or use the [MTC retry wrapper](#mtc-retry-wrapper) for unattended runs — it retries automatically and has succeeded within 1-2 attempts on every validation run.
 
 ### Planning scene server (object + table from the camera)
 
 `get_planning_scene_server` turns the head depth cloud into MoveIt collision objects so MTC knows **what** to pick and **where** it is.
 
 Flow:
-1. Subscribes to `/camera_head/depth/color/points` (+ RGB), crops to the pick workspace (`crop_min_z: 0.02` drops the big `mount_table` at z≈0).
+1. Subscribes to `/camera_head/depth/color/points` (+ RGB), crops to the pick workspace (`crop_min_z: -0.02` for the ground-level support surface — see `support_min_z` in the same file).
 2. RANSAC plane → `support_surface` (pick table). Rejects planes with top face below `support_min_z`.
 3. Remaining points → clusters; RANSAC cylinder/box fit → collision objects in `base_link`.
 4. Service `/get_planning_scene_ur` (`ur_interfaces/GetPlanningScene`): request `target_shape` + `target_dimensions`; response has `scene_world`, `target_object_id`, `support_surface_id`.
 
-`mtc_node` calls that service at startup, applies the objects into MoveIt’s planning scene, then builds the pick/place task around `target_object_id`. If perception fails (or `force_fallback_scene:=true`), it installs a known table+cylinder instead.
-
-```bash
-ros2 launch ur_mtc_pick_place_demo get_planning_scene_server.launch.py
-# then MTC (or robot.sh, which starts both)
-```
+`mtc_node` calls that service at startup, applies the objects into MoveIt’s planning scene, then builds the pick/place task around `target_object_id`. If perception fails (or `force_fallback_scene:=true`), it installs a known table+cylinder instead. Launch command: T2 above.
 
 ### Launch Full Simulation in Gazebo
 
@@ -220,7 +234,7 @@ Wait ~15 s for controllers, then in RViz **MotionPlanning**:
 4. Drag the orange interactive marker to a reachable goal (avoid folding into the torso).
 5. Click **Plan & Execute** (or **Plan**, then **Execute** right away).
 
-You should see one solid robot (current state) and one ghost/orange robot (query goal) — that is normal, not two arms.
+RViz shows two robot models: a solid one for the current state and a transparent/orange one for the planned goal.
 
 OMPL trajectories are time-stamped by **TOTG** (`AddTimeOptimalParameterization` in `moveit_config/config/ompl_planning.yaml`). Without that adapter, `arm_controller` rejects Execute with `Time between points ... not strictly increasing`.
 
@@ -235,33 +249,19 @@ OMPL trajectories are time-stamped by **TOTG** (`AddTimeOptimalParameterization`
 
 #### Launch for interactive control
 
+The "quick start" command above already starts the full stack — Gazebo + `move_group` + RViz. Toggle `use_rviz` / `use_move_group` / `use_gazebo_gui` (table below) for headless or partial variants. Two cases need a different launch file, `moveit_config move_group.launch.py`, instead:
+
 ```bash
 source /opt/ros/$ROS_DISTRO/setup.bash
 source install/setup.bash
 
-# Full stack: Gazebo + move_group + RViz (plan/execute from MotionPlanning)
-ros2 launch ur_gazebo ur.gazebo.launch.py \
-  use_rviz:=true \
-  use_move_group:=true \
-  use_gazebo_gui:=true
-
-# Headless Gazebo GUI, keep MoveIt RViz for planning
-ros2 launch ur_gazebo ur.gazebo.launch.py \
-  use_rviz:=true \
-  use_move_group:=true \
-  use_gazebo_gui:=false
-
 # Sim already running without RViz — attach RViz only
 ros2 launch moveit_config move_group.launch.py \
-  use_move_group:=false \
-  use_rviz:=true \
-  use_sim_time:=true
+  use_move_group:=false use_rviz:=true use_sim_time:=true
 
 # MoveIt + RViz only (no Gazebo; useful if robot/controllers are already up)
 ros2 launch moveit_config move_group.launch.py \
-  use_move_group:=true \
-  use_rviz:=true \
-  use_sim_time:=true
+  use_move_group:=true use_rviz:=true use_sim_time:=true
 ```
 
 Useful launch args on `ur.gazebo.launch.py`:
@@ -367,6 +367,22 @@ gripper_controller[position_controllers/GripperActionController] active
 joint_state_broadcaster[joint_state_broadcaster/JointStateBroadcaster] active
 ```
 
+### Debugging: joint states, point cloud, TF
+
+```bash
+# Live joint values
+ros2 topic echo /joint_states
+
+# Point cloud publishing at all? (topic can be advertised but silent — check rate, not just existence)
+ros2 topic hz /camera_head/depth/color/points
+
+# One message, no raw point data
+ros2 topic echo /camera_head/depth/color/points --once --no-arr
+
+# Current end-effector pose in base_link (what move_relative offsets from)
+ros2 run tf2_ros tf2_echo base_link tool0
+```
+
 ### Command the Gripper from CLI
 
 **Robotiq (2F-85 / 2F-140)** — `finger_joint` range `0.0` (open) → `0.8` (closed):
@@ -437,7 +453,6 @@ ros2 action send_goal /arm_controller/follow_joint_trajectory control_msgs/actio
 python3 ~/UR3_ROS2_PICK_AND_PLACE/ur_system_tests/scripts/arm_gripper_loop_controller.py
 ```
 
-
 ---
 
 ## Full Autonomous Pipeline
@@ -488,6 +503,17 @@ Estimates grasp poses from the Intel D435 point cloud. Two backends:
 ros2 launch ur_grasp grasp_detection.launch.py colour:=red
 python3 testing/test_grasp.py --colour red --execute
 ```
+
+**Eye-in-hand (wrist camera)** — head cam is fixed to `base_link`; use `wrist_camera:=true` for eye-in-hand instead (`/camera_wrist/*`):
+
+```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
+ros2 launch ur_grasp grasp_detection.launch.py colour:=red \
+  camera_topic:=/camera_wrist/depth/color/points continuous_detect_hz:=0.0
+ros2 service call /ur_grasp/detect std_srvs/srv/Trigger {}
+```
+
+Publishes `/ur_grasp/grasp_pose` and `/ur_grasp/grasp_marker`. Leave continuous detect off during servo approach (pose drift).
 
 ---
 
@@ -578,7 +604,7 @@ No wrist F/T sensor is modeled, so `external_wrench_estimator` infers external f
 
 **Limitations:** `g(q)` is a rigid-body model and doesn't capture friction/PID error, leaving a residual (up to ~25 N at rest in testing); `/ft/zero_wrench` trims it at the current pose only, not globally. Estimates are also less trustworthy near the wrist singularity (idle pose has `wrist_2_joint ≈ 0`).
 
-**Status:** sign bug fixed 2026-07-24 (was `effort − g(q)`, now `effort + g(q)`). Still unresolved: `/joint_states` effort doesn't reliably track commanded torque (off by up to ~15x, inconsistent scale) — likely a gz_ros2_control readback issue, probably contributing to the residual above. Don't trust absolute wrench values yet.
+**Status:** sign bug fixed 2026-07-24 (`effort − g(q)` → `effort + g(q)`). Still open: `/joint_states` effort doesn't reliably track commanded torque (off by up to ~15x, inconsistent scale), likely a gz_ros2_control readback issue contributing to the residual above — don't trust absolute wrench values yet.
 
 | Topic | Type | Description |
 |---|---|---|
@@ -674,6 +700,26 @@ ros2 launch ur_bt_planner bt_planner.launch.py \
 ros2 service call /bt/run_pick_place std_srvs/srv/Trigger {}
 ```
 
+### MTC Retry Wrapper
+
+Separate from the tree above — wraps [MTC pick-and-place](#full-mtc-pick-and-place-demo) (not the direct-MoveGroup pipeline) with automatic retry via `py_trees.decorators.Retry`, since MTC's occasional `-3` execute failure (see [Launch Instructions](#launch-instructions)) is RRTConnect random-seed variance: a fresh attempt has a good chance of succeeding, so retrying automatically resolves it without manual intervention. Validated: succeeded within 1-2 attempts in every test run.
+
+```bash
+# T1 — sim (as in Launch Instructions above)
+ros2 launch ur_gazebo ur.gazebo.launch.py \
+  world_file:=pick_and_place_demo.world gripper:=robotiq_2f_85 \
+  use_rviz:=false use_move_group:=true use_gazebo_gui:=true
+
+# T2 — planning scene server + mtc_node (auto_run_on_startup:=false so only the BT triggers attempts) + retry node, one command
+ros2 launch ur_bt_planner mtc_retry.launch.py
+
+# Trigger, then watch progress:
+ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}
+ros2 topic echo /mtc_bt/status
+```
+
+`max_attempts` (default `5`) is a launch arg: `ros2 launch ur_bt_planner mtc_retry.launch.py max_attempts:=10`.
+
 ---
 
 ## Conveyor Belt Simulation (`ur_conveyor`)
@@ -724,29 +770,6 @@ Pull requests and issues are welcome, especially around simulation stability, tr
 
 Features under active development — useful, but not fully polished end-to-end.
 
-### Grasp Detection (`ur_grasp`)
-
-Point-cloud grasp estimation from the D435. Head cam is fixed to `base_link`; use `wrist_camera:=true` for eye-in-hand (`/camera_wrist/*`).
-
-```bash
-ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true
-ros2 launch ur_grasp grasp_detection.launch.py colour:=red \
-  camera_topic:=/camera_wrist/depth/color/points continuous_detect_hz:=0.0
-ros2 service call /ur_grasp/detect std_srvs/srv/Trigger {}
-```
-
-Publishes `/ur_grasp/grasp_pose` and `/ur_grasp/grasp_marker`. Leave continuous detect off during servo approach (pose drift).
-
-### MoveIt Task Constructor (`ur_mtc_pick_place_demo`)
-
-**Plan + execute works** on the fallback scene (cylinder `(0.36, 0, 0.10)`). Object/table pose normally comes from the [planning scene server](#planning-scene-server-object--table-from-the-camera).
-
-Fixed: zero-duration traj segments; phantom `mount_table` support; narrow-passage transit via FK-screened `transit_clear` + coarse OMPL + ~4 mm arm padding (2026-08-07).
-
-Still flaky: cold-stack execute `-3` (retry); non-fallback perception scenes.
-
-Launch: [Full MTC Pick-and-Place Demo](#full-mtc-pick-and-place-demo).
-
 ### Vision (`ur_perception`)
 
 Color / optional YOLO detection, plus multi-view reconstruction (`object_reconstructor_node`) that fuses wrist-cam clouds via TF (+ optional ICP). Reconstruction is inspection-only — the pick pipeline does not consume it yet.
@@ -772,4 +795,10 @@ ollama serve && ollama pull llama3.2:3b
 ros2 launch ur_llm_planner llm_planner.launch.py ollama_model:=llama3.2:3b
 ros2 topic pub --once /llm_planner/command std_msgs/msg/String \
   "{data: 'pick up the red object and place it to the left of the robot'}"
+
+# Relative moves (no object/coordinates needed) — verified working 2026-08-08:
+ros2 topic pub --once /llm_planner/command std_msgs/msg/String \
+  "{data: 'move the gripper up by 10 centimeters'}"
 ```
+
+`pick`/`place` need `ur_perception` running too (for `/detected_objects`) — **known issue**: its color-based detector currently reports zero objects for this scene even when running, so pick-by-description doesn't work yet. `move_relative` and named-pose commands don't depend on it and work standalone.

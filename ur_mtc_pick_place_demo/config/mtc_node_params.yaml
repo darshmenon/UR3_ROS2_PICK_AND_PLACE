@@ -45,8 +45,21 @@ mtc_node:
     fallback_support_pose: [0.275, 0.04, 0.02, 0.0, 0.0, 0.0]
     # Reliable demo path: always use known pick-table + cylinder geometry.
     force_fallback_scene: false
-    support_min_z: 0.015
-    support_max_xy_area: 0.25
+    # support_min_z was 0.015, tuned to reject a mount_table slab at z≈0 back
+    # when the real pick surface was an elevated table prop. That prop was
+    # removed (see object_pose comment above) — the real surface now legitimately
+    # measures top_z≈0.0004 every run, so 0.015 rejected it unconditionally and
+    # silently fell back to fallback_support_pose above every single time.
+    # -0.01 accepts the real ground-level surface while still catching a
+    # genuinely bad (below-ground) plane fit.
+    support_min_z: -0.01
+    # support_max_xy_area was 0.25, sized for the removed elevated table prop
+    # (0.30x0.45=0.135 m^2 + margin). The real mount_table surface, cropped by
+    # get_planning_scene_server's crop_min/max_x/y box (0.75x0.90=0.675 m^2 max
+    # possible), measures ~0.42 m^2 — bigger than the old prop, so 0.25 rejected
+    # it unconditionally too. 0.6 accepts the real reading with margin while
+    # still rejecting a plane that spans almost the entire crop box.
+    support_max_xy_area: 0.6
     move_group_wait_timeout: 30.0
 
     # Grasp parameters (key collision fixes)

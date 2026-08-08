@@ -120,11 +120,32 @@ geometry_msgs::msg::Pose vectorToPose(const std::vector<double>& values) {
  * that means 20 of the 21 failure reasons are silently discarded. Distinct
  * failure comments are deduped with a count so 24 near-identical "in
  * collision" messages per candidate collapse to one line.
+ *
+ * Gap found 2026-08-09: a leaf can produce 0 solutions AND 0 recorded
+ * failures — e.g. a GeneratePose stage whose monitored "current state" has
+ * no interface token left to hand it, so its compute() callback is never
+ * even invoked. The original version here skipped those silently (same
+ * `numFailures() == 0` check that correctly skips a *successful* leaf), so
+ * a whole batch of "why did this candidate produce nothing" cases never
+ * printed anything at all — traced via a real failed run (domain 95,
+ * candidates 1-34 all 0/0) where the only failing-leaf output was empty.
+ * Now: only skip stages with actual solutions (success) or non-leaf
+ * containers (let recursion handle their children); report every leaf that
+ * produced nothing, distinguishing "recorded reasons" from "ran silently".
  */
 void logAllFailures(const rclcpp::Logger& logger, const moveit::task_constructor::ContainerBase& root) {
   root.traverseRecursively([&logger](const moveit::task_constructor::Stage& stage, unsigned int /*depth*/) {
-    if (!stage.solutions().empty() || stage.numFailures() == 0) {
-      return true;  // keep descending; this stage isn't a failing leaf
+    if (!stage.solutions().empty()) {
+      return true;  // keep descending; this stage succeeded
+    }
+    if (dynamic_cast<const moveit::task_constructor::ContainerBase*>(&stage) != nullptr) {
+      return true;  // keep descending; let its children report individually
+    }
+    if (stage.numFailures() == 0) {
+      RCLCPP_ERROR(logger, "  %s (0/0): no solutions, no recorded failures — "
+                            "compute() likely never ran (no interface token, "
+                            "or upstream starved it)", stage.name().c_str());
+      return true;
     }
     std::map<std::string, size_t> reason_counts;
     for (const auto& failure : stage.failures()) {
@@ -404,9 +425,24 @@ declare_parameter("grasp_frame_transform",
 void MTCTaskNode::handleRunPickPlace(const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
                                      std::shared_ptr<std_srvs::srv::Trigger::Response> response)
 {
-  bool ok = runOnePickPlaceAttempt();
-  response->success = ok;
-  response->message = ok ? "Task executed successfully" : "Task failed (see mtc_node log for the reason)";
+  // runOnePickPlaceAttempt()/setupPlanningScene() can throw (e.g.
+  // "move_group planning-scene services unavailable" if move_group is
+  // momentarily slow/busy) — verified live 2026-08-09: an uncaught throw
+  // here escapes rclcpp's service-callback dispatch and calls
+  // std::terminate(), killing the whole mtc_node process (SIGABRT) instead
+  // of just failing this one attempt. That's much worse than a normal
+  // failure: the BT retry wrapper is built to retry on a false response,
+  // not to notice and relaunch a dead node. Catch and report failure
+  // instead so a transient hiccup costs one attempt, not the whole process.
+  try {
+    bool ok = runOnePickPlaceAttempt();
+    response->success = ok;
+    response->message = ok ? "Task executed successfully" : "Task failed (see mtc_node log for the reason)";
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(this->get_logger(), "run_pick_place attempt threw: %s", e.what());
+    response->success = false;
+    response->message = std::string("Task failed with exception: ") + e.what();
+  }
 }
 
 bool MTCTaskNode::runOnePickPlaceAttempt()
@@ -1155,8 +1191,27 @@ mtc::Task MTCTaskNode::createTask()
       // setIKFrame(transform). Live probing showed move_group compute_ik
       // succeeds for those absolute top-down poses, while the
       // object-frame + grasp_frame_transform path consistently returned
-      // "no IK found" for every Fallbacks candidate (same clearance math).
-      auto grasp_ik_candidates = std::make_unique<mtc::Fallbacks>("grasp pose IK");
+      // "no IK found" for every candidate (same clearance math).
+      //
+      // Container choice: mtc::Fallbacks (GENERATE variant, see container.cpp
+      // FallbacksPrivateGenerator::nextJob) permanently stops trying further
+      // children the moment ANY child produces >=1 solution — even if that
+      // solution is later rejected downstream (allow collision/close gripper/
+      // lift/etc., all siblings AFTER this block in "pick object"). Verified
+      // live (2026-08-09, domain 95, 5/5 identical failures): candidate 0
+      // alone produced a real IK solution every attempt, Fallbacks locked
+      // onto it and never tried candidates 1-35, and whichever downstream
+      // stage rejected candidate 0's plan then failed the whole task with no
+      // fallback tried. The official MTC demo (demo/src/pick_place_task.cpp)
+      // doesn't hit this because it uses one GenerateGraspPose spawning many
+      // angle samples as ordinary competing alternatives, not a container
+      // that commits early. mtc::Alternatives ("Plan for different
+      // alternatives in parallel. Solution of all children are reported -
+      // sorted by cost.", container.h) matches that: every candidate here
+      // propagates downstream independently, so a rejection anywhere later
+      // in "pick object" still leaves the other candidates live instead of
+      // abandoning them.
+      auto grasp_ik_candidates = std::make_unique<mtc::Alternatives>("grasp pose IK");
       grasp->properties().exposeTo(grasp_ik_candidates->properties(), { "eef", "group", "ik_frame" });
       grasp_ik_candidates->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group", "ik_frame" });
 
@@ -1382,7 +1437,12 @@ mtc::Task MTCTaskNode::createTask()
       // Mirror the pick-side absolute-pose approach. GeneratePlacePose +
       // attached-object ik_frame was returning "no IK found" for every
       // sample even after pick succeeded; place the gripper explicitly.
-      auto place_ik = std::make_unique<mtc::Fallbacks>("place pose IK");
+      // Same container-choice fix as "grasp pose IK" above: mtc::Alternatives
+      // instead of mtc::Fallbacks, so a downstream rejection (e.g. the
+      // documented retreat-after-place collision, upper_arm_link vs the
+      // placed object) doesn't strand the task on whichever candidate
+      // happened to pass IK first with no other clearance tried.
+      auto place_ik = std::make_unique<mtc::Alternatives>("place pose IK");
       place->properties().exposeTo(place_ik->properties(), { "eef", "group", "ik_frame" });
       place_ik->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group", "ik_frame" });
 

@@ -6,6 +6,7 @@ logs/
 *.log
 models/gazebo_single_arm/
 ur_rl_training/models/checkpoints/
+mujoco_ur_rl_ros2/mujoco_ur_rl_ros2/models/**/*.zip
 *.pyc
 __pycache__/
 .vscode/
@@ -13,3 +14,4 @@ __pycache__/
 .codex
 .codex/
 testing/generated.urdf
+src/moveit2_src/

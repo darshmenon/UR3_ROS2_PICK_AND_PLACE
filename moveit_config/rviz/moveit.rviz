@@ -27,6 +27,8 @@ Panels:
     Name: Time
     SyncMode: 0
     SyncSource: ""
+  - Class: moveit_task_constructor/Motion Planning Tasks
+    Name: Motion Planning Tasks
 Visualization Manager:
   Class: ""
   Displays:
@@ -656,6 +658,12 @@ Visualization Manager:
         Value: /camera_head/depth/color/points
       Use Fixed Frame: true
       Use rainbow: false
+      Value: true
+    - Class: moveit_task_constructor/Motion Planning Tasks
+      Enabled: true
+      Name: Motion Planning Tasks
+      Robot Description: robot_description
+      Task Solution Topic: ""
       Value: true
   Enabled: true
   Global Options:
