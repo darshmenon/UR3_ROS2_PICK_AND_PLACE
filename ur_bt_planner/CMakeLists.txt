@@ -8,6 +8,7 @@ ament_python_install_package(${PROJECT_NAME})
 
 install(PROGRAMS
   ur_bt_planner/bt_planner_node.py
+  ur_bt_planner/mtc_retry_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

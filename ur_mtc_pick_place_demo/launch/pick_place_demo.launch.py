@@ -34,6 +34,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     exe = LaunchConfiguration('exe')
     gripper = LaunchConfiguration('gripper')
+    auto_run_on_startup = LaunchConfiguration('auto_run_on_startup')
 
     # Get the package share directory
     pkg_share_moveit_config_temp = FindPackageShare(package=package_name_moveit_config)
@@ -62,6 +63,13 @@ def generate_launch_description():
         default_value="mtc_node",
         description="The MoveIt Task Constructor node responsible for pick and place",
         choices=["mtc_node"])
+
+    declare_auto_run_cmd = DeclareLaunchArgument(
+        name="auto_run_on_startup",
+        default_value="true",
+        description="Run one pick-place attempt automatically at launch. Set false when "
+                    "a BT (see ur_bt_planner/launch/mtc_retry.launch.py) drives attempts "
+                    "via the run_pick_place service instead.")
 
     def configure_setup(context):
         """Configure MoveIt and create nodes with proper string conversions."""
@@ -122,6 +130,7 @@ def generate_launch_description():
                 {'use_sim_time': use_sim_time},
                 {'start_state': {'content': initial_positions_file_path}},
                 mtc_node_params_file_path,
+                {'auto_run_on_startup': auto_run_on_startup},
             ],
         )
 
@@ -135,6 +144,7 @@ def generate_launch_description():
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_gripper_cmd)
     ld.add_action(declare_exe_cmd)
+    ld.add_action(declare_auto_run_cmd)
 
     # Add the setup and node creation
     ld.add_action(OpaqueFunction(function=configure_setup))

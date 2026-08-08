@@ -47,6 +47,7 @@
 #include <moveit_task_constructor_msgs/msg/solution.hpp>
 #include <moveit_msgs/srv/get_planning_scene.hpp>
 #include <moveit_msgs/srv/apply_planning_scene.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <moveit_msgs/msg/planning_scene.hpp>
 #include <moveit_msgs/msg/link_padding.hpp>
 
@@ -232,12 +233,23 @@ class MTCTaskNode : public rclcpp::Node
 public:
   MTCTaskNode(const rclcpp::NodeOptions& options);
 
-  void doTask();
+  bool doTask();
   void setupPlanningScene();
+
+  // One full attempt: fresh perception read (setupPlanningScene) + fresh
+  // task (createTask/plan/execute via doTask). Used for both the automatic
+  // startup run and the run_pick_place service, so a BT-driven retry gets
+  // the same fresh-perception, fresh-random-seed semantics as a restart.
+  bool runOnePickPlaceAttempt();
 
 private:
   mtc::Task task_;
   mtc::Task createTask();
+
+  void handleRunPickPlace(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+                          std::shared_ptr<std_srvs::srv::Trigger::Response> response);
+
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr run_pick_place_service_;
 
   // Builds the same goal message Task::execute() would, but repairs any
   // degenerate zero-motion sub-trajectories first (see
@@ -283,6 +295,15 @@ MTCTaskNode::MTCTaskNode(const rclcpp::NodeOptions& options)
   // General parameters
   declare_parameter("execute", true, "Whether to execute the planned task");
   declare_parameter("max_solutions", 25, "Maximum number of solutions to compute");
+  // Failures seen this project are RRTConnect random-seed variance (a
+  // different link/obstacle grazed each run, ~25% raw success rate observed
+  // 2026-08-08 across 4 real-perception runs), not a deterministic bug.
+  // Retry-on-failure is handled at the BT layer (ur_bt_planner's
+  // RunMTCPickPlace leaf + a Retry decorator) via the run_pick_place
+  // service below, not inside this node — each service call is one fresh
+  // attempt (new perception read, new random seed).
+  declare_parameter("auto_run_on_startup", true,
+                    "Run one pick-place attempt automatically at launch, in addition to the run_pick_place service");
 
   // Controller parameters
   declare_parameter("controller_names", std::vector<std::string>{"arm_controller", "gripper_controller"}, "Names of the controllers to use");
@@ -372,6 +393,28 @@ declare_parameter("grasp_frame_transform",
 
   // Initialize the planning scene client
   planning_scene_client = std::make_shared<GetPlanningSceneClient>();
+
+  // Lets a BT leaf (ur_bt_planner) trigger one fresh attempt on demand and
+  // retry on failure — see runOnePickPlaceAttempt().
+  run_pick_place_service_ = this->create_service<std_srvs::srv::Trigger>(
+    "run_pick_place",
+    std::bind(&MTCTaskNode::handleRunPickPlace, this, std::placeholders::_1, std::placeholders::_2));
+}
+
+void MTCTaskNode::handleRunPickPlace(const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+                                     std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+{
+  bool ok = runOnePickPlaceAttempt();
+  response->success = ok;
+  response->message = ok ? "Task executed successfully" : "Task failed (see mtc_node log for the reason)";
+}
+
+bool MTCTaskNode::runOnePickPlaceAttempt()
+{
+  RCLCPP_INFO(this->get_logger(), "Setting up planning scene");
+  setupPlanningScene();
+  RCLCPP_INFO(this->get_logger(), "Executing task");
+  return doTask();
 }
 
 /**
@@ -747,7 +790,7 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
   return result.result->error_code;
 }
 
-void MTCTaskNode::doTask()
+bool MTCTaskNode::doTask()
 {
   RCLCPP_INFO(this->get_logger(), "Starting the pick and place task");
 
@@ -769,7 +812,7 @@ void MTCTaskNode::doTask()
     std::ostringstream init_error;
     init_error << e;
     RCLCPP_ERROR(this->get_logger(), "Task initialization failed:\n%s", init_error.str().c_str());
-    return;
+    return false;
   }
 
   // Attempt to plan the task
@@ -789,7 +832,7 @@ void MTCTaskNode::doTask()
     // hides every reason but the first. Walk the whole tree instead.
     RCLCPP_ERROR(this->get_logger(), "Failing stage(s), all leaves:");
     logAllFailures(this->get_logger(), *task_.stages());
-    return;
+    return false;
   }
 
   RCLCPP_INFO(this->get_logger(), "Task planning succeeded");
@@ -804,24 +847,22 @@ void MTCTaskNode::doTask()
   task_.introspection().publishSolution(*task_.solutions().front());
   RCLCPP_INFO(this->get_logger(), "Published solution for visualization");
 
-  if (execute)
-  {
-    // Execute the planned task
-    RCLCPP_INFO(this->get_logger(), "Executing the planned task");
-    auto result = executeSolution(*task_.solutions().front());
-    if (result.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS)
-    {
-      RCLCPP_ERROR(this->get_logger(), "Task execution failed with error code: %d", result.val);
-      return;
-    }
-    RCLCPP_INFO(this->get_logger(), "Task executed successfully");
-  }
-  else
+  if (!execute)
   {
     RCLCPP_INFO(this->get_logger(), "Execution skipped as per configuration");
+    return true;
   }
 
-  return;
+  // Execute the planned task
+  RCLCPP_INFO(this->get_logger(), "Executing the planned task");
+  auto result = executeSolution(*task_.solutions().front());
+  if (result.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS)
+  {
+    RCLCPP_ERROR(this->get_logger(), "Task execution failed with error code: %d", result.val);
+    return false;
+  }
+  RCLCPP_INFO(this->get_logger(), "Task executed successfully");
+  return true;
 }
 
 /**
@@ -1471,11 +1512,15 @@ int main(int argc, char** argv)
 
     // Set up the planning scene and execute the task
     try {
-      RCLCPP_INFO(mtc_task_node->get_logger(), "Setting up planning scene");
-      mtc_task_node->setupPlanningScene();
-      RCLCPP_INFO(mtc_task_node->get_logger(), "Executing task");
-      mtc_task_node->doTask();
-      RCLCPP_INFO(mtc_task_node->get_logger(), "Task execution completed. Keeping node alive for visualization. Press Ctrl+C to exit.");
+      // run_pick_place service is available as soon as the node exists (see
+      // constructor) — a BT-driven launch can start calling it immediately,
+      // whether or not this auto-run also fires.
+      if (mtc_task_node->get_parameter("auto_run_on_startup").as_bool()) {
+        mtc_task_node->runOnePickPlaceAttempt();
+        RCLCPP_INFO(mtc_task_node->get_logger(), "Task execution completed. Keeping node alive for visualization. Press Ctrl+C to exit.");
+      } else {
+        RCLCPP_INFO(mtc_task_node->get_logger(), "auto_run_on_startup=false — waiting for run_pick_place service calls.");
+      }
 
       // Keep the node running until Ctrl+C is pressed
       executor.spin();
