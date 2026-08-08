@@ -168,14 +168,20 @@
     </camera>
     <always_on>1</always_on>
     <update_rate>10</update_rate>
-    <!-- Depth/point-cloud data is generated in optical-frame convention
-         (Z-forward, X-right, Y-down) but was stamped with camera_head_link
-         (regular URDF-frame convention) — every consumer transforming via TF
-         (RViz, get_planning_scene_server) applied the wrong rotation,
-         producing a correctly-shaped but wrongly-placed/oriented cloud.
-         camera_head_depth_optical_frame already exists in the URDF with the
-         correct -90/0/-90 axis remap; just wasn't wired up here. -->
-    <gz_frame_id>camera_head_depth_optical_frame</gz_frame_id>
+    <!-- 2026-08-08 correction: verified empirically (captured the raw point
+         cloud, compared field ranges against the raw depth image) that
+         gz-sim's rgbd_camera point-cloud output is in Gazebo's NATIVE camera
+         convention (X-forward/Z-up, same as camera_head_link/
+         camera_head_depth_frame) — the first XYZ field's range matched the
+         depth image's range exactly, i.e. that field IS the forward
+         distance, not a lateral offset. gz_frame_id only changes the label
+         published in the header, not the data's actual axes, so pointing it
+         at camera_head_depth_optical_frame (which has an extra -90/0/-90
+         rotation baked into its URDF joint) made every TF-based consumer
+         apply a rotation that was never actually applied to the data.
+         camera_head_depth_frame (zero rotation from camera_head_link)
+         matches the data's true convention. -->
+    <gz_frame_id>camera_head_depth_frame</gz_frame_id>
     <output>
       <image>true</image>
       <depth_image>true</depth_image>

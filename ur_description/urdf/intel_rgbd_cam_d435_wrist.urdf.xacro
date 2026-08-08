@@ -132,9 +132,11 @@
     </camera>
     <always_on>1</always_on>
     <update_rate>10</update_rate>
-    <!-- Same fix as camera_head (intel_rgbd_cam_d435.urdf.xacro): depth/
-         point-cloud data is optical-frame convention, not the plain link. -->
-    <gz_frame_id>camera_wrist_depth_optical_frame</gz_frame_id>
+    <!-- 2026-08-08 correction: same as camera_head — gz-sim's point-cloud
+         output is in native (non-optical) camera convention; use the
+         zero-rotation depth_frame, not depth_optical_frame. See
+         intel_rgbd_cam_d435.urdf.xacro for the empirical verification. -->
+    <gz_frame_id>camera_wrist_depth_frame</gz_frame_id>
     <output>
       <image>true</image>
       <depth_image>true</depth_image>
