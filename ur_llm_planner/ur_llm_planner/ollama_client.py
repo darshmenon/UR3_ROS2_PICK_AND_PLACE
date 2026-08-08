@@ -41,6 +41,7 @@ AVAILABLE ACTIONS
 {"action": "move_to_named_pose", "pose_name": "home|ready"}
 {"action": "pick", "object_id": "<id>", "object_x": <m>, "object_y": <m>, "object_z": <m>}
 {"action": "place", "x": <m>, "y": <m>, "z": <m>}
+{"action": "move_relative", "dx": <metres, signed float>, "dy": <metres, signed float>, "dz": <metres, signed float>}
 {"action": "open_gripper"}
 {"action": "close_gripper"}
 
@@ -58,6 +59,20 @@ RULES
 - "left" = positive Y; "right" = negative Y; "forward" = positive X
 - Place z = 0.05 m above table unless told otherwise
 - If no objects detected and pick required: empty tasks list, explain why
+- For "move up/down/left/right/forward/back [by N cm]" with no target object
+  or coordinates given: use move_relative, NOT place. move_relative offsets
+  from wherever the gripper currently is (you do not need to know that
+  position) — up=+dz, down=-dz, forward=+dx, back=-dx, left=+dy, right=-dy.
+  Default distance 0.10 m if not specified. Never guess an absolute
+  place/pick coordinate for a relative instruction like this.
+- move_relative's dx/dy/dz are ALWAYS in metres. If the command gives
+  centimetres, DIVIDE by 100 before writing the number — never write the
+  centimetre value directly. Worked example:
+    Command: "move up by 10 centimeters"
+    10 cm = 0.10 m, and "up" is +dz, so:
+    {"action": "move_relative", "dx": 0.0, "dy": 0.0, "dz": 0.10}
+  NOT {"dz": -10} and NOT {"dz": 10} — both of those are wrong (wrong sign,
+  wrong units respectively).
 """
 
 

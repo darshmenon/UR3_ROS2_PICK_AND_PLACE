@@ -9,7 +9,9 @@ ROS 2 action clients that command the robot arm and gripper.
 import math
 import threading
 
+import rclpy.time
 from rclpy.action import ActionClient
+from rclpy.duration import Duration
 from rclpy.node import Node
 
 from action_msgs.msg import GoalStatus
@@ -29,6 +31,7 @@ from moveit_msgs.msg import (
 from moveit_msgs.srv import GetPositionIK
 from sensor_msgs.msg import JointState
 from shape_msgs.msg import SolidPrimitive
+from tf2_ros import Buffer, TransformListener, LookupException, ExtrapolationException
 
 # Gripper position constants (metres, used by GripperActionController)
 GRIPPER_OPEN = 0.0    # fully open
@@ -120,6 +123,11 @@ class MotionExecutor:
         node.create_subscription(
             JointState, "/joint_states", self._joint_state_cb, 10
         )
+
+        # For move_relative — need the actual current end-effector pose to
+        # offset from, not just joint values (see get_current_pose below).
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, node)
 
     def _joint_state_cb(self, msg: JointState) -> None:
         self._latest_joint_state = msg
@@ -261,6 +269,89 @@ class MotionExecutor:
         """Close the gripper to half position."""
         self._logger.info("[MotionExecutor] half_close_gripper")
         return self._send_gripper_goal(GRIPPER_HALF, 10.0, timeout)
+
+    def get_current_pose(
+        self, tip_frame: str = "tool0", reference_frame: str = "base_link", timeout: float = 2.0
+    ) -> PoseStamped | None:
+        """
+        Look up the live end-effector pose via TF (not joint values — a
+        Cartesian offset needs the actual pose, not FK done by hand).
+
+        Returns None if the transform isn't available (e.g. robot_state_publisher
+        not up yet); callers should treat that as a hard failure, not silently
+        substitute a guessed pose.
+        """
+        try:
+            tf = self._tf_buffer.lookup_transform(
+                reference_frame, tip_frame, rclpy.time.Time(),
+                timeout=Duration(seconds=timeout),
+            )
+        except (LookupException, ExtrapolationException) as e:
+            self._logger.error(f"[MotionExecutor] get_current_pose: TF lookup failed — {e}")
+            return None
+
+        pose = PoseStamped()
+        pose.header.frame_id = reference_frame
+        pose.pose.position.x = tf.transform.translation.x
+        pose.pose.position.y = tf.transform.translation.y
+        pose.pose.position.z = tf.transform.translation.z
+        pose.pose.orientation = tf.transform.rotation
+        return pose
+
+    def move_relative(
+        self,
+        dx: float = 0.0,
+        dy: float = 0.0,
+        dz: float = 0.0,
+        group: str = "arm",
+        timeout: float = 30.0,
+    ) -> bool:
+        """
+        Move the end-effector by (dx, dy, dz) metres in base_link from
+        wherever it currently is, keeping its current orientation. This is
+        what "move up/down/left/right by N cm" commands need — pick/place
+        only support absolute targets, and the LLM has no way to know the
+        current pose to compute one itself.
+
+        Values come from an LLM, not a human — the prompt tells it these are
+        metres, but a small local model can still mix up units (e.g. write
+        the centimetre number directly) or sign. Clamp rather than trust, so
+        a bad LLM output can't send the arm on a multi-metre excursion; IK
+        would reject an unreachable target anyway, but this fails fast with
+        a clear reason instead of a generic "-31" from /compute_ik.
+        """
+        _MAX_STEP = 0.5  # metres — generous vs. the UR3's ~0.5m reach, well past any real "nudge"
+        clamped = {
+            "dx": max(-_MAX_STEP, min(_MAX_STEP, dx)),
+            "dy": max(-_MAX_STEP, min(_MAX_STEP, dy)),
+            "dz": max(-_MAX_STEP, min(_MAX_STEP, dz)),
+        }
+        if (clamped["dx"], clamped["dy"], clamped["dz"]) != (dx, dy, dz):
+            self._logger.warn(
+                f"[MotionExecutor] move_relative: requested ({dx}, {dy}, {dz}) exceeds "
+                f"±{_MAX_STEP}m sanity limit — clamping to ({clamped['dx']}, {clamped['dy']}, {clamped['dz']}). "
+                "This usually means the LLM used the wrong units (e.g. cm instead of m)."
+            )
+        dx, dy, dz = clamped["dx"], clamped["dy"], clamped["dz"]
+
+        current = self.get_current_pose()
+        if current is None:
+            self._logger.error("[MotionExecutor] move_relative: could not get current pose — aborting.")
+            return False
+
+        target = PoseStamped()
+        target.header.frame_id = current.header.frame_id
+        target.pose.position.x = current.pose.position.x + dx
+        target.pose.position.y = current.pose.position.y + dy
+        target.pose.position.z = current.pose.position.z + dz
+        target.pose.orientation = current.pose.orientation
+
+        self._logger.info(
+            f"[MotionExecutor] move_relative: ({dx:+.3f}, {dy:+.3f}, {dz:+.3f}) from "
+            f"({current.pose.position.x:.3f}, {current.pose.position.y:.3f}, {current.pose.position.z:.3f}) "
+            f"to ({target.pose.position.x:.3f}, {target.pose.position.y:.3f}, {target.pose.position.z:.3f})"
+        )
+        return self.move_to_pose(target, group=group, timeout=timeout)
 
     def move_to_pose(
         self,
@@ -505,6 +596,13 @@ class MotionExecutor:
 
         elif action == "place":
             return self._execute_place(task)
+
+        elif action == "move_relative":
+            return self.move_relative(
+                dx=float(task.get("dx", 0.0)),
+                dy=float(task.get("dy", 0.0)),
+                dz=float(task.get("dz", 0.0)),
+            )
 
         else:
             self._logger.warn(f"[MotionExecutor] Unknown action '{action}' — skipping.")
