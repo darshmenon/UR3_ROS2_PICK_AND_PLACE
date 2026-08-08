@@ -25,22 +25,26 @@ mtc_node:
     object_name: "cylinder_1"
     object_type: "cylinder"
     object_reference_frame: "base_link"
-    # Short cylinder (~0.12m). The original model.sdf was 0.35m tall — at the
+    # Short cylinder (~0.12m, bumped to 0.14m for perception testing — see
+    # red_cylinder/model.sdf). The original model.sdf was 0.35m tall — at the
     # ~0.42m base-distance needed to clear the wrist singularity dead zone,
     # a top-down grasp above a 0.35m object puts the EE at ~0.63m spherical
     # from base_link (beyond UR3's ~0.5m reach), so every Fallbacks candidate
-    # returned "no IK found". 0.12m keeps EE ≈sqrt(0.42^2+0.24^2)≈0.48m.
-    object_dimensions: [0.12, 0.018]
+    # returned "no IK found". 0.14m keeps EE ≈sqrt(0.42^2+0.26^2)≈0.49m.
+    object_dimensions: [0.14, 0.018]
     # On the +X axis (y=0) at 0.36m — far enough to leave the ~0.32m
     # singularity dead zone, close enough that a top-down grasp above a
-    # 0.12m cylinder stays inside UR3 reach (~0.45m spherical).
-    object_pose: [0.36, 0.0, 0.10, 0.0, 0.0, 0.0]
+    # 0.14m cylinder stays inside UR3 reach (~0.49m spherical).
+    # z: the pick table prop was removed (2026-08-07) — objects now rest
+    # directly on the ground (base_link z≈0), so center z = half the
+    # cylinder's length (0.14/2 = 0.07), not the old table-top height.
+    object_pose: [0.36, 0.0, 0.07, 0.0, 0.0, 0.0]
     # Pick-table box in base_link (see pick_and_place_demo.world). Used when
     # perception falls back so we don't keep a RANSAC mount_table slab at z≈0.
     fallback_support_dimensions: [0.30, 0.45, 0.04]
     fallback_support_pose: [0.275, 0.04, 0.02, 0.0, 0.0, 0.0]
     # Reliable demo path: always use known pick-table + cylinder geometry.
-    force_fallback_scene: true
+    force_fallback_scene: false
     support_min_z: 0.015
     support_max_xy_area: 0.25
     move_group_wait_timeout: 30.0

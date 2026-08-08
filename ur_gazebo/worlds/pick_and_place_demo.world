@@ -70,30 +70,38 @@
     <include>
       <uri>model://red_cylinder</uri>
       <name>red_cylinder</name>
-      <pose>0.36 0.0 1.075 0 0 0</pose>
+      <!-- z = table_height (1.015) + half of model's length (0.14/2=0.07) so
+           it still rests flush on the ground after the height bump. -->
+      <pose>0.36 0.0 1.085 0 0 0</pose>
     </include>
 
     <!-- YCB objects for richer scene — z raised the same way, x nudged
          further from the arm base for the same reason as red_cylinder above. -->
     <!-- Kept clear of red_cylinder (0.38, 0.18) so cylinder circle-fitting
          isn't swallowed by the mustard cluster / occluded from the head cam. -->
+    <!-- Commented out for now — simplifying scene for perception testing.
     <include>
       <uri>model://mustard</uri>
       <pose>0.25 0.20 1.095 0 0 0</pose>
     </include>
+    -->
 
+    <!-- Commented out for now — simplifying scene for perception testing.
     <include>
       <uri>model://coke_can</uri>
       <pose>0.33 -0.10 1.09 0 0 0</pose>
     </include>
+    -->
 
     <!-- Was at 0.38 0.18 — same XY as red_cylinder after the 2026-08-05
          base-distance push; moved to free table space so the two don't
-         spawn interleaved and poison collision checks. -->
+         spawn interleaved and poison collision checks.
+         Commented out for now — simplifying scene for perception testing.
     <include>
       <uri>model://cheezit_big_original</uri>
       <pose>0.22 -0.12 1.055 0 0 0</pose>
     </include>
+    -->
 
     <!-- Bin / drop zone — sit on the raised ground (mount_table's floor
          level = table_height), not the pick table; outside its footprint. -->

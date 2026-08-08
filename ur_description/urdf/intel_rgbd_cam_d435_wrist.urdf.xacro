@@ -132,7 +132,9 @@
     </camera>
     <always_on>1</always_on>
     <update_rate>10</update_rate>
-    <gz_frame_id>camera_wrist_link</gz_frame_id>
+    <!-- Same fix as camera_head (intel_rgbd_cam_d435.urdf.xacro): depth/
+         point-cloud data is optical-frame convention, not the plain link. -->
+    <gz_frame_id>camera_wrist_depth_optical_frame</gz_frame_id>
     <output>
       <image>true</image>
       <depth_image>true</depth_image>

@@ -20,8 +20,11 @@
             <radius>0.018</radius>
             <!-- Shortened from 0.35 so a top-down grasp at ~0.42m from the
                  UR3 base stays inside the arm's ~0.5m reach (see
-                 mtc_node_params.yaml / README). -->
-            <length>0.12</length>
+                 mtc_node_params.yaml / README). Bumped 0.12->0.14 slightly
+                 for perception testing — keep in sync with
+                 mtc_node_params.yaml's object_dimensions and this model's
+                 pose z in pick_and_place_demo.world. -->
+            <length>0.14</length>
           </cylinder>
         </geometry>
         <surface>
@@ -61,8 +64,11 @@
             <radius>0.018</radius>
             <!-- Shortened from 0.35 so a top-down grasp at ~0.42m from the
                  UR3 base stays inside the arm's ~0.5m reach (see
-                 mtc_node_params.yaml / README). -->
-            <length>0.12</length>
+                 mtc_node_params.yaml / README). Bumped 0.12->0.14 slightly
+                 for perception testing — keep in sync with
+                 mtc_node_params.yaml's object_dimensions and this model's
+                 pose z in pick_and_place_demo.world. -->
+            <length>0.14</length>
           </cylinder>
         </geometry>
         <material>
