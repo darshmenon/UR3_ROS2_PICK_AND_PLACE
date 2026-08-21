@@ -19,6 +19,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+os.environ.setdefault("TORCHDYNAMO_DISABLE", "1")
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -28,6 +30,17 @@ from stable_baselines3.common.callbacks import (
     CallbackList, CheckpointCallback, EvalCallback,
 )
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor, VecNormalize
+
+try:
+    from torch.optim.optimizer import Optimizer
+
+    for _method_name in ("add_param_group", "load_state_dict", "state_dict", "zero_grad"):
+        _method = getattr(Optimizer, _method_name, None)
+        _unwrapped = getattr(_method, "__wrapped__", None)
+        if _unwrapped is not None:
+            setattr(Optimizer, _method_name, _unwrapped)
+except Exception:
+    pass
 
 LOG_ROOT   = str(REPO_ROOT / "logs")
 MODEL_ROOT = str(REPO_ROOT / "models" / "checkpoints")
@@ -51,6 +64,8 @@ def main():
                    choices=["none", "grasp_focus"])
     p.add_argument("--resume",      default="",
                    help="Path to a .zip checkpoint to resume from")
+    p.add_argument("--device",      default="auto",
+                   help="Stable-Baselines3 device: auto, cpu, cuda, cuda:0, ...")
     args = p.parse_args()
 
     run_name  = f"ur3_v2_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -61,7 +76,8 @@ def main():
     print(f"Envs: {args.n_envs}  Timesteps: {args.timesteps:,}  Curriculum: {args.curriculum}")
 
     # ── training env ─────────────────────────────────────────────────────────
-    train_raw = SubprocVecEnv([make_env(args.curriculum, seed=i) for i in range(args.n_envs)])
+    train_fns = [make_env(args.curriculum, seed=i) for i in range(args.n_envs)]
+    train_raw = DummyVecEnv(train_fns) if args.n_envs == 1 else SubprocVecEnv(train_fns)
     train_env = VecNormalize(VecMonitor(train_raw), norm_obs=True, norm_reward=True, clip_obs=10.0)
 
     # ── eval env (no normalise update, no reward norm) ────────────────────────
@@ -79,6 +95,7 @@ def main():
             learning_rate=1e-4,
             verbose=1,
             tensorboard_log=LOG_ROOT,
+            device=args.device,
         )
     else:
         model = SAC(
@@ -97,7 +114,7 @@ def main():
             policy_kwargs=policy_kwargs,
             verbose=1,
             tensorboard_log=LOG_ROOT,
-            device="cuda",
+            device=args.device,
         )
 
     # ── callbacks ──────────────────────────────────────────────────────────────

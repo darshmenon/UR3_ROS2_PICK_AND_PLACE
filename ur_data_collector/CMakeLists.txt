@@ -10,6 +10,7 @@ ament_python_install_package(${PROJECT_NAME})
 # Install scripts
 install(PROGRAMS
   scripts/train_bc.py
+  scripts/export_lerobot_dataset.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

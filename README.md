@@ -21,6 +21,7 @@ Integrates the Robotiq 2-Finger Gripper with a UR3 arm on **ROS 2 Humble** + **G
 - [Grasp Detection (ur_grasp)](#grasp-detection-ur_grasp)
 - [Standalone Robot Control GUI](#standalone-robot-control-gui)
 - [UR3 Reinforcement Learning (SAC)](#ur3-reinforcement-learning-sac)
+- [Robot Learning Datasets with LeRobot](#robot-learning-datasets-with-lerobot)
 - [Force Control / Compliant Grasping (ur_force_control)](#force-control--compliant-grasping-ur_force_control)
 - [Behavior Tree Task Planner (ur_bt_planner)](#behavior-tree-task-planner-ur_bt_planner)
 - [Conveyor Belt Simulation (ur_conveyor)](#conveyor-belt-simulation-ur_conveyor)
@@ -236,7 +237,7 @@ Wait ~15 s for controllers, then in RViz **MotionPlanning**:
 
 RViz shows two robot models: a solid one for the current state and a transparent/orange one for the planned goal.
 
-OMPL trajectories are time-stamped by **TOTG** (`AddTimeOptimalParameterization` in `moveit_config/config/ompl_planning.yaml`). Without that adapter, `arm_controller` rejects Execute with `Time between points ... not strictly increasing`.
+OMPL trajectories are time-stamped by **TOTG** (`AddTimeOptimalParameterization`) and then smoothed by **Ruckig** (`AddRuckigTrajectorySmoothing`) using jerk limits from `moveit_config/config/joint_limits.yaml`. Without TOTG, `arm_controller` rejects Execute with `Time between points ... not strictly increasing`; without Ruckig, the same path executes with harsher acceleration transitions.
 
 **If Execute fails**
 
@@ -577,6 +578,121 @@ python3 ur_rl_training/scripts/eval_headless.py \
   --model ur_rl_training/models/checkpoints/<run>/best_model.zip \
   --episodes 20
 ```
+
+---
+
+## Robot Learning Datasets with LeRobot
+
+Use this when you want to train modern imitation/VLA policies such as ACT, Diffusion Policy, or SmolVLA from Gazebo demonstrations.
+
+### 1. Record Gazebo Demonstrations
+
+Start the sim, then run the data collector:
+
+```bash
+source install/setup.bash
+ros2 launch ur_gazebo full_demo.launch.py brain:=none use_gazebo_gui:=true
+
+# In another terminal:
+source install/setup.bash
+ros2 launch ur_data_collector data_collector.launch.py
+```
+
+Record one episode at a time:
+
+```bash
+ros2 service call /data_collector/start_recording std_srvs/srv/Trigger {}
+# run a task manually, with MTC, or with another controller
+ros2 service call /data_collector/stop_recording std_srvs/srv/Trigger {}
+```
+
+Episodes are written to `~/ur3_demos` as HDF5 files containing RGB images, 6 arm joints, gripper position, timestamps, and 7D actions.
+
+### 2. Install LeRobot Separately
+
+Current LeRobot uses Python 3.12, while ROS 2 Humble normally uses Python 3.10. Keep them separate:
+
+```bash
+cd ~/lerobot
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[training,smolvla]" h5py
+```
+
+### 3. Export HDF5 to LeRobotDataset
+
+```bash
+source ~/lerobot/.venv/bin/activate
+cd ~/UR3_ROS2_PICK_AND_PLACE
+python ur_data_collector/scripts/export_lerobot_dataset.py \
+  --input-dir ~/ur3_demos \
+  --output-root ~/lerobot_ur3_pickplace \
+  --repo-id local/ur3_pickplace \
+  --task "pick the red block and place it in the bin"
+```
+
+The exported dataset uses:
+
+| Feature | Shape | Description |
+|---|---:|---|
+| `observation.images.rgb` | `(H, W, 3)` | Gazebo RGB frame |
+| `observation.state` | `(7,)` | 6 UR joints + gripper |
+| `action` | `(7,)` | 6 arm commands + gripper command |
+| `task` | string | Language instruction for VLA-style policies |
+
+For quick debugging without video encoding, add `--images`.
+
+### 4. Train a Policy
+
+Use the exported dataset with LeRobot training recipes. Start with SmolVLA for a small VLA, or ACT/Diffusion for lighter non-VLA imitation baselines:
+
+```bash
+cd ~/lerobot
+source .venv/bin/activate
+
+lerobot-train \
+  --policy.path=lerobot/smolvla_base \
+  --dataset.repo_id=local/ur3_pickplace \
+  --dataset.root=~/lerobot_ur3_pickplace \
+  --batch_size=8 \
+  --steps=20000 \
+  --output_dir=outputs/train/ur3_smolvla
+```
+
+SmolVLA is the best small-VLA fit here because it is LeRobot-native, about 450M parameters, and fine-tunes directly from LeRobotDataset. OpenVLA-7B is much heavier and the current `ur_smolvla` ROS node is actually an OpenVLA inference wrapper. After training, deploy cautiously in Gazebo first. The policy output must match this repo's 7D action convention: six arm joint targets/deltas plus one gripper command.
+
+### 5. Add RL Refinement
+
+Directly loading a trained VLA checkpoint into SAC is not a supported LeRobot workflow today. The practical path in this repo is:
+
+1. Train IL/VLA from Gazebo demonstrations using the LeRobot export above.
+2. Evaluate that policy in Gazebo through `ur_smolvla` or a matching policy node.
+3. Use SAC in the MuJoCo pick-and-place env for fast reward-driven refinement of the same 7D action convention.
+4. Deploy the best SAC checkpoint back into Gazebo with `ur_rl_training` or `mujoco_ur_rl_ros2`, then compare success rate against the VLA/IL policy.
+
+Quick SAC smoke test:
+
+```bash
+python3 ur_rl_training/scripts/train_v2.py \
+  --timesteps 32 \
+  --n_envs 1 \
+  --eval_freq 16 \
+  --n_eval_ep 1 \
+  --curriculum grasp_focus \
+  --device cpu
+```
+
+Longer SAC run:
+
+```bash
+python3 ur_rl_training/scripts/train_v2.py \
+  --timesteps 1000000 \
+  --n_envs 16 \
+  --curriculum grasp_focus \
+  --device auto
+```
+
+`train_v2.py` disables Torch Dynamo and unwraps Dynamo-decorated optimizer methods at startup because the local Torch/Triton stack can segfault while constructing the SAC optimizer. Keep this workaround unless the Torch install is upgraded and the smoke test above passes without it.
 
 ---
 

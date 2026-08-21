@@ -1,8 +1,11 @@
 planning_plugin: ompl_interface/OMPLPlanner
+# Ruckig runs after TOTG to add jerk-limited smoothing to the final trajectory.
+# MoveIt executes request adapters in reverse order, so keep Ruckig at the top.
 # AddTimeOptimalParameterization must be a *request* adapter on this stack.
 # Putting it only under response_adapters left trajectories with t=0 stamps,
 # so arm_controller rejected Execute ("Time between points ... not strictly increasing").
 request_adapters: >-
+  default_planner_request_adapters/AddRuckigTrajectorySmoothing
   default_planner_request_adapters/AddTimeOptimalParameterization
   default_planner_request_adapters/ResolveConstraintFrames
   default_planner_request_adapters/FixWorkspaceBounds
