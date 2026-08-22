@@ -12,12 +12,18 @@ EE position is read from TF (base_link → tool0) — no hardcoded FK.
 Object position is passed as ROS parameters (update via rqt or your perception node).
 """
 
+import sys
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 import rclpy
 import tf2_ros
+
+# The system triton package segfaults on import when torch builds an Adam
+# optimizer (SAC._build). Block it before torch/stable_baselines3 load —
+# CPU MLP inference here never needs triton kernels anyway.
+sys.modules["triton"] = None
 from control_msgs.action import GripperCommand
 from geometry_msgs.msg import PoseStamped
 from rclpy.action import ActionClient
@@ -119,9 +125,10 @@ class PolicyNode(Node):
             def reset(self, **kw): return self.observation_space.sample(), {}
             def step(self, _a):   return self.observation_space.sample(), 0.0, False, False, {}
 
-        _, params, _ = load_from_zip_file(model_path, device="cpu")
+        data, params, _ = load_from_zip_file(model_path, device="cpu")
+        policy_kwargs = data.get("policy_kwargs") or {"net_arch": [256, 256, 256]}
         self.model = SAC("MlpPolicy", DummyVecEnv([_DummyEnv]),
-                         policy_kwargs={"net_arch": [256, 256, 256]})
+                         policy_kwargs=policy_kwargs, device="cpu")
         self.model.set_parameters({"policy": params["policy"]}, exact_match=False)
         self.get_logger().info("Model loaded — starting control loop.")
 
