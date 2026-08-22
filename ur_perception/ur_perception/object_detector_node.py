@@ -60,9 +60,18 @@ try:
 except ImportError:
     pass
 
-# Cylinder dimensions for planning scene collision objects
+# Fallback cylinder dimensions for planning scene collision objects, used
+# only if a per-detection size estimate is out of sane bounds (noisy bbox
+# or depth). Real dims are estimated per-object from bbox + depth — see
+# DepthPoseEstimator.bbox_size_m().
 _CYLINDER_HEIGHT = 0.15   # metres
 _CYLINDER_RADIUS = 0.04   # metres
+
+# Sane clamps for the per-object size estimate (metres)
+_MIN_RADIUS_M = 0.01
+_MAX_RADIUS_M = 0.15
+_MIN_HEIGHT_M = 0.02
+_MAX_HEIGHT_M = 0.40
 
 # QoS for image topics (sensor data - best effort)
 _SENSOR_QOS = QoSProfile(
@@ -312,7 +321,7 @@ class ObjectDetectorNode(Node):
         # ------------------------------------------------------------------ #
         # 3-D pose estimation + TF transform
         # ------------------------------------------------------------------ #
-        objects_3d = []   # list of (detection_dict, PoseStamped in base_link)
+        objects_3d = []   # list of (detection_dict, PoseStamped in base_link, radius_m, height_m)
         for det in all_detections:
             pose_cam = depth_estimator.estimate_object_pose(
                 centroid_px=det['centroid_px'],
@@ -327,11 +336,20 @@ class ObjectDetectorNode(Node):
             if pose_cam is None:
                 continue
 
+            # z in the camera optical frame is depth — use it (pre-transform)
+            # to size the bbox in metres via similar triangles.
+            width_m, height_m = depth_estimator.bbox_size_m(det['bbox'], pose_cam.pose.position.z)
+            radius_m = width_m / 2.0
+            if not (_MIN_RADIUS_M <= radius_m <= _MAX_RADIUS_M):
+                radius_m = _CYLINDER_RADIUS
+            if not (_MIN_HEIGHT_M <= height_m <= _MAX_HEIGHT_M):
+                height_m = _CYLINDER_HEIGHT
+
             pose_base = self._transform_pose(pose_cam, target_frame='base_link', stamp=stamp)
             if pose_base is None:
                 continue
 
-            objects_3d.append((det, pose_base))
+            objects_3d.append((det, pose_base, radius_m, height_m))
 
         # ------------------------------------------------------------------ #
         # Publish DetectedObjectArray
@@ -453,7 +471,7 @@ class ObjectDetectorNode(Node):
         array_msg.header.stamp = stamp
         array_msg.header.frame_id = 'base_link'
 
-        for idx, (det, pose_base) in enumerate(objects_3d):
+        for idx, (det, pose_base, radius_m, height_m) in enumerate(objects_3d):
             obj = DetectedObject()
             obj.id = f"{det['label']}_{idx}"
             obj.label = det['label']
@@ -464,10 +482,10 @@ class ObjectDetectorNode(Node):
             obj.position.y = pose_base.pose.position.y
             obj.position.z = pose_base.pose.position.z
 
-            # dimensions — approximate from cylinder model (x=length, y=width, z=height)
-            obj.dimensions.x = _CYLINDER_RADIUS * 2.0
-            obj.dimensions.y = _CYLINDER_RADIUS * 2.0
-            obj.dimensions.z = _CYLINDER_HEIGHT
+            # dimensions — per-object estimate from bbox + depth (x=length, y=width, z=height)
+            obj.dimensions.x = radius_m * 2.0
+            obj.dimensions.y = radius_m * 2.0
+            obj.dimensions.z = height_m
 
             array_msg.objects.append(obj)
 
@@ -478,7 +496,7 @@ class ObjectDetectorNode(Node):
         scene_msg = PlanningScene()
         scene_msg.is_diff = True
 
-        for idx, (det, pose_base) in enumerate(objects_3d):
+        for idx, (det, pose_base, radius_m, height_m) in enumerate(objects_3d):
             co = CollisionObject()
             co.id = f"{det['label']}_{idx}"
             co.header.frame_id = 'base_link'
@@ -487,8 +505,8 @@ class ObjectDetectorNode(Node):
 
             primitive = SolidPrimitive()
             primitive.type = SolidPrimitive.CYLINDER
-            # CYLINDER dimensions: [height, radius]
-            primitive.dimensions = [_CYLINDER_HEIGHT, _CYLINDER_RADIUS]
+            # CYLINDER dimensions: [height, radius] — per-object estimate
+            primitive.dimensions = [height_m, radius_m]
 
             co.primitives.append(primitive)
             co.primitive_poses.append(pose_base.pose)

@@ -161,6 +161,33 @@ class DepthPoseEstimator:
 
         return pose_stamped
 
+    def bbox_size_m(
+        self,
+        bbox: Tuple[int, int, int, int],
+        z_m: float,
+    ) -> Tuple[float, float]:
+        """
+        Approximate the real-world (width, height) of a bounding box.
+
+        Pinhole similar triangles: a pixel span subtends
+        ``pixels * z / focal_length`` metres at depth ``z``. Used to size
+        planning-scene collision objects per-detection instead of a single
+        hardcoded guess for every object.
+
+        Parameters
+        ----------
+        bbox : (x, y, w, h) in pixels.
+        z_m : depth of the object (metres), e.g. from ``pixel_to_3d``.
+
+        Returns
+        -------
+        (width_m, height_m)
+        """
+        _, _, w_px, h_px = bbox
+        width_m = (w_px * z_m) / self._fx
+        height_m = (h_px * z_m) / self._fy
+        return width_m, height_m
+
     # ------------------------------------------------------------------
     # Properties (read-only)
     # ------------------------------------------------------------------
