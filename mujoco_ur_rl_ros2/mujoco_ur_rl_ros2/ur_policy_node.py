@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -5,6 +6,12 @@ import rclpy
 from builtin_interfaces.msg import Duration
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+
+# The system triton package segfaults on import when torch builds an Adam
+# optimizer (SAC._build). Block it before torch/stable_baselines3 load —
+# CPU inference here never needs triton kernels anyway. Same fix as
+# ur_rl_training/policy_node.py.
+sys.modules["triton"] = None
 from stable_baselines3 import SAC
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 

@@ -12,6 +12,12 @@ from pathlib import Path
 
 import numpy as np
 
+# The system triton package segfaults on import when torch builds an Adam
+# optimizer (SAC._build). Block it before torch/stable_baselines3 load —
+# CPU eval here never needs triton kernels anyway. Same fix as
+# ur_rl_training/policy_node.py.
+sys.modules["triton"] = None
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
