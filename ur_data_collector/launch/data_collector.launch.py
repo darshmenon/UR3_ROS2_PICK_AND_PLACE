@@ -30,7 +30,7 @@ def generate_launch_description():
 
     collector_node = Node(
         package='ur_data_collector',
-        executable='collector_node',
+        executable='collector_node.py',
         name='data_collector_node',
         output='screen',
         parameters=[
