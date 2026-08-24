@@ -317,26 +317,34 @@ def generate_launch_description():
     )
 
 
-    # Start Gazebo ROS Bridge
-    # Ignition sensor topics use the full world/model/link path
+    # Start Gazebo ROS Bridge(s)
+    # Ignition sensor topics use the full world/model/link path.
+    # ur_wrist_cam.urdf.xacro (wrist_camera:=true) spawns only the wrist
+    # camera; ur.urdf.xacro (default) spawns both head and wrist cameras
+    # together (see moveit_config/config/ur.urdf.xacro), so bridge both in
+    # that case — needed for dual-view nodes like the policy visualizer.
     if use_wrist_camera:
-        _gz_cam = '/world/default/model/ur/link/wrist_3_link/sensor/camera_wrist'
-        _cam_ns = 'camera_wrist'
+        _cams = [('/world/default/model/ur/link/wrist_3_link/sensor/camera_wrist', 'camera_wrist')]
     else:
-        _gz_cam = '/world/default/model/ur/link/base_link/sensor/camera_head'
-        _cam_ns = 'camera_head'
-    start_gazebo_ros_image_bridge_cmd = Node(
-        package='ros_gz_image',
-        executable='image_bridge',
-        arguments=[
-            f'{_gz_cam}/depth_image',
-            f'{_gz_cam}/image',
-        ],
-        remappings=[
-            (f'{_gz_cam}/depth_image', f'/{_cam_ns}/depth/image_rect_raw'),
-            (f'{_gz_cam}/image',       f'/{_cam_ns}/color/image_raw'),
-        ],
-    )
+        _cams = [
+            ('/world/default/model/ur/link/base_link/sensor/camera_head', 'camera_head'),
+            ('/world/default/model/ur/link/wrist_3_link/sensor/camera_wrist', 'camera_wrist'),
+        ]
+    image_bridge_cmds = [
+        Node(
+            package='ros_gz_image',
+            executable='image_bridge',
+            arguments=[
+                f'{_gz_cam}/depth_image',
+                f'{_gz_cam}/image',
+            ],
+            remappings=[
+                (f'{_gz_cam}/depth_image', f'/{_cam_ns}/depth/image_rect_raw'),
+                (f'{_gz_cam}/image',       f'/{_cam_ns}/color/image_raw'),
+            ],
+        )
+        for _gz_cam, _cam_ns in _cams
+    ]
 
 
     # Spawn robot in Gazebo
@@ -464,7 +472,8 @@ def generate_launch_description():
     ld.add_action(start_gazebo_cmd)
     ld.add_action(start_gazebo_headless_cmd)
     ld.add_action(start_gazebo_ros_bridge_cmd)
-    ld.add_action(start_gazebo_ros_image_bridge_cmd)
+    for image_bridge_cmd in image_bridge_cmds:
+        ld.add_action(image_bridge_cmd)
     ld.add_action(start_gazebo_ros_spawner_cmd)
     ld.add_action(OpaqueFunction(function=_spawn_step))
     ld.add_action(move_group_node_robotiq)

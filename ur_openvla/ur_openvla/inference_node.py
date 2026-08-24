@@ -2,15 +2,14 @@
 """
 OpenVLA inference node for UR3 pick-and-place.
 
-Replaces SmolVLA (requires Python 3.11) with OpenVLA which runs on
-Python 3.10 using the already-installed torch + transformers stack.
+Runs on Python 3.10 using the already-installed torch + transformers stack.
 
 Model: openvla/openvla-7b  (downloads ~15 GB on first run, cached after)
   - Input:  RGB image (256x256) + natural language task string
   - Output: 7D action (6 arm joint deltas + 1 gripper)
 
 Usage:
-    ros2 launch ur_smolvla smolvla_inference.launch.py \
+    ros2 launch ur_openvla openvla_inference.launch.py \
       task:="pick the red block and place it in the bin"
 """
 

@@ -59,4 +59,5 @@
       controllers_file="${controllers_file}"/>
 
     <xacro:include filename="$(find ur_description)/urdf/intel_rgbd_cam_d435.urdf.xacro"/>
+    <xacro:include filename="$(find ur_description)/urdf/intel_rgbd_cam_d435_wrist.urdf.xacro"/>
 </robot>

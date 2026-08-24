@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>ur_smolvla</name>
+  <name>ur_flow_policy</name>
   <version>0.1.0</version>
-  <description>SmolVLA inference node for UR3 pick-and-place</description>
+  <description>DINOv2 + flow-matching action-chunk policy for UR3 pick-and-place</description>
   <maintainer email="darshmenon02@gmail.com">darshmenon</maintainer>
   <license>MIT</license>
 
@@ -15,7 +15,6 @@
   <depend>trajectory_msgs</depend>
   <depend>control_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>std_srvs</depend>
   <depend>cv_bridge</depend>
 
   <export>

@@ -48,6 +48,7 @@ install(PROGRAMS
   ur_perception/object_reconstructor_node.py
   ur_perception/reconstruct_sweep_node.py
   ur_perception/ply_viewer_node.py
+  ur_perception/policy_visualizer_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -116,7 +116,7 @@ class BenchmarkNode(Node):
     def run_openvla_trial(self, pick_x, pick_y, pick_z, place_xyz) -> dict:
         """OpenVLA trial: start inference node, check convergence."""
         return self._run_policy_node_trial(
-            "ur_smolvla", "inference_node", place_xyz,
+            "ur_openvla", "inference_node", place_xyz,
             extra_params={"task": "pick the red block and place it in the target zone"}
         )
 

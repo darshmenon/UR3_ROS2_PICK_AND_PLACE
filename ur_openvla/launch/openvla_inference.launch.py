@@ -32,7 +32,7 @@ def generate_launch_description():
             description='RGB image topic from Gazebo camera',
         ),
         Node(
-            package='ur_smolvla',
+            package='ur_openvla',
             executable='inference_node.py',
             name='openvla_inference',
             output='screen',

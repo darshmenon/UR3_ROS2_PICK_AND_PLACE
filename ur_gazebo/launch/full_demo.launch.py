@@ -4,7 +4,8 @@ Full pipeline launch: Gazebo + MoveIt + Perception + Grasp + selectable brain.
 brain options:
   llm      — LLM planner (Ollama, natural-language commands via /llm_planner/command)
   rl       — Trained SAC policy node (needs model_path)
-  openvla  — OpenVLA/SmolVLA end-to-end VLA inference
+  openvla  — OpenVLA end-to-end VLA inference
+  flow     — DINOv2 + flow-matching action-chunk policy (needs flow_checkpoint)
   none     — Perception + grasp only, no autonomous brain
 
 Usage:
@@ -16,6 +17,9 @@ Usage:
 
     # OpenVLA:
     ros2 launch ur_gazebo full_demo.launch.py brain:=openvla task:="pick the red block"
+
+    # Flow-matching policy:
+    ros2 launch ur_gazebo full_demo.launch.py brain:=flow flow_checkpoint:=/path/to/best_policy.pt
 
     # Perception + grasp only:
     ros2 launch ur_gazebo full_demo.launch.py brain:=none
@@ -56,7 +60,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "brain",
             default_value="llm",
-            description="Which controller brain to use: llm | rl | openvla | none",
+            description="Which controller brain to use: llm | rl | openvla | flow | none",
         ),
         # RL-specific
         DeclareLaunchArgument("model_path",  default_value="",
@@ -77,6 +81,9 @@ def generate_launch_description():
         DeclareLaunchArgument("checkpoint",  default_value="openvla/openvla-7b"),
         DeclareLaunchArgument("task",        default_value="pick the red block and place it in the bin"),
         DeclareLaunchArgument("action_scale",default_value="0.05"),
+        # Flow-matching-specific (brain:=flow)
+        DeclareLaunchArgument("flow_checkpoint", default_value="",
+                              description="Path to a .pt checkpoint from train_flow_policy.py (required if brain:=flow)"),
         # Grasp node
         DeclareLaunchArgument("grasp_colour",  default_value="any"),
         DeclareLaunchArgument("grasp_backend", default_value="auto"),
@@ -89,6 +96,7 @@ def generate_launch_description():
     is_llm    = IfCondition(PythonExpression(["'", brain, "' == 'llm'"]))
     is_rl     = IfCondition(PythonExpression(["'", brain, "' == 'rl'"]))
     is_openvla= IfCondition(PythonExpression(["'", brain, "' == 'openvla'"]))
+    is_flow   = IfCondition(PythonExpression(["'", brain, "' == 'flow'"]))
 
     # ── Core simulation (Gazebo + MoveIt) ────────────────────────────────────
     gazebo_launch = IncludeLaunchDescription(
@@ -173,7 +181,7 @@ def generate_launch_description():
 
     # OpenVLA node
     openvla_node = Node(
-        package="ur_smolvla",
+        package="ur_openvla",
         executable="inference_node.py",
         name="openvla_inference",
         output="screen",
@@ -187,6 +195,21 @@ def generate_launch_description():
         }],
     )
     delayed_openvla = TimerAction(period=65.0, actions=[openvla_node])
+
+    # Flow-matching policy node
+    flow_node = Node(
+        package="ur_flow_policy",
+        executable="inference_node.py",
+        name="flow_policy_inference",
+        output="screen",
+        condition=is_flow,
+        parameters=[{
+            "checkpoint":   LaunchConfiguration("flow_checkpoint"),
+            "use_sim_time": use_sim,
+            "enabled":      True,
+        }],
+    )
+    delayed_flow = TimerAction(period=65.0, actions=[flow_node])
 
     # ── Brain selection info log ──────────────────────────────────────────────
     brain_log = TimerAction(
@@ -203,4 +226,5 @@ def generate_launch_description():
     ld.add_action(delayed_llm)
     ld.add_action(delayed_rl)
     ld.add_action(delayed_openvla)
+    ld.add_action(delayed_flow)
     return ld
