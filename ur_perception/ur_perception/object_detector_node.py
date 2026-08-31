@@ -108,6 +108,13 @@ class ObjectDetectorNode(Node):
         self.declare_parameter('depth_topic',            '/camera_head/depth/image_rect_raw')
         self.declare_parameter('camera_info_topic',      '/camera_head/camera_info')
         self.declare_parameter('depth_scale',            1.0)
+        # A 5cm block (colored_blocks.world) at the head camera's actual mount
+        # geometry (~0.73m to the table, D435 sim fx≈223px @ 424x240) projects
+        # to ~15px/side ≈ 230px² — below the old hardcoded 500px² floor, which
+        # silently dropped it from every detection pass. 120px² covers that
+        # with margin; morphological open/close in ColorDetector already
+        # suppresses single-pixel noise, so this isn't just opening a noise floor.
+        self.declare_parameter('color_min_area_px', 120)
 
         self._use_yolo               = self.get_parameter('use_yolo').value
         self._conf_thresh            = self.get_parameter('confidence_threshold').value
@@ -119,6 +126,7 @@ class ObjectDetectorNode(Node):
         self._depth_topic            = self.get_parameter('depth_topic').value
         self._camera_info_topic      = self.get_parameter('camera_info_topic').value
         self._depth_scale            = float(self.get_parameter('depth_scale').value)
+        self._color_min_area_px      = int(self.get_parameter('color_min_area_px').value)
 
         self.get_logger().info(
             f"Parameters: use_yolo={self._use_yolo}, "
@@ -141,7 +149,7 @@ class ObjectDetectorNode(Node):
         # ------------------------------------------------------------------ #
         self._color_detector = ColorDetector(
             target_colors=self._target_colors,
-            min_area=500,
+            min_area=self._color_min_area_px,
         )
 
         # ------------------------------------------------------------------ #

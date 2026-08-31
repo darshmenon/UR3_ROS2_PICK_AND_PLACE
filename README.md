@@ -232,6 +232,13 @@ Key params: `action_scale` (0.1), `step_dt` (0.01), `control_rate_hz` (100), `ph
 
 Headless eval: `python3 ur_rl_training/scripts/eval_headless.py --model <path> --episodes 20`.
 
+Compare training runs (reads all `ur_rl_training/logs/*/evaluations.npz`, no launch needed):
+
+```bash
+python3 testing/plot_rl_run_comparison.py
+# -> testing/rl_learning_curves.png, testing/rl_best_reward_bar.png
+```
+
 ---
 
 ## Robot Learning Datasets with LeRobot

@@ -1,3 +1,13 @@
-sensors: []
-# Octomap updater disabled — MTC handles collision checking via its own planning scene.
-# Re-enable for live point cloud obstacle avoidance outside of MTC demos.
+sensors:
+  - default_sensor
+default_sensor:
+  sensor_plugin: occupancy_map_monitor/PointCloudOctomapUpdater
+  point_cloud_topic: /camera_head/depth/color/points
+  max_range: 3.0
+  point_subsample: 1
+  padding_offset: 0.02
+  padding_scale: 1.0
+  max_update_rate: 1.0
+  filtered_cloud_topic: filtered_cloud
+octomap_resolution: 0.02
+octomap_frame: world
