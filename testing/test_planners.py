@@ -52,8 +52,14 @@ HOME_JOINTS = {
 }
 _ARM_JOINTS = list(HOME_JOINTS.keys())
 
-BLUE_X,  BLUE_Y,  BLUE_Z  = 0.25,  0.10, 0.20   # pre-grasp height
-GREEN_X, GREEN_Y, GREEN_Z = 0.30, -0.05, 0.20
+BLUE_X,  BLUE_Y,  BLUE_Z  = 0.25,  0.10, 0.30   # pre-grasp height
+GREEN_X, GREEN_Y, GREEN_Z = 0.30, -0.05, 0.30
+# Z=0.20 (used until 2026-09) collides with the octomap now that sensors_3d.yaml
+# has a live PointCloudOctomapUpdater again (moveit_config/config/sensors_3d.yaml,
+# commit 844d4f00) -- /compute_ik with avoid_collisions=True returns NO_IK_SOLUTION
+# at z=0.20 but succeeds from z=0.23 up, confirmed live against a running sim.
+# 0.30 keeps test_pilz_lin's 5cm descent (ends at BLUE_Z-0.05=0.25) clear of that
+# boundary with margin, instead of landing right on it.
 
 RESULTS: list[tuple[str, bool, str]] = []
 

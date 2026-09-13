@@ -59,8 +59,12 @@ _ARM_JOINT_LIMITS = [
 ]
 _NAMED_ARM_POSES: dict[str, list[float]] = {
     # [pan, lift, elbow, w1, w2, w3]
-    "home":  [0.0, 4.6169, 0.0, 0.0, 0.0, 0.0],
-    "ready": [0.0, 4.6169, 0.0, 0.0, 0.0, 1.0],
+    # lift=-1.6663 matches ur.srdf's "home"/"ready" group_state exactly (not the
+    # 2pi-equivalent +4.6169 used until 2026-09 -- Pilz PTP interpolates joints
+    # directly without unwrapping, so from a normal-range starting lift it swept
+    # almost a full turn instead of the short way, hitting collisions en route).
+    "home":  [0.0, -1.6663, 0.0, 0.0, 0.0, 0.0],
+    "ready": [0.0, -1.6663, 0.0, 0.0, 0.0, 1.0],
 }
 _NAMED_GRIPPER_POSES: dict[str, float] = {
     "open":        0.0,
