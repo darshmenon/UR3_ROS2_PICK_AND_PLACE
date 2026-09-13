@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Policy benchmark harness — OpenVLA vs MTC.
+Policy benchmark harness — OpenVLA vs MTC vs flow-matching.
 
 Runs N trials for each active policy on the same task (pick red object,
 place at target), measures success rate and cycle time, writes results
 to CSV and prints a summary table.
 
 Usage:
-    # Benchmark both policies, 5 trials each
+    # Benchmark both baseline policies, 5 trials each
     python3 testing/benchmark_policies.py --trials 5
 
     # Benchmark only MTC, 10 trials
     python3 testing/benchmark_policies.py --policies mtc --trials 10
+
+    # Benchmark the DINOv2 + flow-matching policy (needs a trained checkpoint)
+    python3 testing/benchmark_policies.py --policies flow \
+        --flow-checkpoint outputs/flow_v0/best_policy.pt
 
     # Use a custom output path
     python3 testing/benchmark_policies.py --output ~/results/bench.csv
@@ -21,6 +25,14 @@ Prerequisites:
         ros2 launch ur_gazebo ur.gazebo.launch.py
     - For OpenVLA: model is downloaded on first run (~15 GB)
     - For MTC:    ur_mtc_pick_place_demo must be running
+    - For flow:   a checkpoint from ur_flow_policy/scripts/train_flow_policy.py
+                  (--flow-checkpoint) -- ur_flow_policy/ur_flow_policy/model.py
+                  has never been trained to convergence as of this writing
+                  (datasets/ur3_pickplace_v0 only has 2 episodes / 763 frames),
+                  so this runner is wired up but untested against a real policy.
+
+    ACT (ur_data_collector/scripts/train_act.py) has no ROS inference node yet
+    -- only the lerobot-train wrapper exists -- so it isn't included here.
 
 Results CSV columns:
     policy, trial, success, cycle_time_s, pick_x, pick_y, pick_z,
@@ -69,8 +81,9 @@ TRIAL_TIMEOUT = 90.0
 
 
 class BenchmarkNode(Node):
-    def __init__(self):
+    def __init__(self, flow_checkpoint: str = ""):
         super().__init__("policy_benchmark")
+        self._flow_checkpoint = flow_checkpoint
 
         self._joint_states = None
         self._latest_objects = []
@@ -118,6 +131,18 @@ class BenchmarkNode(Node):
         return self._run_policy_node_trial(
             "ur_openvla", "inference_node", place_xyz,
             extra_params={"task": "pick the red block and place it in the target zone"}
+        )
+
+    def run_flow_trial(self, pick_x, pick_y, pick_z, place_xyz) -> dict:
+        """DINOv2 + flow-matching trial: start inference node, check convergence."""
+        if not self._flow_checkpoint:
+            raise SystemExit(
+                "--flow-checkpoint is required for --policies flow "
+                "(e.g. outputs/flow_v0/best_policy.pt)"
+            )
+        return self._run_policy_node_trial(
+            "ur_flow_policy", "inference_node", place_xyz,
+            extra_params={"checkpoint": self._flow_checkpoint}
         )
 
     def _run_llm_cmd_trial(self, cmd: str, place_xyz: tuple) -> dict:
@@ -180,6 +205,7 @@ class BenchmarkNode(Node):
 POLICY_RUNNERS = {
     "mtc":    "run_mtc_trial",
     "openvla": "run_openvla_trial",
+    "flow":   "run_flow_trial",
 }
 
 
@@ -194,6 +220,8 @@ def parse_args():
                    help="CSV output path (default: logs/benchmark_<timestamp>.csv)")
     p.add_argument("--seed", type=int, default=42,
                    help="Random seed for pick position sampling")
+    p.add_argument("--flow-checkpoint", default="",
+                   help="Path to a flow-matching .pt checkpoint (required for --policies flow)")
     return p.parse_args()
 
 
@@ -202,7 +230,7 @@ def main():
     rng = random.Random(args.seed)
 
     rclpy.init()
-    node = BenchmarkNode()
+    node = BenchmarkNode(flow_checkpoint=args.flow_checkpoint)
 
     out_path = args.output or (
         Path(__file__).parent.parent / "logs" /
