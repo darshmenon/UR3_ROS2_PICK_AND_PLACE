@@ -500,6 +500,46 @@ std::vector<HoughBin> clusterCircleHoughSpace(
   return clusters;
 }
 
+// Estimate a cluster's principal axis via PCA on its 3D points, and return
+// the quaternion that rotates world +Z onto that axis. Objects assumed
+// upright on a flat support surface (the common case, and the only case this
+// pipeline handled before) get back an identity-equivalent quaternion, so
+// this is a strict extension of prior behaviour, not a change to it.
+// A tilted/toppled object gets a real orientation instead of always-upright.
+Eigen::Quaterniond estimateClusterTiltQuaternion(
+    const pcl::PointCloud<PointXYZRGBNormalRSD>::Ptr& cluster,
+    double tilt_threshold_rad = 0.2618) {  // ~15 degrees
+
+  Eigen::Vector3d centroid = Eigen::Vector3d::Zero();
+  for (const auto& point : cluster->points) {
+    centroid += Eigen::Vector3d(point.x, point.y, point.z);
+  }
+  centroid /= static_cast<double>(cluster->points.size());
+
+  Eigen::Matrix3d covariance = Eigen::Matrix3d::Zero();
+  for (const auto& point : cluster->points) {
+    Eigen::Vector3d d = Eigen::Vector3d(point.x, point.y, point.z) - centroid;
+    covariance += d * d.transpose();
+  }
+
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(covariance);
+  // Eigenvalues are sorted ascending; the largest-variance axis is last.
+  Eigen::Vector3d principal_axis = solver.eigenvectors().col(2).normalized();
+  // The axis sign from PCA is arbitrary; keep it pointing "up" (+Z-ish) so it
+  // represents the object's upward direction, not its downward one.
+  if (principal_axis.z() < 0.0) {
+    principal_axis = -principal_axis;
+  }
+
+  const Eigen::Vector3d world_up = Eigen::Vector3d::UnitZ();
+  double tilt = std::acos(std::clamp(principal_axis.dot(world_up), -1.0, 1.0));
+
+  if (tilt < tilt_threshold_rad) {
+    return Eigen::Quaterniond::Identity();
+  }
+  return Eigen::Quaterniond::FromTwoVectors(world_up, principal_axis);
+}
+
 std::tuple<shape_msgs::msg::SolidPrimitive, geometry_msgs::msg::Pose>
 fitCylinderToCluster(
     const pcl::PointCloud<PointXYZRGBNormalRSD>::Ptr& cluster,
@@ -536,12 +576,14 @@ fitCylinderToCluster(
   pose.position.y = center_y;
   pose.position.z = center_z;
 
-  // Orientation (yaw angle) - for upright cylinder, it's always 0
-  double yaw = 0.0;
-  tf2::Quaternion q;
-  q.setRPY(0, 0, yaw);
+  // Orientation: identity (upright) for the common flat-on-table case; a real
+  // tilt axis from PCA when the cluster indicates the cylinder isn't upright.
+  // NOTE: height/center_z above still assume the object's base sits at the
+  // support plane (z=0), which only holds for the upright case — a
+  // significantly tilted/toppled cylinder's true height and center still
+  // need that geometry reworked; only orientation is corrected here.
+  Eigen::Quaterniond q = estimateClusterTiltQuaternion(cluster);
 
-  // Directly assign quaternion components
   pose.orientation.x = q.x();
   pose.orientation.y = q.y();
   pose.orientation.z = q.z();

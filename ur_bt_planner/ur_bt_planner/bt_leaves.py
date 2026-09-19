@@ -204,7 +204,14 @@ class RunMTCPickPlace(py_trees.behaviour.Behaviour):
     deterministic bug, so a fresh attempt is the right recovery.
     """
 
-    def __init__(self, node, service_name: str = "run_pick_place", call_timeout: float = 180.0):
+    def __init__(self, node, service_name: str = "run_pick_place", call_timeout: float = 320.0):
+        # 320s: must exceed mtc_node's own executeSolution() timeout (300s,
+        # mtc_node.cpp) since this call_timeout covers the WHOLE run_pick_place
+        # service call (perception + planning + execution), not just
+        # execution. Confirmed live (2026-09-19) that a real multi-stage
+        # pick-lift-place-retreat cycle legitimately took >171s while mtc_node
+        # was still busy (not hung) -- the old 180.0 default was too tight,
+        # not a deadlock.
         super().__init__("run_mtc_pick_place")
         self._node = node
         self._client = node.create_client(Trigger, service_name)
@@ -234,12 +241,13 @@ class RunMTCPickPlace(py_trees.behaviour.Behaviour):
         return py_trees.common.Status.SUCCESS
 
 
-def build_mtc_retry_tree(node, max_attempts: int = 5, service_name: str = "run_pick_place"):
+def build_mtc_retry_tree(node, max_attempts: int = 5, service_name: str = "run_pick_place",
+                          call_timeout: float = 320.0):
     """
     Minimal tree: retry the whole MTC pick-and-place task up to max_attempts
     times, stopping at the first success. See RunMTCPickPlace's docstring
     for why a fresh full-task retry (not a partial/stage-level retry) is the
     right granularity for this failure mode.
     """
-    leaf = RunMTCPickPlace(node, service_name=service_name)
+    leaf = RunMTCPickPlace(node, service_name=service_name, call_timeout=call_timeout)
     return py_trees.decorators.Retry("mtc_pick_place_with_retry", child=leaf, num_failures=max_attempts)

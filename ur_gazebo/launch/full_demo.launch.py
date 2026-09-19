@@ -152,10 +152,13 @@ def generate_launch_description():
             }.items(),
             condition=is_llm,
         )
-        delayed_llm = TimerAction(period=65.0, actions=[llm_launch])
+        # 65->75: widen the gap after perception's 60s startup delay (was only
+        # 5s before auto_demo's own +5s fires its first pick attempt at ~70s,
+        # marginal given perception needs time to actually publish detections).
+        delayed_llm = TimerAction(period=75.0, actions=[llm_launch])
     except Exception:
         delayed_llm = TimerAction(
-            period=65.0,
+            period=75.0,
             actions=[LogInfo(msg="ur_llm_planner not found — skipping LLM planner.")]
         )
 

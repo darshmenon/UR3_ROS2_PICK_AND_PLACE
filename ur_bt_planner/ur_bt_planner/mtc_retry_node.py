@@ -22,6 +22,11 @@ Parameters:
     tick_rate_hz        — BT tick rate (default 2.0; each tick's leaf call
                           itself blocks for the whole pick-place attempt, so
                           this only paces the retry-decorator's outer loop)
+    call_timeout        — seconds to wait for one run_pick_place service call
+                          before giving up on that attempt (default 320.0;
+                          must exceed mtc_node's own executeSolution() timeout,
+                          300s, since this covers perception+planning+execution
+                          combined, not just execution)
 """
 
 import threading
@@ -43,10 +48,12 @@ class MTCRetryNode(Node):
         self.declare_parameter("max_attempts", 5)
         self.declare_parameter("mtc_service_name", "run_pick_place")
         self.declare_parameter("tick_rate_hz", 2.0)
+        self.declare_parameter("call_timeout", 320.0)
 
         self._max_attempts = self.get_parameter("max_attempts").value
         self._service_name = self.get_parameter("mtc_service_name").value
         self._tick_dt = 1.0 / self.get_parameter("tick_rate_hz").value
+        self._call_timeout = self.get_parameter("call_timeout").value
 
         self._running = False
         self._stop_flag = False
@@ -84,7 +91,8 @@ class MTCRetryNode(Node):
         self._stop_flag = False
 
         tree = build_mtc_retry_tree(
-            self, max_attempts=self._max_attempts, service_name=self._service_name
+            self, max_attempts=self._max_attempts, service_name=self._service_name,
+            call_timeout=self._call_timeout
         )
         tree.setup_with_descendants()
         py_trees.display.ascii_tree(tree)

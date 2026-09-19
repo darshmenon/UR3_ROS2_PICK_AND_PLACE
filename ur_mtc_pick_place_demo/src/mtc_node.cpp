@@ -107,6 +107,18 @@ geometry_msgs::msg::Pose vectorToPose(const std::vector<double>& values) {
 };
 
 /**
+ * @brief Inverse of vectorToPose: extract [x, y, z, roll, pitch, yaw] from a
+ * geometry_msgs::msg::Pose, using the same AngleAxis(roll,X)*AngleAxis(pitch,Y)*
+ * AngleAxis(yaw,Z) convention as vectorToEigen (Eigen's eulerAngles(0,1,2)
+ * matches that composition order exactly).
+ */
+std::vector<double> poseToVector(const geometry_msgs::msg::Pose& pose) {
+  Eigen::Quaterniond q(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
+  Eigen::Vector3d rpy = q.toRotationMatrix().eulerAngles(0, 1, 2);
+  return {pose.position.x, pose.position.y, pose.position.z, rpy[0], rpy[1], rpy[2]};
+}
+
+/**
  * @brief Find the stage whose name starts with `name_prefix` among the
  * (possibly nested, via WrappedSolution/SolutionSequence) solutions that
  * produced `solution` — used to report which Fallbacks grasp candidate
@@ -460,6 +472,24 @@ void MTCTaskNode::updateObjectParameters(const moveit_msgs::msg::CollisionObject
   // Update object_name
   this->set_parameter(rclcpp::Parameter("object_name", collision_object.id));
   RCLCPP_INFO(this->get_logger(), "Updated object_name: '%s'", collision_object.id.c_str());
+
+  // Update object_pose from the perceived object's actual pose. Without this,
+  // grasp-candidate generation (which reads the "object_pose" parameter, not
+  // the collision object directly) silently keeps using the static default/
+  // config pose even when a real target_object_id was found — the robot would
+  // grasp at the configured location instead of the detected one.
+  if (!collision_object.primitive_poses.empty()) {
+    auto object_pose_vec = poseToVector(collision_object.primitive_poses[0]);
+    this->set_parameter(rclcpp::Parameter("object_pose", object_pose_vec));
+    RCLCPP_INFO(this->get_logger(),
+                "Updated object_pose from perception: (%.4f, %.4f, %.4f) rpy=(%.4f, %.4f, %.4f)",
+                object_pose_vec[0], object_pose_vec[1], object_pose_vec[2],
+                object_pose_vec[3], object_pose_vec[4], object_pose_vec[5]);
+  } else {
+    RCLCPP_WARN(this->get_logger(),
+                "Perceived object '%s' has no primitive_poses; keeping previous object_pose",
+                collision_object.id.c_str());
+  }
 
   // Update object_type and object_dimensions
   if (!collision_object.primitives.empty()) {

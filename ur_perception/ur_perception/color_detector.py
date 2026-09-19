@@ -14,9 +14,14 @@ from typing import List, Dict, Any
 # Format: list of (lower, upper) tuples in HSV space (H: 0-179, S: 0-255, V: 0-255).
 # Red wraps around the hue wheel, so two ranges are needed.
 _COLOR_RANGES: Dict[str, List[tuple]] = {
+    # V lower bound relaxed 70->40: LLM-planner "pick by description" scenes
+    # (colored_blocks.world) render red_box dimmer than the nominal material
+    # color under scene lighting/shading, dropping it below a strict V>=70
+    # threshold and causing zero detections. Not yet confirmed against a live
+    # rendered-pixel capture -- revisit if this proves too permissive.
     'red': [
-        (np.array([0,   120,  70], dtype=np.uint8), np.array([10,  255, 255], dtype=np.uint8)),
-        (np.array([170, 120,  70], dtype=np.uint8), np.array([179, 255, 255], dtype=np.uint8)),
+        (np.array([0,   120,  40], dtype=np.uint8), np.array([10,  255, 255], dtype=np.uint8)),
+        (np.array([170, 120,  40], dtype=np.uint8), np.array([179, 255, 255], dtype=np.uint8)),
     ],
     'green': [
         (np.array([36,  80,  50], dtype=np.uint8), np.array([86,  255, 255], dtype=np.uint8)),

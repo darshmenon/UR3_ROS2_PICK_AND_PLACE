@@ -5,6 +5,11 @@ numpy>=1.21.0
 # YOLO (optional, for enhanced detection)
 ultralytics>=8.0.0
 
+# Multi-view reconstruction ICP refinement (optional; object_reconstructor_node
+# falls back to TF-only alignment without it, with an uncorrected few-cm
+# cross-viewpoint bias)
+open3d>=0.18.0
+
 # LLM planning
 anthropic>=0.25.0
 

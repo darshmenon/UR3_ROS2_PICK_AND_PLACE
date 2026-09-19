@@ -11,18 +11,20 @@ from launch_ros.actions import Node
 def generate_launch_description():
     ur_gazebo_share = get_package_share_directory("ur_gazebo")
 
-    world_file = os.path.join(ur_gazebo_share, "worlds", "conveyor_sorting.world")
-
     return LaunchDescription([
         DeclareLaunchArgument("spawn_interval_s", default_value="6.0"),
         DeclareLaunchArgument("belt_speed",       default_value="0.06"),
 
-        # Launch Gazebo with the conveyor world
+        # Launch Gazebo with the conveyor world. ur.gazebo.launch.py's
+        # "world_file" argument is a bare filename joined internally against
+        # its own worlds/ directory -- passing a full path here (as this file
+        # previously did, under the wrong argument name "world") silently
+        # loaded the default world instead.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(ur_gazebo_share, "launch", "ur.gazebo.launch.py")
             ),
-            launch_arguments={"world": world_file}.items(),
+            launch_arguments={"world_file": "conveyor_sorting.world"}.items(),
         ),
 
         # Conveyor object spawner + mover
