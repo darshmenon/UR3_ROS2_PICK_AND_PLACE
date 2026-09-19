@@ -508,7 +508,7 @@ std::vector<HoughBin> clusterCircleHoughSpace(
 // A tilted/toppled object gets a real orientation instead of always-upright.
 Eigen::Quaterniond estimateClusterTiltQuaternion(
     const pcl::PointCloud<PointXYZRGBNormalRSD>::Ptr& cluster,
-    double tilt_threshold_rad = 0.2618) {  // ~15 degrees
+    double tilt_threshold_rad) {  // default (~15 degrees) declared in the header
 
   Eigen::Vector3d centroid = Eigen::Vector3d::Zero();
   for (const auto& point : cluster->points) {

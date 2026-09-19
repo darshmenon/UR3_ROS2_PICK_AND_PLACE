@@ -186,6 +186,19 @@ if(BUILD_TESTING)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_object_segmentation test/test_object_segmentation.cpp)
+  target_include_directories(test_object_segmentation PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    ${PCL_INCLUDE_DIRS}
+  )
+  ament_target_dependencies(test_object_segmentation ${dependencies})
+  target_link_libraries(test_object_segmentation
+    object_segmentation
+    normals_curvature_and_rsd_estimation
+    ${PCL_LIBS}
+  )
 endif()
 
 # Export and package

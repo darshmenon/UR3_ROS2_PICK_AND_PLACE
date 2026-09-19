@@ -851,15 +851,31 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
     // which then instantly rejects every subsequent run_pick_place retry
     // attempt with "Goal was rejected by server" for the rest of the run —
     // a single stuck execution silently poisoned all remaining retries.
-    // Cancel explicitly so the server frees up before we give up on it.
+    // Root cause (execute_task_solution_capability.h's handleNewGoal):
+    // the server only accepts a new goal once its single last_goal_future_
+    // (the async task running execCallback/executeAndMonitor) is actually
+    // ready — NOT merely once a cancel request has been acknowledged.
+    // Cancelling just asks plan_execution_->stop() to begin; it does not by
+    // itself mean execCallback has returned yet. So after requesting the
+    // cancel, we must keep waiting on the ORIGINAL result_future (which only
+    // resolves once execCallback truly finishes and calls
+    // goal_handle->canceled()/abort()) before letting the caller retry —
+    // waiting on the cancel-request future alone (as an earlier version of
+    // this fix did) was confirmed live to still let every subsequent attempt
+    // get instantly rejected.
     auto cancel_future = client->async_cancel_goal(goal_handle);
-    if (rclcpp::spin_until_future_complete(client_node, cancel_future, std::chrono::seconds(10)) !=
+    rclcpp::spin_until_future_complete(client_node, cancel_future, std::chrono::seconds(10));
+    // Stopping a Gazebo trajectory should be much faster than letting it run
+    // to completion would have been; 60s is a generous bound, not a copy of
+    // the original 300s.
+    if (rclcpp::spin_until_future_complete(client_node, result_future, std::chrono::seconds(60)) ==
         rclcpp::FutureReturnCode::SUCCESS) {
-      RCLCPP_WARN(this->get_logger(),
-                  "Cancel request for the timed-out goal did not complete within 10s; "
-                  "server may still be busy with it for subsequent attempts");
+      RCLCPP_INFO(this->get_logger(),
+                  "Timed-out goal finished terminating server-side; safe for the next attempt");
     } else {
-      RCLCPP_INFO(this->get_logger(), "Cancelled the timed-out execute_task_solution goal");
+      RCLCPP_WARN(this->get_logger(),
+                  "Timed-out goal did not finish terminating within an additional 60s; "
+                  "server may still reject the next attempt");
     }
     return error_code;
   }

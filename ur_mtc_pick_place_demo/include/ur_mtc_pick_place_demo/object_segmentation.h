@@ -256,6 +256,19 @@ std::vector<HoughBin> clusterCircleHoughSpace(
     double minPt_y);
 
 /**
+ * @brief Estimate a cluster's principal axis via PCA and return the
+ * quaternion that rotates world +Z onto that axis, or identity if the
+ * cluster is within tilt_threshold_rad of upright.
+ *
+ * @param cluster The 3D point cloud cluster.
+ * @param tilt_threshold_rad Below this tilt angle, returns identity.
+ * @return Eigen::Quaterniond The estimated orientation.
+ */
+Eigen::Quaterniond estimateClusterTiltQuaternion(
+    const pcl::PointCloud<PointXYZRGBNormalRSD>::Ptr& cluster,
+    double tilt_threshold_rad = 0.2618);
+
+/**
  * @brief Fits a cylinder to a 3D point cloud cluster.
  *
  * @param cluster The 3D point cloud cluster.
