@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 Dual-arm semantic description for dual_ur.urdf.xacro. Mirrors ur.srdf.xacro's
-robotiq_2f_85/2f_140 branch, but wrapped in a macro parameterized on `prefix`
-("left_"/"right_") and instantiated once per arm, so each arm gets its own
-{prefix}arm / {prefix}gripper / {prefix}arm_with_gripper planning groups
-instead of colliding on "arm"/"gripper". No camera links: dual_ur.urdf.xacro
-doesn't include cameras yet (see its header comment).
+gripper branches (robotiq_2f_85/2f_140 and onrobot_rg2/rg6), but wrapped in a
+macro parameterized on `prefix` ("left_"/"right_") and instantiated once per
+arm, so each arm gets its own {prefix}arm / {prefix}gripper /
+{prefix}arm_with_gripper planning groups instead of colliding on "arm"/"gripper".
 
-Only supports the robotiq_2f_85/2f_140 grippers for now, matching the two
-grippers dual_ur.urdf.xacro's onrobot branch was never written for (phase 1
-only tested robotiq grippers on the dual rig).
+Camera disable_collisions entries only apply when use_dual_cameras:=true
+(dual_ur.urdf.xacro's opt-in camera instantiation), default false, matching
+dual_ur.urdf.xacro's default, so nothing changes for existing (no-camera) use.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="dual_ur">
     <xacro:arg name="gripper" default="robotiq_2f_85"/>
+    <xacro:arg name="use_dual_cameras" default="false"/>
     <xacro:property name="selected_gripper" value="$(arg gripper)"/>
     <xacro:property name="gripper_base_link" value="${'robotiq_140_base_link' if selected_gripper == 'robotiq_2f_140' else 'robotiq_arg2f_base_link'}"/>
 
@@ -23,20 +23,10 @@ only tested robotiq grippers on the dual rig).
     <!--CHAINS: When a chain is specified, all the links along the chain (including endpoints) are included in the group. Additionally, all the joints that are parents to included links are also included. This means that joints along the chain and the parent joint of the base link are included in the group-->
     <!--SUBGROUPS: Groups can also be formed by referencing to already defined group names-->
     <group name="${prefix}arm">
-        <!-- <joint name="${prefix}base_joint"/>
-        <joint name="base_link-base_fixed_joint"/>
-        <joint name="base_link-base_link_inertia"/>
-        <joint name="${prefix}shoulder_pan_joint"/>
-        <joint name="${prefix}shoulder_lift_joint"/>
-        <joint name="${prefix}elbow_joint"/>
-        <joint name="${prefix}wrist_1_joint"/>
-        <joint name="${prefix}wrist_2_joint"/>
-        <joint name="${prefix}wrist_3_joint"/>
-        <joint name="wrist_3-flange"/>
-        <joint name="flange-tool0"/>
-        <joint name="${prefix}gripper_joint"/> -->
         <chain base_link="world" tip_link="${prefix}tool0"/>
     </group>
+
+    <xacro:if value="${selected_gripper == 'robotiq_2f_85' or selected_gripper == 'robotiq_2f_140'}">
     <group name="${prefix}gripper">
         <joint name="${prefix}finger_joint"/>
         <joint name="${prefix}left_outer_finger_joint"/>
@@ -227,6 +217,102 @@ only tested robotiq grippers on the dual rig).
     <disable_collisions link1="${prefix}shoulder_link" link2="${prefix}right_outer_finger" reason="Never"/>
     <disable_collisions link1="${prefix}shoulder_link" link2="${prefix}right_outer_knuckle" reason="Never"/>
     <disable_collisions link1="${prefix}shoulder_link" link2="${prefix}${gripper_base_link}" reason="Never"/>
+    </xacro:if>
+
+    <xacro:unless value="${selected_gripper == 'robotiq_2f_85' or selected_gripper == 'robotiq_2f_140'}">
+    <group name="${prefix}gripper">
+        <joint name="${prefix}gripper_joint"/>
+    </group>
+    <group name="${prefix}arm_with_gripper">
+        <group name="${prefix}gripper"/>
+        <group name="${prefix}arm"/>
+    </group>
+    <group_state name="home" group="${prefix}arm">
+        <joint name="${prefix}elbow_joint" value="0"/>
+        <joint name="${prefix}shoulder_lift_joint" value="-1.6663"/>
+        <joint name="${prefix}shoulder_pan_joint" value="0"/>
+        <joint name="${prefix}wrist_1_joint" value="0"/>
+        <joint name="${prefix}wrist_2_joint" value="0"/>
+        <joint name="${prefix}wrist_3_joint" value="0"/>
+    </group_state>
+    <group_state name="ready" group="${prefix}arm">
+        <joint name="${prefix}elbow_joint" value="0"/>
+        <joint name="${prefix}shoulder_lift_joint" value="-1.6663"/>
+        <joint name="${prefix}shoulder_pan_joint" value="0"/>
+        <joint name="${prefix}wrist_1_joint" value="0"/>
+        <joint name="${prefix}wrist_2_joint" value="0"/>
+        <joint name="${prefix}wrist_3_joint" value="1.0"/>
+    </group_state>
+    <!-- FK-screened joint-space via: tool0 ≈ (0.17, 0.00, 0.67), clear of
+         the pick-table AABB between base and object. -->
+    <group_state name="transit_clear" group="${prefix}arm">
+        <!-- Rescreened: tool0≈(0.18,0.08,0.64), pan≈0 keeps gripper clear of torso. -->
+        <joint name="${prefix}shoulder_pan_joint" value="-0.09"/>
+        <joint name="${prefix}shoulder_lift_joint" value="-0.72"/>
+        <joint name="${prefix}elbow_joint" value="-0.84"/>
+        <joint name="${prefix}wrist_1_joint" value="-0.98"/>
+        <joint name="${prefix}wrist_2_joint" value="1.79"/>
+        <joint name="${prefix}wrist_3_joint" value="-0.04"/>
+    </group_state>
+    <group_state name="open" group="${prefix}gripper">
+        <joint name="${prefix}gripper_joint" value="0.0"/>
+    </group_state>
+    <group_state name="half_closed" group="${prefix}gripper">
+        <joint name="${prefix}gripper_joint" value="0.65"/>
+    </group_state>
+    <group_state name="closed" group="${prefix}gripper">
+        <joint name="${prefix}gripper_joint" value="1.3"/>
+    </group_state>
+    <end_effector name="${prefix}gripper" parent_link="${prefix}tool0" group="${prefix}gripper" parent_group="${prefix}arm"/>
+    <disable_collisions link1="${prefix}base_link_inertia" link2="${prefix}shoulder_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}forearm_link" link2="${prefix}upper_arm_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}forearm_link" link2="${prefix}wrist_1_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}forearm_link" link2="${prefix}wrist_2_link" reason="Never"/>
+    <disable_collisions link1="${prefix}shoulder_link" link2="${prefix}upper_arm_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}shoulder_link" link2="${prefix}wrist_1_link" reason="Never"/>
+    <disable_collisions link1="${prefix}shoulder_link" link2="${prefix}wrist_2_link" reason="Never"/>
+    <disable_collisions link1="${prefix}wrist_1_link" link2="${prefix}wrist_2_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}wrist_1_link" link2="${prefix}wrist_3_link" reason="Never"/>
+    <disable_collisions link1="${prefix}wrist_2_link" link2="${prefix}wrist_3_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}tool0" link2="${prefix}gripper_bracket" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_bracket" link2="${prefix}gripper_body" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_body" link2="${prefix}gripper_finger_1_origin" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_body" link2="${prefix}gripper_finger_2_origin" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_1_origin" link2="${prefix}gripper_finger_1_moment_arm" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_1_origin" link2="${prefix}gripper_finger_1_truss_arm" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_2_origin" link2="${prefix}gripper_finger_2_moment_arm" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_2_origin" link2="${prefix}gripper_finger_2_truss_arm" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_1_truss_arm" link2="${prefix}gripper_finger_1_finger_tip" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_2_truss_arm" link2="${prefix}gripper_finger_2_finger_tip" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_1_finger_tip" link2="${prefix}gripper_finger_1_flex_finger" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_finger_2_finger_tip" link2="${prefix}gripper_finger_2_flex_finger" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}gripper_body" link2="${prefix}wrist_3_link" reason="Never"/>
+    <disable_collisions link1="${prefix}gripper_bracket" link2="${prefix}wrist_3_link" reason="Adjacent"/>
+    </xacro:unless>
+
+    <!-- Camera mount disable_collisions, only relevant when dual_ur.urdf.xacro
+         is built with use_dual_cameras:=true (default false, no-op otherwise). -->
+    <xacro:if value="$(arg use_dual_cameras)">
+    <disable_collisions link1="${prefix}base_link_inertia" link2="${prefix}camera_head_link" reason="Never"/>
+    <disable_collisions link1="${prefix}base_link_inertia" link2="${prefix}torso_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}camera_head_link" link2="${prefix}shoulder_link" reason="Never"/>
+    <disable_collisions link1="${prefix}camera_head_link" link2="${prefix}torso_link" reason="Adjacent"/>
+    <disable_collisions link1="${prefix}camera_head_link" link2="${prefix}upper_arm_link" reason="Never"/>
+    </xacro:if>
+
+    <!-- TODO: placeholder, needs offline IK once a physical handover pose is
+         chosen (see project plan). Values below are NOT a real
+         reachable/collision-checked target, do not command this state
+         until replaced with real numbers derived from a chosen handover
+         Cartesian pose. -->
+    <group_state name="handover" group="${prefix}arm">
+        <joint name="${prefix}elbow_joint" value="0"/>
+        <joint name="${prefix}shoulder_lift_joint" value="0"/>
+        <joint name="${prefix}shoulder_pan_joint" value="0"/>
+        <joint name="${prefix}wrist_1_joint" value="0"/>
+        <joint name="${prefix}wrist_2_joint" value="0"/>
+        <joint name="${prefix}wrist_3_joint" value="0"/>
+    </group_state>
     </xacro:macro>
 
     <xacro:dual_ur_arm_semantics prefix="left_"/>
@@ -239,4 +325,21 @@ only tested robotiq grippers on the dual rig).
         <group name="left_arm"/>
         <group name="right_arm"/>
     </group>
+    <!-- Both arms simultaneously at their existing per-arm "home" joint
+         values, a genuine both_arms-group target, no new numbers guessed,
+         just the per-arm home values above concatenated. -->
+    <group_state name="both_home" group="both_arms">
+        <joint name="left_elbow_joint" value="0"/>
+        <joint name="left_shoulder_lift_joint" value="-1.6663"/>
+        <joint name="left_shoulder_pan_joint" value="0"/>
+        <joint name="left_wrist_1_joint" value="0"/>
+        <joint name="left_wrist_2_joint" value="0"/>
+        <joint name="left_wrist_3_joint" value="0"/>
+        <joint name="right_elbow_joint" value="0"/>
+        <joint name="right_shoulder_lift_joint" value="-1.6663"/>
+        <joint name="right_shoulder_pan_joint" value="0"/>
+        <joint name="right_wrist_1_joint" value="0"/>
+        <joint name="right_wrist_2_joint" value="0"/>
+        <joint name="right_wrist_3_joint" value="0"/>
+    </group_state>
 </robot>

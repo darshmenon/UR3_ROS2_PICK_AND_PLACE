@@ -355,9 +355,19 @@ ros2 launch ur_gazebo dual_ur.gazebo.launch.py            # GUI
 ros2 launch ur_gazebo dual_ur.gazebo.launch.py use_gazebo_gui:=false gripper:=robotiq_2f_85
 ```
 
-Args: `gripper` (robotiq_2f_85/robotiq_2f_140 only for MoveIt — see below; all 4 grippers spawn fine for raw joint control), `table_height`, `left_y`/`right_y` (base offsets, 0.45m/-0.45m default — arms face each other 0.9m apart), `world_file`, `use_move_group`, `use_rviz`.
+Args: `gripper` (all 4 grippers — robotiq and onrobot — now have MoveIt groups, not just raw joint control), `table_height`, `left_y`/`right_y` (base offsets, 0.45m/-0.45m default — arms face each other 0.9m apart), `world_file`, `use_move_group`, `use_rviz`, `use_dual_cameras` (opt-in per-arm D435, default false).
 
 MoveIt planning groups exist for each arm independently (`left_arm`/`right_arm`/`left_gripper`/`right_gripper`, plus `both_arms` for future bimanual planning) — `move_group` and RViz launch by default, same workflow as the single-arm demo. Live-verified: both arms' controllers activate and `move_group` comes up clean (see `project_dual_arm_bullet_featherstone_crash` memory for a physics-engine quirk that was hit and fixed along the way).
+
+**Independent per-arm pipelines** (namespaced `left`/`right`, fallback planning scene — no live perception dependency yet):
+
+```bash
+ros2 launch ur_gazebo dual_mtc_pick_place.launch.py     # two mtc_node instances
+ros2 launch ur_bt_planner dual_mtc_retry.launch.py      # + BT auto-retry per arm
+ros2 launch ur_sorting_demo dual_sorting_demo.launch.py # workspace-split sorting
+```
+
+Namespacing (services, node names, `/left`/`right` topics) is live-verified with no collisions. Note: the object/place/bin/handover poses these use are TODO placeholders extrapolated from the single-arm demo's numbers, not yet confirmed reachable — tune them against real workspace geometry before treating a run as a working demo rather than a wired-up pipeline.
 
 ---
 

@@ -1,0 +1,90 @@
+# Dual-arm LEFT instance of mtc_node (robotiq_2f_85/2f_140 only -- dual SRDF
+# has no onrobot gripper groups yet, see Phase A.1). Mirrors
+# mtc_node_params.yaml (single-arm robotiq) with left_-prefixed group/
+# controller/frame names and force_fallback_scene:true (Phase B decision:
+# no live perception dependency for the dual-arm pipeline).
+#
+# TODO placeholder geometry: object_pose/place_pose/fallback_support_pose
+# below are extrapolated from the single-arm mtc_node_params.yaml numbers,
+# shifted into "world" frame by the left arm's base offset
+# (x=0, y=+0.45, z=1.015 -- dual_ur.gazebo.launch.py defaults), assuming the
+# left arm's un-rotated (rpy=0) orientation faces +X same as single-arm.
+# NOT verified reachable -- needs tuning via a real headless launch (or an
+# offline KDL IK check) before this is a working demo, not just a wired-up
+# mechanism. See encapsulated-leaping-otter.md Phase B.1 open decision.
+# Wildcard node-name key, NOT "mtc_node:" -- this instance runs namespaced
+# (namespace:=left -> fully-qualified name /left/mtc_node), and ROS 2's
+# --params-file matches top-level keys against the FULLY-QUALIFIED node
+# name. A bare "mtc_node:" key only matches an unnamespaced /mtc_node (which
+# is why the single-arm mtc_node_params.yaml uses it) -- under a namespace
+# it silently matches nothing and every value here is ignored, falling back
+# to mtc_node.cpp's compiled defaults with NO error. Confirmed live
+# (2026-09-19, ROS_DOMAIN_ID=95): gripper_group_name stayed "gripper" until
+# this was changed to "/**".
+"/**":
+  ros__parameters:
+    execute: true
+    max_solutions: 50
+
+    controller_names:
+      - "left_arm_controller"
+      - "left_gripper_controller"
+
+    arm_group_name: "left_arm"
+    gripper_group_name: "left_gripper"
+    gripper_frame: "left_robotiq_arg2f_base_link"
+    gripper_open_pose: "open"
+    gripper_close_pose: "closed"
+    arm_home_pose: "home"
+
+    # Dual SRDF's arm chains are world->{prefix}tool0 (no bare base_link
+    # exists in the dual URDF) -- use world frame throughout.
+    world_frame: "world"
+    collision_checking: true
+
+    object_name: "cylinder_1"
+    object_type: "cylinder"
+    object_reference_frame: "world"
+    object_dimensions: [0.14, 0.018]
+    # TODO placeholder -- see file header.
+    object_pose: [0.36, 0.45, 1.085, 0.0, 0.0, 0.0]
+    fallback_support_dimensions: [0.30, 0.45, 0.04]
+    # TODO placeholder -- see file header.
+    fallback_support_pose: [0.275, 0.45, 1.035, 0.0, 0.0, 0.0]
+    force_fallback_scene: true
+    support_min_z: -0.01
+    support_max_xy_area: 0.6
+    move_group_wait_timeout: 30.0
+
+    grasp_frame_transform: [0.0, 0.0, 0.135, 0.0, 3.14159, 0.0]  # top-down grasp
+    # TODO placeholder -- see file header.
+    place_pose: [-0.15, 0.20, 1.075, 0.0, 0.0, 0.0]
+
+    approach_object_min_dist: 0.05
+    approach_object_max_dist: 0.3
+    lift_object_min_dist: 0.01
+    lift_object_max_dist: 0.3
+
+    move_to_pick_timeout: 40.0
+    move_to_place_timeout: 40.0
+
+    arm_transit_clear_pose: "transit_clear"
+    use_transit_clear_via: true
+    transit_planner_id: "RRTConnectkConfigDefault"
+    planning_robot_padding: 0.004
+    planning_support_inflation: 0.005
+
+    grasp_pose_angle_delta: 0.2618
+    grasp_pose_max_ik_solutions: 1
+    grasp_pose_min_solution_distance: 0.1
+
+    place_pose_max_ik_solutions: 15
+
+    cartesian_max_velocity_scaling: 0.8
+    cartesian_max_acceleration_scaling: 0.8
+    cartesian_step_size: 0.001
+
+    collision_clearance: 0.02
+
+    visualize_solutions: true
+    publish_planning_scene: true

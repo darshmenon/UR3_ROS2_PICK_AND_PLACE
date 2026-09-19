@@ -3,10 +3,9 @@
 Dual-arm variant of ur.urdf.xacro — two independent UR3 arms ("left_"/"right_"
 tf_prefix) on one world link, sharing a single ros2_control plugin/controller_manager.
 
-Phase 1: independent arm motion only, no MoveIt/SRDF wiring yet (see dual_ur.gazebo.launch.py).
-No cameras yet — ur_description's camera xacros use a single global `$(arg prefix)`,
-not a macro param, so they can only be included once per file; adding dual cameras
-needs those xacros converted to proper macros first.
+Phase 2: independent arm motion, per-arm MoveIt groups (see dual_ur.srdf.xacro),
+onrobot_rg2/rg6 gripper support, and opt-in dual cameras (use_dual_cameras:=true)
+now supported — see dual_ur.gazebo.launch.py.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="dual_ur">
     <xacro:arg name="use_gazebo" default="true"/>
@@ -25,13 +24,20 @@ needs those xacros converted to proper macros first.
     <!-- Each arm's base Y offset (m) from the shared world origin — 0.9m apart by default. -->
     <xacro:arg name="left_y" default="0.45"/>
     <xacro:arg name="right_y" default="-0.45"/>
+    <!-- Opt-in per-arm D435 head camera (default off, matches dual_ur.srdf.xacro's
+         same-named arg for its camera-mount disable_collisions entries). -->
+    <xacro:arg name="use_dual_cameras" default="false"/>
 
     <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro" />
     <xacro:include filename="$(find moveit_config)/config/ur.ros2_control.xacro" />
     <xacro:include filename="$(find ur_description)/urdf/gazebo_sim_ros2_control.urdf.xacro" />
+    <xacro:include filename="$(find ur_description)/urdf/intel_rgbd_cam_d435.urdf.xacro" />
 
     <xacro:property name="selected_gripper" value="$(arg gripper)"/>
     <xacro:property name="controllers_file" value="$(find moveit_config)/config/dual_ros2_controllers.yaml"/>
+    <xacro:if value="${selected_gripper == 'onrobot_rg2' or selected_gripper == 'onrobot_rg6'}">
+      <xacro:property name="controllers_file" value="$(find moveit_config)/config/dual_ros2_controllers_onrobot.yaml"/>
+    </xacro:if>
 
     <link name="world" />
 
@@ -83,6 +89,11 @@ needs those xacros converted to proper macros first.
     <gazebo>
       <disableFixedJointLumping>true</disableFixedJointLumping>
     </gazebo>
+
+    <xacro:if value="$(arg use_dual_cameras)">
+      <xacro:intel_rgbd_cam_d435 prefix="left_" parent_link="left_base_link"/>
+      <xacro:intel_rgbd_cam_d435 prefix="right_" parent_link="right_base_link"/>
+    </xacro:if>
 
     <xacro:ur_ros2_control
       name="left_ur"

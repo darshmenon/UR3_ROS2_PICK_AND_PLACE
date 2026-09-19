@@ -99,15 +99,24 @@ class MotionExecutor:
     - Executing a sequential list of task dicts produced by OllamaClient
     """
 
-    def __init__(self, node: Node):
+    def __init__(self, node: Node, prefix: str = ""):
         """
         Initialise action clients.
 
         Args:
             node: An rclpy Node used to create action clients and for logging.
+            prefix: Joint/link/controller name prefix (e.g. "left_"/"right_")
+                for a dual-arm rig. Default "" reproduces today's single-arm
+                behaviour exactly (unprefixed names). One shared move_group
+                serves every planning group regardless of prefix, so
+                /move_action itself is never prefixed — only the
+                joint/link/controller names below are.
         """
         self._node = node
         self._logger = node.get_logger()
+        self._prefix = prefix
+        self._arm_joints = [f"{prefix}{j}" for j in _ARM_JOINTS]
+        self._gripper_joint_name = f"{prefix}finger_joint"
 
         self._move_group_client = ActionClient(
             node,
@@ -118,7 +127,7 @@ class MotionExecutor:
         self._gripper_client = ActionClient(
             node,
             GripperCommand,
-            "/gripper_controller/gripper_cmd",
+            f"/{prefix}gripper_controller/gripper_cmd",
         )
 
         self._ik_client = node.create_client(GetPositionIK, "/compute_ik")
@@ -158,11 +167,12 @@ class MotionExecutor:
                 "motion commands will be skipped."
             )
 
-        self._logger.info("Waiting for /gripper_controller/gripper_cmd server...")
+        gripper_action_name = f"/{self._prefix}gripper_controller/gripper_cmd"
+        self._logger.info(f"Waiting for {gripper_action_name} server...")
         gripper_ok = self._gripper_client.wait_for_server(timeout_sec=timeout)
         if not gripper_ok:
             self._logger.warn(
-                f"/gripper_controller/gripper_cmd server not available after {timeout}s — "
+                f"{gripper_action_name} server not available after {timeout}s — "
                 "gripper commands will be skipped."
             )
 
@@ -196,7 +206,7 @@ class MotionExecutor:
         # Resolve named pose to explicit joint values.
         # MoveIt's action API does NOT look up named states from Constraints.name —
         # that is a C++ MoveGroupInterface convenience. We must supply real JointConstraints.
-        if group_name == "arm" or group_name == "arm_with_gripper":
+        if group_name in (f"{self._prefix}arm", f"{self._prefix}arm_with_gripper"):
             joint_values = _NAMED_ARM_POSES.get(pose_name)
             if joint_values is None:
                 self._logger.error(
@@ -204,8 +214,8 @@ class MotionExecutor:
                     f"Known: {list(_NAMED_ARM_POSES.keys())}"
                 )
                 return False
-            joint_names = _ARM_JOINTS
-        elif group_name == "gripper":
+            joint_names = self._arm_joints
+        elif group_name == f"{self._prefix}gripper":
             finger_pos = _NAMED_GRIPPER_POSES.get(pose_name)
             if finger_pos is None:
                 self._logger.error(
@@ -213,7 +223,7 @@ class MotionExecutor:
                     f"Known: {list(_NAMED_GRIPPER_POSES.keys())}"
                 )
                 return False
-            joint_names = ["finger_joint"]
+            joint_names = [self._gripper_joint_name]
             joint_values = [finger_pos]
         else:
             self._logger.error(f"Unknown group '{group_name}' for named pose move.")
@@ -275,7 +285,7 @@ class MotionExecutor:
         return self._send_gripper_goal(GRIPPER_HALF, 10.0, timeout)
 
     def get_current_pose(
-        self, tip_frame: str = "tool0", reference_frame: str = "base_link", timeout: float = 2.0
+        self, tip_frame: str | None = None, reference_frame: str | None = None, timeout: float = 2.0
     ) -> PoseStamped | None:
         """
         Look up the live end-effector pose via TF (not joint values — a
@@ -285,6 +295,8 @@ class MotionExecutor:
         not up yet); callers should treat that as a hard failure, not silently
         substitute a guessed pose.
         """
+        tip_frame = tip_frame or f"{self._prefix}tool0"
+        reference_frame = reference_frame or f"{self._prefix}base_link"
         try:
             tf = self._tf_buffer.lookup_transform(
                 reference_frame, tip_frame, rclpy.time.Time(),
@@ -307,7 +319,7 @@ class MotionExecutor:
         dx: float = 0.0,
         dy: float = 0.0,
         dz: float = 0.0,
-        group: str = "arm",
+        group: str | None = None,
         timeout: float = 30.0,
     ) -> bool:
         """
@@ -324,6 +336,7 @@ class MotionExecutor:
         would reject an unreachable target anyway, but this fails fast with
         a clear reason instead of a generic "-31" from /compute_ik.
         """
+        group = group or f"{self._prefix}arm"
         _MAX_STEP = 0.5  # metres — generous vs. the UR3's ~0.5m reach, well past any real "nudge"
         clamped = {
             "dx": max(-_MAX_STEP, min(_MAX_STEP, dx)),
@@ -360,7 +373,7 @@ class MotionExecutor:
     def move_to_pose(
         self,
         pose: PoseStamped,
-        group: str = "arm",
+        group: str | None = None,
         timeout: float = 30.0,
     ) -> bool:
         """
@@ -369,6 +382,7 @@ class MotionExecutor:
         Uses /compute_ik to get joint angles, then Pilz PTP for time-stamped
         execution (avoids TOTG zero-duration bug with OMPL in Humble).
         """
+        group = group or f"{self._prefix}arm"
         self._logger.info(
             f"[MotionExecutor] move_to_pose: group={group} "
             f"pos=({pose.pose.position.x:.3f}, {pose.pose.position.y:.3f}, "
@@ -410,18 +424,20 @@ class MotionExecutor:
         target_pan = math.atan2(
             pose.pose.position.y, pose.pose.position.x
         )
+        elbow_joint_name = f"{self._prefix}elbow_joint"
+        pan_joint_name = f"{self._prefix}shoulder_pan_joint"
         seed_js = JointState()
         current_elbow = 0.0
         if self._latest_joint_state is not None and \
-                "elbow_joint" in self._latest_joint_state.name:
-            ei = self._latest_joint_state.name.index("elbow_joint")
+                elbow_joint_name in self._latest_joint_state.name:
+            ei = self._latest_joint_state.name.index(elbow_joint_name)
             current_elbow = self._latest_joint_state.position[ei]
 
         if abs(current_elbow) < 0.3:
             # Arm near home — use natural downward-grasp seed
             seed_positions = list(_NATURAL_GRASP_SEED)
             seed_positions[0] = target_pan
-            seed_js.name = list(_ARM_JOINTS)
+            seed_js.name = list(self._arm_joints)
             seed_js.position = seed_positions
         else:
             # Already in a pick-like pose — seed from current state + override pan
@@ -429,8 +445,8 @@ class MotionExecutor:
                 name=list(self._latest_joint_state.name),
                 position=list(self._latest_joint_state.position),
             )
-            if "shoulder_pan_joint" in seed_js.name:
-                idx = seed_js.name.index("shoulder_pan_joint")
+            if pan_joint_name in seed_js.name:
+                idx = seed_js.name.index(pan_joint_name)
                 seed_js.position[idx] = target_pan
         req.ik_request.robot_state.joint_state = seed_js
 
@@ -447,7 +463,7 @@ class MotionExecutor:
             return None
 
         joint_state = resp.solution.joint_state
-        group_joints = _ARM_JOINTS if group in ("arm", "arm_with_gripper") else []
+        group_joints = self._arm_joints if group in (f"{self._prefix}arm", f"{self._prefix}arm_with_gripper") else []
 
         # Get a reference (home or current) so we can canonicalize joint values.
         # KDL can return 2π-equivalent solutions; we pick the one closest to the
@@ -455,7 +471,7 @@ class MotionExecutor:
         ref = list(_NAMED_ARM_POSES.get("home", [0.0] * 6))
         if self._latest_joint_state is not None:
             js = self._latest_joint_state
-            for i, jname in enumerate(_ARM_JOINTS):
+            for i, jname in enumerate(self._arm_joints):
                 if jname in js.name:
                     ref[i] = js.position[js.name.index(jname)]
 
@@ -496,7 +512,7 @@ class MotionExecutor:
         req.planner_id = "PTP"
 
         constraints = Constraints()
-        for name, value in zip(_ARM_JOINTS, joint_values):
+        for name, value in zip(self._arm_joints, joint_values):
             jc = JointConstraint()
             jc.joint_name = name
             jc.position = value
@@ -587,7 +603,7 @@ class MotionExecutor:
 
         if action == "move_to_named_pose":
             pose_name = task.get("pose_name", "home")
-            return self.move_to_named_pose("arm", pose_name)
+            return self.move_to_named_pose(f"{self._prefix}arm", pose_name)
 
         elif action == "open_gripper":
             return self.open_gripper()
@@ -710,11 +726,10 @@ class MotionExecutor:
 
         return True
 
-    @staticmethod
-    def _make_downward_pose(x: float, y: float, z: float) -> PoseStamped:
+    def _make_downward_pose(self, x: float, y: float, z: float) -> PoseStamped:
         """
         Create a tool0 PoseStamped that puts the gripper's fingertip TCP,
-        pointing straight down, at (x, y, z) in base_link.
+        pointing straight down, at (x, y, z) in this instance's base_link.
 
         The orientation corresponds to a rotation where the tool z-axis
         points in the -world-Z direction (downward grasp).
@@ -732,7 +747,7 @@ class MotionExecutor:
             PoseStamped ready for move_to_pose.
         """
         pose = PoseStamped()
-        pose.header.frame_id = "base_link"
+        pose.header.frame_id = f"{self._prefix}base_link"
         pose.pose.position.x = x
         pose.pose.position.y = y
         pose.pose.position.z = z + GRIPPER_TCP_OFFSET_Z

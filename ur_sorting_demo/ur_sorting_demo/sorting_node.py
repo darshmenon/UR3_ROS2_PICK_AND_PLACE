@@ -12,9 +12,10 @@ Usage:
 Topics subscribed:
     /detected_objects  (ur_interfaces/DetectedObjectArray)
 
-Services:
-    /sorting/start   (std_srvs/Trigger) — begin a sorting cycle
-    /sorting/stop    (std_srvs/Trigger) — abort current cycle
+Services (relative — namespaced per instance, e.g. /left/sorting/start,
+/right/sorting/start when run via dual_sorting_demo.launch.py):
+    sorting/start   (std_srvs/Trigger) — begin a sorting cycle
+    sorting/stop    (std_srvs/Trigger) — abort current cycle
 
 The node reuses MotionExecutor from ur_llm_planner so all pick/place
 logic (IK seeding, Pilz PTP, gripper control) is identical.
@@ -63,9 +64,30 @@ class SortingNode(Node):
         self.declare_parameter("settle_time", 2.0)
         self.declare_parameter("max_objects_per_cycle", 10)
 
+        # Dual-arm support: joint/link/controller name prefix (e.g. "left_"),
+        # passed to MotionExecutor. Default "" reproduces single-arm behaviour
+        # exactly.
+        self.declare_parameter("prefix", "")
+        self._prefix = self.get_parameter("prefix").value
+
+        # Workspace split: when two SortingNode instances run against the
+        # same /detected_objects stream (one per arm), each must only act on
+        # its own half. Disabled by default so single-arm behaviour is
+        # unchanged. split_value/split_keep_positive default to a y=0.0
+        # midline matching the dual rig's left(+y)/right(-y) base offsets —
+        # TODO: confirm/tune against real table geometry once chosen.
+        self.declare_parameter("enable_workspace_split", False)
+        self.declare_parameter("split_axis", "y")
+        self.declare_parameter("split_value", 0.0)
+        self.declare_parameter("split_keep_positive", True)
+
         self._min_confidence = self.get_parameter("min_confidence").value
         self._settle_time = self.get_parameter("settle_time").value
         self._max_objects = self.get_parameter("max_objects_per_cycle").value
+        self._enable_split = self.get_parameter("enable_workspace_split").value
+        self._split_axis = self.get_parameter("split_axis").value
+        self._split_value = self.get_parameter("split_value").value
+        self._split_keep_positive = self.get_parameter("split_keep_positive").value
 
         self._bins = self._load_bins()
 
@@ -80,16 +102,23 @@ class SortingNode(Node):
             SENSOR_QOS,
         )
 
-        self._status_pub = self.create_publisher(String, "/sorting/status", 10)
+        # Relative names so a namespace push (e.g. /left, /right for the
+        # dual-arm split) correctly differentiates two instances — absolute
+        # names would collide across instances.
+        self._status_pub = self.create_publisher(String, "sorting/status", 10)
 
-        self.create_service(Trigger, "/sorting/start", self._start_cb)
-        self.create_service(Trigger, "/sorting/stop", self._stop_cb)
+        self.create_service(Trigger, "sorting/start", self._start_cb)
+        self.create_service(Trigger, "sorting/stop", self._stop_cb)
 
         # Late-import MotionExecutor to avoid circular deps at import time
         from ur_llm_planner.motion_executor import MotionExecutor
-        self._executor_obj = MotionExecutor(self)
+        self._executor_obj = MotionExecutor(self, prefix=self._prefix)
 
-        self.get_logger().info("SortingNode ready.  Call /sorting/start to begin.")
+        self.get_logger().info(
+            f"SortingNode ready (prefix='{self._prefix}', "
+            f"workspace_split={'on' if self._enable_split else 'off'}). "
+            "Call sorting/start to begin."
+        )
 
     # ── ROS callbacks ─────────────────────────────────────────────────────────
 
@@ -129,6 +158,7 @@ class SortingNode(Node):
         filtered = [
             o for o in objects
             if o.confidence >= self._min_confidence and self._color_of(o) in self._bins
+            and self._on_my_side(o)
         ]
 
         if not filtered:
@@ -151,7 +181,7 @@ class SortingNode(Node):
             return
 
         # Home first
-        self._executor_obj.move_to_named_pose("arm", "home")
+        self._executor_obj.move_to_named_pose(f"{self._prefix}arm", "home")
 
         succeeded = 0
         for obj in filtered:
@@ -191,13 +221,21 @@ class SortingNode(Node):
             else:
                 self.get_logger().warn(f"Failed to sort {obj.id} — continuing with next.")
 
-        self._executor_obj.move_to_named_pose("arm", "home")
+        self._executor_obj.move_to_named_pose(f"{self._prefix}arm", "home")
         summary = f"Sort cycle complete: {succeeded}/{len(filtered)} placed"
         self.get_logger().info(summary)
         self._publish_status(summary)
         self._running = False
 
     # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _on_my_side(self, obj) -> bool:
+        """Workspace-split filter for dual-arm mode (no-op when disabled)."""
+        if not self._enable_split:
+            return True
+        value = obj.position.y if self._split_axis == "y" else obj.position.x
+        on_positive_side = value >= self._split_value
+        return on_positive_side == self._split_keep_positive
 
     @staticmethod
     def _color_of(obj) -> str:

@@ -71,11 +71,41 @@ def generate_launch_description():
                     "a BT (see ur_bt_planner/launch/mtc_retry.launch.py) drives attempts "
                     "via the run_pick_place service instead.")
 
+    # Dual-arm support (see ur_gazebo/launch/dual_mtc_pick_place.launch.py,
+    # which includes this file twice with namespace:=left/right). Defaults
+    # reproduce single-arm behaviour exactly.
+    declare_namespace_cmd = DeclareLaunchArgument(
+        name="namespace",
+        default_value="",
+        description="Node namespace (e.g. 'left'/'right' for dual-arm). Under a "
+                    "namespace, run_pick_place resolves to e.g. /left/run_pick_place; "
+                    "execute_task_solution is explicitly remapped back to the shared "
+                    "/execute_task_solution action server (one move_group serves both "
+                    "arms) -- see the remappings on mtc_demo_node below.")
+
+    declare_mtc_node_params_file_cmd = DeclareLaunchArgument(
+        name="mtc_node_params_file",
+        default_value="",
+        description="Override path for mtc_node's params YAML (e.g. "
+                    "mtc_node_params_left.yaml). Empty means use the gripper-based "
+                    "default (mtc_node_params.yaml / _onrobot.yaml).")
+
+    declare_use_dual_arm_cmd = DeclareLaunchArgument(
+        name="use_dual_arm",
+        default_value="false",
+        description="Build the MoveIt config against the dual-arm robot description "
+                    "(dual_ur.srdf.xacro/dual_ur.urdf.xacro/dual_*.yaml) instead of the "
+                    "single-arm one, so left_arm/right_arm groups resolve. Required for "
+                    "namespace:=left/right use.")
+
     def configure_setup(context):
         """Configure MoveIt and create nodes with proper string conversions."""
         # Get the robot name as a string for use in MoveItConfigsBuilder
         robot_name_str = LaunchConfiguration('robot_name').perform(context)
         gripper_str = gripper.perform(context)
+        namespace_str = LaunchConfiguration('namespace').perform(context)
+        mtc_node_params_override = LaunchConfiguration('mtc_node_params_file').perform(context)
+        use_dual_arm = LaunchConfiguration('use_dual_arm').perform(context) == 'true'
 
         # Get package path
         pkg_share_moveit_config = pkg_share_moveit_config_temp.find(package_name_moveit_config)
@@ -88,23 +118,42 @@ def generate_launch_description():
 
         # Define all config file paths
         initial_positions_file_path = os.path.join(config_path, 'initial_positions.yaml')
-        joint_limits_file_path = os.path.join(config_path, 'joint_limits.yaml')
-        kinematics_file_path = os.path.join(config_path, 'kinematics.yaml')
-        if gripper_str in ('onrobot_rg2', 'onrobot_rg6'):
-            moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers_onrobot.yaml')
+        if use_dual_arm:
+            # Mirrors ur_gazebo/launch/dual_ur.gazebo.launch.py's
+            # MoveItConfigsBuilder("dual_ur", ...) so left_arm/right_arm
+            # groups resolve -- the single-arm config below has no such
+            # groups.
+            joint_limits_file_path = os.path.join(config_path, 'dual_joint_limits.yaml')
+            kinematics_file_path = os.path.join(config_path, 'dual_kinematics.yaml')
+            moveit_controllers_file_path = os.path.join(config_path, 'dual_moveit_controllers.yaml')
+            srdf_model_path = os.path.join(config_path, 'dual_ur.srdf.xacro')
+            urdf_model_path = os.path.join(config_path, 'dual_ur.urdf.xacro')
+            moveit_config_robot_name = 'dual_ur'
+        else:
+            joint_limits_file_path = os.path.join(config_path, 'joint_limits.yaml')
+            kinematics_file_path = os.path.join(config_path, 'kinematics.yaml')
+            if gripper_str in ('onrobot_rg2', 'onrobot_rg6'):
+                moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers_onrobot.yaml')
+            else:
+                moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers.yaml')
+            srdf_model_path = os.path.join(config_path, 'ur.srdf.xacro')
+            urdf_model_path = os.path.join(config_path, 'ur.urdf.xacro')
+            moveit_config_robot_name = robot_name_str
+
+        if mtc_node_params_override:
+            mtc_node_params_file_path = mtc_node_params_override
+        elif gripper_str in ('onrobot_rg2', 'onrobot_rg6'):
             mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_onrobot.yaml')
         else:
-            moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers.yaml')
             mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params.yaml')
-        srdf_model_path = os.path.join(config_path, 'ur.srdf.xacro')
         pilz_cartesian_limits_file_path = os.path.join(config_path, 'pilz_cartesian_limits.yaml')
 
         # Create MoveIt configuration
         moveit_config = (
-            MoveItConfigsBuilder(robot_name_str, package_name=package_name_moveit_config)
+            MoveItConfigsBuilder(moveit_config_robot_name, package_name=package_name_moveit_config)
             .trajectory_execution(file_path=moveit_controllers_file_path)
             .robot_description_semantic(file_path=srdf_model_path, mappings={'gripper': gripper})
-            .robot_description(file_path=os.path.join(config_path, 'ur.urdf.xacro'), mappings={'gripper': gripper})
+            .robot_description(file_path=urdf_model_path, mappings={'gripper': gripper})
             .joint_limits(file_path=joint_limits_file_path)
             .robot_description_kinematics(file_path=kinematics_file_path)
             .planning_pipelines(
@@ -124,6 +173,7 @@ def generate_launch_description():
         mtc_demo_node = Node(
             package="ur_mtc_pick_place_demo",
             executable=exe,
+            namespace=namespace_str,
             output="screen",
             parameters=[
                 moveit_config.to_dict(),
@@ -131,6 +181,26 @@ def generate_launch_description():
                 {'start_state': {'content': initial_positions_file_path}},
                 mtc_node_params_file_path,
                 {'auto_run_on_startup': auto_run_on_startup},
+            ],
+            # execute_task_solution is a relative action client lookup inside
+            # mtc_node's executeSolution() -- under a namespace push it would
+            # otherwise resolve to /<namespace>/execute_task_solution, but
+            # there is only ONE shared move_group (serving every planning
+            # group, dual or single-arm) hosting /execute_task_solution.
+            # mtc_node.cpp's own get_client/apply_client (lines ~529-530) are
+            # already absolute and need no remap -- but
+            # moveit::planning_interface::PlanningSceneInterface (constructed
+            # internally by mtc_node for ModifyPlanningScene/attach stages)
+            # creates its OWN relative "get_planning_scene"/
+            # "apply_planning_scene" clients (capability_names.h), which a
+            # namespace push would otherwise misroute to
+            # /<namespace>/get_planning_scene -- confirmed live: this hung
+            # waiting on a nonexistent /left/get_planning_scene service
+            # before this remap was added.
+            remappings=[
+                ('execute_task_solution', '/execute_task_solution'),
+                ('get_planning_scene', '/get_planning_scene'),
+                ('apply_planning_scene', '/apply_planning_scene'),
             ],
         )
 
@@ -145,6 +215,9 @@ def generate_launch_description():
     ld.add_action(declare_gripper_cmd)
     ld.add_action(declare_exe_cmd)
     ld.add_action(declare_auto_run_cmd)
+    ld.add_action(declare_namespace_cmd)
+    ld.add_action(declare_mtc_node_params_file_cmd)
+    ld.add_action(declare_use_dual_arm_cmd)
 
     # Add the setup and node creation
     ld.add_action(OpaqueFunction(function=configure_setup))

@@ -58,13 +58,18 @@ class MTCRetryNode(Node):
         self._running = False
         self._stop_flag = False
 
-        self._status_pub = self.create_publisher(String, "/mtc_bt/status", 10)
-        self.create_service(Trigger, "/mtc_bt/run", self._run_cb)
-        self.create_service(Trigger, "/mtc_bt/stop", self._stop_cb)
+        # Relative names -- a namespace push (e.g. /left, /right for the
+        # dual-arm split) correctly differentiates two instances; absolute
+        # names would collide across instances (this was a real bug: two
+        # namespaced mtc_retry_node instances would both try to serve the
+        # same /mtc_bt/run regardless of their namespace).
+        self._status_pub = self.create_publisher(String, "mtc_bt/status", 10)
+        self.create_service(Trigger, "mtc_bt/run", self._run_cb)
+        self.create_service(Trigger, "mtc_bt/stop", self._stop_cb)
 
         self.get_logger().info(
             f"MTCRetryNode ready (max_attempts={self._max_attempts}, "
-            f"service='{self._service_name}'). Call /mtc_bt/run to execute."
+            f"service='{self._service_name}'). Call mtc_bt/run to execute."
         )
 
     def _run_cb(self, request, response):

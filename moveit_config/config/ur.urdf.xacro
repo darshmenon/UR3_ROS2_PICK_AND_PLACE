@@ -59,5 +59,6 @@
       controllers_file="${controllers_file}"/>
 
     <xacro:include filename="$(find ur_description)/urdf/intel_rgbd_cam_d435.urdf.xacro"/>
+    <xacro:intel_rgbd_cam_d435 prefix="$(arg tf_prefix)" parent_link="$(arg tf_prefix)base_link"/>
     <xacro:include filename="$(find ur_description)/urdf/intel_rgbd_cam_d435_wrist.urdf.xacro"/>
 </robot>

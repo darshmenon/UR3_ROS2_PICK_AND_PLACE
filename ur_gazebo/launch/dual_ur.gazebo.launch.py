@@ -9,8 +9,10 @@ independently through MoveIt/RViz — there is no bimanual (single-plan,
 both-arms-together) MTC task graph yet, only the SRDF's "both_arms" group
 declared for that future work (see README's Dual-Arm Support section).
 
-Only robotiq_2f_85/robotiq_2f_140 grippers have SRDF groups today (dual_ur.srdf.xacro
-doesn't cover onrobot_rg2/rg6 yet) — move_group/RViz are only started for those two.
+dual_ur.srdf.xacro now covers all four grippers (robotiq_2f_85/2f_140,
+onrobot_rg2/rg6) — move_group/RViz are started with the matching MoveIt config
+for whichever gripper is selected. Pass use_dual_cameras:=true to also spawn a
+D435 head camera per arm (left_camera_head/right_camera_head).
 See ur.gazebo.launch.py for the single-arm reference this was adapted from.
 """
 
@@ -82,8 +84,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument("left_y", default_value="0.45", description="Left arm base Y offset (m)"),
         DeclareLaunchArgument("right_y", default_value="-0.45", description="Right arm base Y offset (m)"),
-        DeclareLaunchArgument("use_rviz", default_value="true", description="Launch RViz2 (robotiq grippers only)"),
-        DeclareLaunchArgument("use_move_group", default_value="true", description="Launch move_group node (robotiq grippers only)"),
+        DeclareLaunchArgument("use_rviz", default_value="true", description="Launch RViz2"),
+        DeclareLaunchArgument("use_move_group", default_value="true", description="Launch move_group node"),
+        DeclareLaunchArgument(
+            "use_dual_cameras", default_value="false",
+            description="Spawn a D435 head camera per arm (left_camera_head/right_camera_head).",
+        ),
     ]
 
     ld = LaunchDescription(declared_arguments)
@@ -109,6 +115,8 @@ def generate_launch_description():
         "left_y:=", left_y,
         " ",
         "right_y:=", right_y,
+        " ",
+        "use_dual_cameras:=", LaunchConfiguration("use_dual_cameras"),
     ])
     robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
 
@@ -120,8 +128,10 @@ def generate_launch_description():
         parameters=[robot_description, {'use_sim_time': use_sim_time}]
     )
 
-    # MoveIt / RViz -- only wired up for robotiq_2f_85/2f_140, since
-    # dual_ur.srdf.xacro doesn't have onrobot groups yet.
+    # MoveIt / RViz -- one MoveItConfigsBuilder/move_group/rviz2 pair per
+    # gripper family (mirrors ur.gazebo.launch.py's robotiq/onrobot split),
+    # since MoveItConfigsBuilder reads its controllers-yaml path once at
+    # description-generation time, not at launch runtime.
     robotiq_move_group_condition = IfCondition(
         PythonExpression([
             "'", gripper, "' in ['robotiq_2f_85', 'robotiq_2f_140'] and '",
@@ -133,6 +143,22 @@ def generate_launch_description():
             "'", gripper, "' in ['robotiq_2f_85', 'robotiq_2f_140'] and '",
             LaunchConfiguration("use_rviz"), "' == 'true'",
         ])
+    )
+    onrobot_move_group_condition = IfCondition(
+        PythonExpression([
+            "'", gripper, "' in ['onrobot_rg2', 'onrobot_rg6'] and '",
+            LaunchConfiguration("use_move_group"), "' == 'true'",
+        ])
+    )
+    onrobot_rviz_condition = IfCondition(
+        PythonExpression([
+            "'", gripper, "' in ['onrobot_rg2', 'onrobot_rg6'] and '",
+            LaunchConfiguration("use_rviz"), "' == 'true'",
+        ])
+    )
+    # Scene objects (below) don't depend on gripper type -- fire for either family.
+    any_move_group_condition = IfCondition(
+        PythonExpression(["'", LaunchConfiguration("use_move_group"), "' == 'true'"])
     )
 
     moveit_config_dual = (
@@ -155,8 +181,30 @@ def generate_launch_description():
     )
     moveit_config_dual.robot_description = robot_description
 
+    moveit_config_dual_onrobot = (
+        MoveItConfigsBuilder("dual_ur", package_name=package_name_moveit)
+        .trajectory_execution(file_path=os.path.join(moveit_config_share, "config", "dual_moveit_controllers_onrobot.yaml"))
+        .robot_description_semantic(
+            file_path=os.path.join(moveit_config_share, "config", "dual_ur.srdf.xacro"),
+            mappings={'gripper': gripper},
+        )
+        .joint_limits(file_path=os.path.join(moveit_config_share, "config", "dual_joint_limits.yaml"))
+        .robot_description_kinematics(file_path=os.path.join(moveit_config_share, "config", "dual_kinematics.yaml"))
+        .pilz_cartesian_limits(file_path=os.path.join(moveit_config_share, "config", "pilz_cartesian_limits.yaml"))
+        .planning_pipelines(pipelines=["ompl", "pilz_industrial_motion_planner"], default_planning_pipeline="ompl")
+        .planning_scene_monitor(
+            publish_robot_description=True,
+            publish_robot_description_semantic=True,
+            publish_planning_scene=True,
+        )
+        .to_moveit_configs()
+    )
+    moveit_config_dual_onrobot.robot_description = robot_description
+
     move_group_parameters_dual = moveit_config_dual.to_dict()
     move_group_parameters_dual.update(robot_description)
+    move_group_parameters_dual_onrobot = moveit_config_dual_onrobot.to_dict()
+    move_group_parameters_dual_onrobot.update(robot_description)
 
     move_group_node_cmd = Node(
         package="moveit_ros_move_group",
@@ -164,6 +212,13 @@ def generate_launch_description():
         output="screen",
         parameters=[move_group_parameters_dual, {'use_sim_time': use_sim_time}],
         condition=robotiq_move_group_condition,
+    )
+    move_group_node_cmd_onrobot = Node(
+        package="moveit_ros_move_group",
+        executable="move_group",
+        output="screen",
+        parameters=[move_group_parameters_dual_onrobot, {'use_sim_time': use_sim_time}],
+        condition=onrobot_move_group_condition,
     )
 
     rviz_config_path = os.path.join(moveit_config_share, "rviz", "dual_ur.rviz")
@@ -181,6 +236,21 @@ def generate_launch_description():
             {"use_sim_time": use_sim_time},
         ],
         condition=robotiq_rviz_condition,
+    )
+    rviz_node_cmd_onrobot = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", rviz_config_path],
+        parameters=[
+            robot_description,
+            moveit_config_dual_onrobot.robot_description_semantic,
+            moveit_config_dual_onrobot.robot_description_kinematics,
+            moveit_config_dual_onrobot.planning_pipelines,
+            {"use_sim_time": use_sim_time},
+        ],
+        condition=onrobot_rviz_condition,
     )
 
     start_gazebo_cmd = IncludeLaunchDescription(
@@ -262,7 +332,9 @@ def generate_launch_description():
     ld.add_action(start_gazebo_ros_spawner_cmd)
     ld.add_action(OpaqueFunction(function=_spawn_step))
     ld.add_action(move_group_node_cmd)
+    ld.add_action(move_group_node_cmd_onrobot)
     ld.add_action(rviz_node_cmd)
+    ld.add_action(rviz_node_cmd_onrobot)
 
     # Everything in colored_blocks.world (mount_table, the small pick table,
     # red_box) only exists in Gazebo -- none of it is in the URDF, so MoveIt/
@@ -303,7 +375,7 @@ def generate_launch_description():
                 "moveit_msgs/msg/PlanningScene",
                 "{is_diff: true, world: {collision_objects: [" + _collision_objects_yaml + "]}}",
             ],
-            condition=robotiq_move_group_condition,
+            condition=any_move_group_condition,
         )],
     )
     ld.add_action(add_scene_objects_cmd)
