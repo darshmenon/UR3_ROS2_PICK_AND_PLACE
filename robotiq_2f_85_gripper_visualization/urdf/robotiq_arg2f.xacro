@@ -23,7 +23,7 @@
         </geometry>
       </collision>
     </link>
-    <gazebo reference="robotiq_arg2f_base_link">
+    <gazebo reference="${prefix}robotiq_arg2f_base_link">
   <disableFixedJointLumping>true</disableFixedJointLumping>
 </gazebo>
   </xacro:macro>

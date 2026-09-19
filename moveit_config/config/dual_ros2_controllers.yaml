@@ -1,0 +1,74 @@
+# ros2_control config for dual_ur.urdf.xacro — mirrors ros2_controllers.yaml but with
+# left_/right_ prefixed joint names, one controller_manager for both arms.
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    left_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    right_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    left_gripper_controller:
+      type: position_controllers/GripperActionController
+
+    right_gripper_controller:
+      type: position_controllers/GripperActionController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+left_arm_controller:
+  ros__parameters:
+    joints:
+      - left_shoulder_pan_joint
+      - left_shoulder_lift_joint
+      - left_elbow_joint
+      - left_wrist_1_joint
+      - left_wrist_2_joint
+      - left_wrist_3_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_nonzero_velocity_at_trajectory_end: true
+    constraints:
+      stopped_velocity_tolerance: 0.1
+      goal_time: 5.0
+
+right_arm_controller:
+  ros__parameters:
+    joints:
+      - right_shoulder_pan_joint
+      - right_shoulder_lift_joint
+      - right_elbow_joint
+      - right_wrist_1_joint
+      - right_wrist_2_joint
+      - right_wrist_3_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    allow_nonzero_velocity_at_trajectory_end: true
+    constraints:
+      stopped_velocity_tolerance: 0.1
+      goal_time: 5.0
+
+left_gripper_controller:
+  ros__parameters:
+    joint: left_finger_joint
+    allow_stalling: true
+    stall_timeout: 0.5
+    stall_velocity_threshold: 0.001
+    goal_tolerance: 0.02
+
+right_gripper_controller:
+  ros__parameters:
+    joint: right_finger_joint
+    allow_stalling: true
+    stall_timeout: 0.5
+    stall_velocity_threshold: 0.001
+    goal_tolerance: 0.02

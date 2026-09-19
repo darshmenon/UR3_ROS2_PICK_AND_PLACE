@@ -1,0 +1,102 @@
+<?xml version="1.0"?>
+<!--
+Dual-arm variant of ur.urdf.xacro — two independent UR3 arms ("left_"/"right_"
+tf_prefix) on one world link, sharing a single ros2_control plugin/controller_manager.
+
+Phase 1: independent arm motion only, no MoveIt/SRDF wiring yet (see dual_ur.gazebo.launch.py).
+No cameras yet — ur_description's camera xacros use a single global `$(arg prefix)`,
+not a macro param, so they can only be included once per file; adding dual cameras
+needs those xacros converted to proper macros first.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="dual_ur">
+    <xacro:arg name="use_gazebo" default="true"/>
+    <xacro:arg name="robot_name" default="dual_ur"/>
+    <xacro:arg name="gripper" default="robotiq_2f_85"/>
+    <xacro:arg name="ur_type" default="ur3"/>
+    <xacro:arg name="joint_limit_params" default="$(find ur_description)/config/$(arg ur_type)/joint_limits.yaml"/>
+    <xacro:arg name="kinematics_params" default="$(find ur_description)/config/$(arg ur_type)/default_kinematics.yaml"/>
+    <xacro:arg name="physical_params" default="$(find ur_description)/config/$(arg ur_type)/physical_parameters.yaml"/>
+    <xacro:arg name="visual_params" default="$(find ur_description)/config/$(arg ur_type)/visual_parameters.yaml"/>
+    <xacro:arg name="safety_limits" default="false"/>
+    <xacro:arg name="safety_pos_margin" default="0.15"/>
+    <xacro:arg name="safety_k_position" default="20"/>
+    <xacro:arg name="force_abs_paths" default="false"/>
+    <xacro:arg name="table_height" default="0.0"/>
+    <!-- Each arm's base Y offset (m) from the shared world origin — 0.9m apart by default. -->
+    <xacro:arg name="left_y" default="0.45"/>
+    <xacro:arg name="right_y" default="-0.45"/>
+
+    <xacro:include filename="$(find ur_description)/urdf/ur_macro.xacro" />
+    <xacro:include filename="$(find moveit_config)/config/ur.ros2_control.xacro" />
+    <xacro:include filename="$(find ur_description)/urdf/gazebo_sim_ros2_control.urdf.xacro" />
+
+    <xacro:property name="selected_gripper" value="$(arg gripper)"/>
+    <xacro:property name="controllers_file" value="$(find moveit_config)/config/dual_ros2_controllers.yaml"/>
+
+    <link name="world" />
+
+    <!-- bullet-featherstone (default physics engine) only supports ONE
+         connected tree per model rooted at world: two separate fixed joints
+         straight from "world" (one per arm) shows up as two disconnected
+         "floating sub-trees", which it silently drops (crashes gz_ros2_control
+         next cycle reading state for the dropped links). Routing both arms
+         through one shared fixed link makes it a single branching tree
+         instead, which Featherstone's algorithm is built for. -->
+    <link name="dual_mount" />
+    <joint name="world_to_dual_mount" type="fixed">
+      <parent link="world" />
+      <child link="dual_mount" />
+    </joint>
+
+    <xacro:ur_robot
+      name="left_ur"
+      tf_prefix="left_"
+      parent="dual_mount"
+      joint_limits_parameters_file="$(arg joint_limit_params)"
+      kinematics_parameters_file="$(arg kinematics_params)"
+      physical_parameters_file="$(arg physical_params)"
+      visual_parameters_file="$(arg visual_params)"
+      safety_limits="$(arg safety_limits)"
+      safety_pos_margin="$(arg safety_pos_margin)"
+      safety_k_position="$(arg safety_k_position)"
+      force_abs_paths="$(arg force_abs_paths)"
+      gripper="$(arg gripper)">
+      <origin xyz="0 $(arg left_y) $(arg table_height)" rpy="0 0 0" />
+    </xacro:ur_robot>
+
+    <xacro:ur_robot
+      name="right_ur"
+      tf_prefix="right_"
+      parent="dual_mount"
+      joint_limits_parameters_file="$(arg joint_limit_params)"
+      kinematics_parameters_file="$(arg kinematics_params)"
+      physical_parameters_file="$(arg physical_params)"
+      visual_parameters_file="$(arg visual_params)"
+      safety_limits="$(arg safety_limits)"
+      safety_pos_margin="$(arg safety_pos_margin)"
+      safety_k_position="$(arg safety_k_position)"
+      force_abs_paths="$(arg force_abs_paths)"
+      gripper="$(arg gripper)">
+      <origin xyz="0 $(arg right_y) $(arg table_height)" rpy="0 0 ${pi}" />
+    </xacro:ur_robot>
+
+    <gazebo>
+      <disableFixedJointLumping>true</disableFixedJointLumping>
+    </gazebo>
+
+    <xacro:ur_ros2_control
+      name="left_ur"
+      prefix="left_"
+      initial_positions_file="$(find moveit_config)/config/initial_positions.yaml"
+      gripper="$(arg gripper)"/>
+    <xacro:ur_ros2_control
+      name="right_ur"
+      prefix="right_"
+      initial_positions_file="$(find moveit_config)/config/initial_positions.yaml"
+      gripper="$(arg gripper)"/>
+
+    <xacro:load_gazebo_sim_ros2_control_plugin
+      robot_name="$(arg robot_name)"
+      use_gazebo="$(arg use_gazebo)"
+      controllers_file="${controllers_file}"/>
+</robot>

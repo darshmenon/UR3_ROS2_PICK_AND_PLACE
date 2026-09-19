@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:macro name="ur_ros2_control" params="name initial_positions_file gripper:=robotiq_2f_85">
+    <xacro:macro name="ur_ros2_control" params="name initial_positions_file gripper:=robotiq_2f_85 prefix:=''">
         <xacro:property name="initial_positions" value="${xacro.load_yaml(initial_positions_file)['initial_positions']}"/>
 
         <ros2_control name="${name}" type="system">
@@ -8,7 +8,7 @@
                 <!-- By default, set up controllers for simulation. This won't work on real hardware -->
                 <plugin>gz_ros2_control/GazeboSimSystem</plugin>
             </hardware>
-            <joint name="shoulder_pan_joint">
+            <joint name="${prefix}shoulder_pan_joint">
                 <command_interface name="position"/>
                 <command_interface name="effort">
                     <param name="min">-56.0</param>
@@ -23,7 +23,7 @@
                 </state_interface>
             </joint>
 
-            <joint name="shoulder_lift_joint">
+            <joint name="${prefix}shoulder_lift_joint">
                 <command_interface name="position"/>
                 <command_interface name="effort">
                     <param name="min">-56.0</param>
@@ -38,7 +38,7 @@
                 </state_interface>
             </joint>
 
-            <joint name="elbow_joint">
+            <joint name="${prefix}elbow_joint">
                 <command_interface name="position"/>
                 <command_interface name="effort">
                     <param name="min">-28.0</param>
@@ -53,7 +53,7 @@
                 </state_interface>
             </joint>
 
-            <joint name="wrist_1_joint">
+            <joint name="${prefix}wrist_1_joint">
                 <command_interface name="position"/>
                 <command_interface name="effort">
                     <param name="min">-12.0</param>
@@ -68,7 +68,7 @@
                 </state_interface>
             </joint>
 
-            <joint name="wrist_2_joint">
+            <joint name="${prefix}wrist_2_joint">
                 <command_interface name="position"/>
                 <command_interface name="effort">
                     <param name="min">-12.0</param>
@@ -83,7 +83,7 @@
                 </state_interface>
             </joint>
 
-            <joint name="wrist_3_joint">
+            <joint name="${prefix}wrist_3_joint">
                 <command_interface name="position"/>
                 <command_interface name="effort">
                     <param name="min">-12.0</param>
@@ -99,7 +99,7 @@
             </joint>
 
             <xacro:if value="${gripper == 'robotiq_2f_85' or gripper == 'robotiq_2f_140'}">
-                <joint name="finger_joint">
+                <joint name="${prefix}finger_joint">
                     <command_interface name="position"/>
                     <state_interface name="position">
                         <param name="initial_value">${initial_positions['finger_joint']}</param>
@@ -114,35 +114,35 @@
                      Adding command_interface to constrained joints causes GazeboSimSystem
                      plugin init failure. -->
 
-                <joint name="right_outer_knuckle_joint">
+                <joint name="${prefix}right_outer_knuckle_joint">
                     <state_interface name="position">
                         <param name="initial_value">${initial_positions['right_outer_knuckle_joint']}</param>
                     </state_interface>
                     <state_interface name="velocity"/>
                 </joint>
 
-                <joint name="right_inner_knuckle_joint">
+                <joint name="${prefix}right_inner_knuckle_joint">
                     <state_interface name="position">
                         <param name="initial_value">${initial_positions['right_inner_knuckle_joint']}</param>
                     </state_interface>
                     <state_interface name="velocity"/>
                 </joint>
 
-                <joint name="left_inner_knuckle_joint">
+                <joint name="${prefix}left_inner_knuckle_joint">
                     <state_interface name="position">
                         <param name="initial_value">${initial_positions['left_inner_knuckle_joint']}</param>
                     </state_interface>
                     <state_interface name="velocity"/>
                 </joint>
 
-                <joint name="right_inner_finger_joint">
+                <joint name="${prefix}right_inner_finger_joint">
                     <state_interface name="position">
                         <param name="initial_value">${initial_positions['right_inner_finger_joint']}</param>
                     </state_interface>
                     <state_interface name="velocity"/>
                 </joint>
 
-                <joint name="left_inner_finger_joint">
+                <joint name="${prefix}left_inner_finger_joint">
                     <state_interface name="position">
                         <param name="initial_value">${initial_positions['left_inner_finger_joint']}</param>
                     </state_interface>
@@ -151,7 +151,7 @@
             </xacro:if>
 
             <xacro:if value="${gripper == 'onrobot_rg2' or gripper == 'onrobot_rg6'}">
-                <joint name="gripper_joint">
+                <joint name="${prefix}gripper_joint">
                     <command_interface name="position"/>
                     <state_interface name="position">
                         <param name="initial_value">${initial_positions['gripper_joint']}</param>
@@ -160,23 +160,23 @@
                     <state_interface name="effort"/>
                 </joint>
 
-                <joint name="gripper_finger_1_truss_arm_joint">
+                <joint name="${prefix}gripper_finger_1_truss_arm_joint">
                     <state_interface name="position"/>
                 </joint>
 
-                <joint name="gripper_finger_1_finger_tip_joint">
+                <joint name="${prefix}gripper_finger_1_finger_tip_joint">
                     <state_interface name="position"/>
                 </joint>
 
-                <joint name="gripper_mirror_joint">
+                <joint name="${prefix}gripper_mirror_joint">
                     <state_interface name="position"/>
                 </joint>
 
-                <joint name="gripper_finger_2_truss_arm_joint">
+                <joint name="${prefix}gripper_finger_2_truss_arm_joint">
                     <state_interface name="position"/>
                 </joint>
 
-                <joint name="gripper_finger_2_finger_tip_joint">
+                <joint name="${prefix}gripper_finger_2_finger_tip_joint">
                     <state_interface name="position"/>
                 </joint>
             </xacro:if>

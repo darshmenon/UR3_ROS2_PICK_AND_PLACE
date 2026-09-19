@@ -110,8 +110,29 @@ def generate_launch_description():
         DeclareLaunchArgument("safety_k_position", default_value="20", description="Safety controller k-position factor"),
         DeclareLaunchArgument("tf_prefix", default_value='""', description="Prefix for joint names"),
         DeclareLaunchArgument("use_rviz", default_value="true", description="Launch RViz2"),
+        DeclareLaunchArgument(
+            "rviz_config", default_value=rviz_config_path,
+            description="Absolute path to an .rviz config file. Defaults to the full "
+                         "MoveIt debug view (moveit_config/rviz/moveit.rviz). For a lean "
+                         "monitoring-only view pass: "
+                         "rviz_config:=$(ros2 pkg prefix moveit_config)/share/moveit_config/rviz/operator_view.rviz",
+        ),
         DeclareLaunchArgument("use_move_group", default_value="true", description="Launch move_group node"),
         DeclareLaunchArgument("use_gazebo_gui", default_value="true", description="Launch Gazebo with the GUI client"),
+        DeclareLaunchArgument(
+            "physics_engine",
+            default_value="gz-physics-bullet-featherstone-plugin",
+            description="Gazebo physics engine plugin. Tried defaulting this to "
+                         "gz-physics-dartsim-plugin on 2026-09-19 to fix the "
+                         "effort-readback mismatch (JointTransmittedWrench diverges "
+                         "from commanded torque under bullet-featherstone for this arm, "
+                         "see project-gz-effort-readback-mismatch memory) -- reverted: "
+                         "live-verified same day that dartsim breaks controller "
+                         "activation here (joint_state_broadcaster fails to configure, "
+                         "arm_controller/gripper_controller never spawn). Override to "
+                         "gz-physics-dartsim-plugin only for further investigation of "
+                         "that regression, not for normal use.",
+        ),
         DeclareLaunchArgument(
             "table_height",
             default_value="1.015",
@@ -304,7 +325,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments=[('gz_args', ['-r -v 4 --physics-engine gz-physics-bullet-featherstone-plugin ', world_path]), ('use_sim_time', 'true')],
+        launch_arguments=[('gz_args', ['-r -v 4 --physics-engine ', LaunchConfiguration("physics_engine"), ' ', world_path]), ('use_sim_time', 'true')],
         condition=IfCondition(LaunchConfiguration("use_gazebo_gui")),
     )
 
@@ -312,7 +333,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments=[('gz_args', ['-s -r -v 4 --physics-engine gz-physics-bullet-featherstone-plugin ', world_path]), ('use_sim_time', 'true')],
+        launch_arguments=[('gz_args', ['-s -r -v 4 --physics-engine ', LaunchConfiguration("physics_engine"), ' ', world_path]), ('use_sim_time', 'true')],
         condition=UnlessCondition(LaunchConfiguration("use_gazebo_gui")),
     )
 
@@ -408,7 +429,7 @@ def generate_launch_description():
         executable="rviz2",
         name="rviz2",
         output="screen",
-        arguments=["-d", rviz_config_path],
+        arguments=["-d", LaunchConfiguration("rviz_config")],
         parameters=[
             robot_description,
             moveit_config_robotiq.robot_description_semantic,
@@ -424,7 +445,7 @@ def generate_launch_description():
         executable="rviz2",
         name="rviz2",
         output="screen",
-        arguments=["-d", rviz_config_path],
+        arguments=["-d", LaunchConfiguration("rviz_config")],
         parameters=[
             robot_description,
             moveit_config_onrobot.robot_description_semantic,

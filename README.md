@@ -22,6 +22,8 @@ UR3 + Robotiq 2-Finger Gripper on **ROS 2 Humble** + **Gazebo Harmonic**: URDF/r
 - [Force Control / Compliant Grasping (ur_force_control)](#force-control--compliant-grasping-ur_force_control)
 - [Behavior Tree Task Planner (ur_bt_planner)](#behavior-tree-task-planner-ur_bt_planner)
 - [Conveyor Belt Simulation (ur_conveyor)](#conveyor-belt-simulation-ur_conveyor)
+- [Dual-Arm Support](#dual-arm-support)
+- [Visualization & Logging](#visualization--logging)
 - [Future Scope / Work in Progress](#future-scope--work-in-progress)
 
 </details>
@@ -119,7 +121,7 @@ ros2 launch ur_gazebo ur.gazebo.launch.py wrist_camera:=true     # eye-in-hand i
 | `empty_red_cylinder.world` | no | red cylinder at `(0.36, 0, 0.06)` |
 | `pick_and_place_demo.world` | yes | red cylinder + YCB props |
 
-Launch args: `use_rviz`, `use_move_group`, `use_gazebo_gui` (all default `true`), `gripper` (default `robotiq_2f_85`), `world_file`, `table_height`.
+Launch args: `use_rviz`, `use_move_group`, `use_gazebo_gui` (all default `true`), `gripper` (default `robotiq_2f_85`), `world_file`, `table_height`, `rviz_config` (default `moveit_config/rviz/moveit.rviz` — see [Visualization & Logging](#visualization--logging) for a leaner alternative).
 
 ### Interactive MoveIt Planning in RViz
 
@@ -342,11 +344,54 @@ Topics/services: `/conveyor/object_ready`, `/conveyor/picked`, `/conveyor/start`
 
 ---
 
+## Dual-Arm Support
+
+Two independent UR3+gripper arms (`left_`/`right_` prefixed) on one shared world frame, one Gazebo model, one `controller_manager`.
+
+```bash
+ros2 launch ur_gazebo dual_ur.gazebo.launch.py            # GUI
+ros2 launch ur_gazebo dual_ur.gazebo.launch.py use_gazebo_gui:=false gripper:=robotiq_2f_85
+```
+
+Args: `gripper` (robotiq_2f_85/robotiq_2f_140 only for MoveIt — see below; all 4 grippers spawn fine for raw joint control), `table_height`, `left_y`/`right_y` (base offsets, 0.45m/-0.45m default — arms face each other 0.9m apart), `world_file`, `use_move_group`, `use_rviz`.
+
+MoveIt planning groups exist for each arm independently (`left_arm`/`right_arm`/`left_gripper`/`right_gripper`, plus `both_arms` for future bimanual planning) — `move_group` and RViz launch by default, same workflow as the single-arm demo. Live-verified: both arms' controllers activate and `move_group` comes up clean (see `project_dual_arm_bullet_featherstone_crash` memory for a physics-engine quirk that was hit and fixed along the way).
+
+---
+
+## Visualization & Logging
+
+**RViz.** The default config (`moveit_config/rviz/moveit.rviz`, also used by `dual_ur.gazebo.launch.py` via `dual_ur.rviz`) now starts framed on the workspace instead of zoomed out to the whole world, has the MTC **Motion Planning Tasks** panel pre-expanded with computation times shown, and carries a **Detection Image** display (`/detection_image`, off by default — enable it in the Displays panel when `ur_perception`'s object detector is running).
+
+For a monitoring-only view (no planning controls, no MTC debug panel), pass an alternate config:
+
+```bash
+ros2 launch ur_gazebo ur.gazebo.launch.py \
+  rviz_config:=$(ros2 pkg prefix moveit_config)/share/moveit_config/rviz/operator_view.rviz
+```
+
+**Web dashboard (`ur_web_dashboard`).** Browser UI with a live camera feed, joint-state bars, detected-object list, LLM command box (with voice input), and a filterable `/rosout` log panel — searchable by node/message, filterable by severity, light/dark toggle (persisted).
+
+```bash
+ros2 launch ur_web_dashboard dashboard.launch.py   # rosbridge (9090) + web_video_server (8080)
+# then open ur_web_dashboard/web/index.html in a browser
+```
+
+**Native log/plot viewers.** `rqt_console` and PlotJuggler, wired up as a convenience launch:
+
+```bash
+ros2 launch ur_web_dashboard view_logs.launch.py                    # both
+ros2 launch ur_web_dashboard view_logs.launch.py plotjuggler:=false # rqt_console only
+```
+
+---
+
 ## Future Scope / Work in Progress
 
 - Real robot deployment (swap Gazebo hardware interface for the live UR3 driver)
 - Fine-tune OpenVLA on collected demonstrations for sim-to-real
 - 6-DoF object pose estimation from depth for grasp orientation
+- Dual-arm MTC task graph for [coordinated bimanual pick](#dual-arm-support)
 - Multi-object sorting: BT planner + conveyor + perception together
 - **Vision (`ur_perception`)**: color/YOLO detection works; multi-view reconstruction (`reconstruct.launch.py`) is inspection-only, not yet consumed by the pick pipeline
 - **LLM planner (`ur_llm_planner`)**: relative moves (`move the gripper up by 10 centimeters`) and named poses work; pick-by-description doesn't yet — the color detector reports zero objects for this scene

@@ -1,0 +1,219 @@
+# joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
+
+# For beginners, we downscale velocity and acceleration limits.
+# You can always specify higher scaling factors (<= 1.0) in your motion requests.
+default_velocity_scaling_factor: 0.1
+default_acceleration_scaling_factor: 0.1
+
+# Specific joint properties can be changed with the keys [max_position, min_position,
+# max_velocity, max_acceleration, max_jerk].
+# Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits,
+# has_jerk_limits].
+joint_limits:
+  left_shoulder_pan_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 6.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  left_shoulder_lift_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 6.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  left_elbow_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 6.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  left_wrist_1_joint:
+    has_velocity_limits: true
+    max_velocity: 6.2831853071795862
+    has_acceleration_limits: true
+    max_acceleration: 12.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  left_wrist_2_joint:
+    has_velocity_limits: true
+    max_velocity: 6.2831853071795862
+    has_acceleration_limits: true
+    max_acceleration: 12.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  left_wrist_3_joint:
+    has_velocity_limits: true
+    max_velocity: 6.2831853071795862
+    has_acceleration_limits: true
+    max_acceleration: 12.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  left_finger_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  left_gripper_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  left_left_inner_finger_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  left_left_inner_knuckle_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  left_right_inner_finger_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  left_right_inner_knuckle_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  left_right_outer_knuckle_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  right_shoulder_pan_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 6.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  right_shoulder_lift_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 6.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  right_elbow_joint:
+    has_velocity_limits: true
+    max_velocity: 3.1415926535897931
+    has_acceleration_limits: true
+    max_acceleration: 6.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  right_wrist_1_joint:
+    has_velocity_limits: true
+    max_velocity: 6.2831853071795862
+    has_acceleration_limits: true
+    max_acceleration: 12.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  right_wrist_2_joint:
+    has_velocity_limits: true
+    max_velocity: 6.2831853071795862
+    has_acceleration_limits: true
+    max_acceleration: 12.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  right_wrist_3_joint:
+    has_velocity_limits: true
+    max_velocity: 6.2831853071795862
+    has_acceleration_limits: true
+    max_acceleration: 12.0
+    has_jerk_limits: true
+    max_jerk: 1000.0
+
+  right_finger_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  right_gripper_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  right_left_inner_finger_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  right_left_inner_knuckle_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  right_right_inner_finger_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  right_right_inner_knuckle_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
+
+  right_right_outer_knuckle_joint:
+    has_velocity_limits: true
+    max_velocity: 2.0
+    has_acceleration_limits: true
+    max_acceleration: 5.0
+    has_jerk_limits: true
+    max_jerk: 100.0
