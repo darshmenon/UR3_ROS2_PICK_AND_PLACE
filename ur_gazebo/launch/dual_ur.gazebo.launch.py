@@ -19,10 +19,12 @@ from launch import LaunchDescription
 from launch.actions import (
     AppendEnvironmentVariable,
     DeclareLaunchArgument,
+    ExecuteProcess,
     IncludeLaunchDescription,
     LogInfo,
     OpaqueFunction,
     RegisterEventHandler,
+    TimerAction,
 )
 from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
@@ -261,5 +263,30 @@ def generate_launch_description():
     ld.add_action(OpaqueFunction(function=_spawn_step))
     ld.add_action(move_group_node_cmd)
     ld.add_action(rviz_node_cmd)
+
+    # mount_table only exists in Gazebo (world file) and isn't in the URDF, so
+    # MoveIt/RViz have no idea it's there -- add it once as a static collision
+    # object so it shows up in RViz and blocks planning through it. Box matches
+    # ur_gazebo/models/mount_table/model.sdf's tabletop (1.5x0.8x0.03 @ z=1.0).
+    # Timer delay gives move_group's planning_scene_monitor time to subscribe
+    # to /planning_scene before this one-shot publish goes out.
+    add_table_scene_cmd = TimerAction(
+        period=8.0,
+        actions=[ExecuteProcess(
+            cmd=[
+                "ros2", "topic", "pub", "--once", "/planning_scene",
+                "moveit_msgs/msg/PlanningScene",
+                "{is_diff: true, world: {collision_objects: [{header: {frame_id: 'world'}, "
+                "id: 'mount_table', primitives: [{type: 1, dimensions: [1.5, 0.8, 0.03]}], "
+                "primitive_poses: [{position: {x: 0.0, y: 0.0, z: 1.0}, orientation: {w: 1.0}}], "
+                # CollisionObject.operation is a ROS `byte`, not a plain int --
+                # ros2 topic pub's YAML parser rejects a bare integer here and
+                # needs !!binary-encoded base64 (AA== is one zero byte, ADD=0).
+                "operation: !!binary AA==}]}}",
+            ],
+            condition=robotiq_move_group_condition,
+        )],
+    )
+    ld.add_action(add_table_scene_cmd)
 
     return ld
