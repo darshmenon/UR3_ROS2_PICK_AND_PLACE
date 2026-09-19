@@ -346,6 +346,8 @@ Topics/services: `/conveyor/object_ready`, `/conveyor/picked`, `/conveyor/start`
 
 ## Dual-Arm Support
 
+![alt text](assets/dual_arm_rviz.png)
+
 Two independent UR3+gripper arms (`left_`/`right_` prefixed) on one shared world frame, one Gazebo model, one `controller_manager`.
 
 ```bash

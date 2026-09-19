@@ -264,29 +264,48 @@ def generate_launch_description():
     ld.add_action(move_group_node_cmd)
     ld.add_action(rviz_node_cmd)
 
-    # mount_table only exists in Gazebo (world file) and isn't in the URDF, so
-    # MoveIt/RViz have no idea it's there -- add it once as a static collision
-    # object so it shows up in RViz and blocks planning through it. Box matches
-    # ur_gazebo/models/mount_table/model.sdf's tabletop (1.5x0.8x0.03 @ z=1.0).
-    # Timer delay gives move_group's planning_scene_monitor time to subscribe
-    # to /planning_scene before this one-shot publish goes out.
-    add_table_scene_cmd = TimerAction(
+    # Everything in colored_blocks.world (mount_table, the small pick table,
+    # red_box) only exists in Gazebo -- none of it is in the URDF, so MoveIt/
+    # RViz have no idea any of it is there. Add matching static collision
+    # objects so the planning scene actually resembles the real Gazebo scene:
+    # geometry/poses copied 1:1 from ur_gazebo/models/mount_table/model.sdf and
+    # ur_gazebo/worlds/colored_blocks.world. red_box is a movable Gazebo object
+    # (physics can push it around) but perception isn't running in this launch,
+    # so this only places it at its initial spawn pose -- it will NOT track if
+    # the real one moves. Timer delay gives move_group's planning_scene_monitor
+    # time to subscribe to /planning_scene before this one-shot publish goes out.
+    _SCENE_OBJECTS = [
+        # mount_table tabletop + 4 legs (model.sdf)
+        {"id": "mount_table_top", "type": 1, "dims": [1.5, 0.8, 0.03], "pos": [0.0, 0.0, 1.0]},
+        {"id": "mount_table_leg_1", "type": 3, "dims": [1.0, 0.02], "pos": [0.68, 0.38, 0.5]},
+        {"id": "mount_table_leg_2", "type": 3, "dims": [1.0, 0.02], "pos": [0.68, -0.38, 0.5]},
+        {"id": "mount_table_leg_3", "type": 3, "dims": [1.0, 0.02], "pos": [-0.68, 0.38, 0.5]},
+        {"id": "mount_table_leg_4", "type": 3, "dims": [1.0, 0.02], "pos": [-0.68, -0.38, 0.5]},
+        # colored_blocks.world's pick table + prop
+        {"id": "pick_table", "type": 1, "dims": [0.50, 0.50, 0.04], "pos": [0.35, 0.0, 1.035]},
+        {"id": "red_box", "type": 1, "dims": [0.05, 0.05, 0.05], "pos": [0.35, 0.0, 1.06]},
+    ]
+    _collision_objects_yaml = ", ".join(
+        "{{header: {{frame_id: 'world'}}, id: '{id}', "
+        "primitives: [{{type: {type}, dimensions: {dims}}}], "
+        "primitive_poses: [{{position: {{x: {pos[0]}, y: {pos[1]}, z: {pos[2]}}}, orientation: {{w: 1.0}}}}], "
+        # CollisionObject.operation is a ROS `byte`, not a plain int -- ros2
+        # topic pub's YAML parser rejects a bare integer here and needs
+        # !!binary-encoded base64 (AA== is one zero byte, ADD=0).
+        "operation: !!binary AA==}}".format(**obj)
+        for obj in _SCENE_OBJECTS
+    )
+    add_scene_objects_cmd = TimerAction(
         period=8.0,
         actions=[ExecuteProcess(
             cmd=[
                 "ros2", "topic", "pub", "--once", "/planning_scene",
                 "moveit_msgs/msg/PlanningScene",
-                "{is_diff: true, world: {collision_objects: [{header: {frame_id: 'world'}, "
-                "id: 'mount_table', primitives: [{type: 1, dimensions: [1.5, 0.8, 0.03]}], "
-                "primitive_poses: [{position: {x: 0.0, y: 0.0, z: 1.0}, orientation: {w: 1.0}}], "
-                # CollisionObject.operation is a ROS `byte`, not a plain int --
-                # ros2 topic pub's YAML parser rejects a bare integer here and
-                # needs !!binary-encoded base64 (AA== is one zero byte, ADD=0).
-                "operation: !!binary AA==}]}}",
+                "{is_diff: true, world: {collision_objects: [" + _collision_objects_yaml + "]}}",
             ],
             condition=robotiq_move_group_condition,
         )],
     )
-    ld.add_action(add_table_scene_cmd)
+    ld.add_action(add_scene_objects_cmd)
 
     return ld

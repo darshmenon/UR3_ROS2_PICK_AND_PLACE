@@ -47,6 +47,17 @@ ament_target_dependencies(
   "rclcpp"
 )
 
+add_executable(test_dual_arm_home src/test_dual_arm_home.cpp)
+target_include_directories(test_dual_arm_home PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
+target_compile_features(test_dual_arm_home PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  test_dual_arm_home
+  "moveit_ros_planning_interface"
+  "rclcpp"
+)
+
 add_executable(complex_motion_demo src/complex_motion_demo.cpp)
 target_include_directories(complex_motion_demo PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -75,6 +86,7 @@ install(TARGETS
   hello_moveit
   plan_around_objects
   test_planning_execution
+  test_dual_arm_home
   complex_motion_demo
   custom_zigzag_motion
   DESTINATION lib/${PROJECT_NAME})

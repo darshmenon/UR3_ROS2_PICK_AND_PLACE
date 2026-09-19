@@ -272,10 +272,5 @@
       </link>
     </model>
 
-    <!-- Scene properties -->
-    <scene>
-      <shadows>false</shadows>
-    </scene>
-
   </world>
 </sdf>
