@@ -846,6 +846,21 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
   if (rclcpp::spin_until_future_complete(client_node, result_future, std::chrono::seconds(300)) !=
       rclcpp::FutureReturnCode::SUCCESS) {
     RCLCPP_ERROR(this->get_logger(), "Get result call failed or timed out");
+    // Live-verified 2026-09-19: without this, the abandoned goal is left
+    // running server-side in move_group's ExecuteTaskSolutionCapability,
+    // which then instantly rejects every subsequent run_pick_place retry
+    // attempt with "Goal was rejected by server" for the rest of the run —
+    // a single stuck execution silently poisoned all remaining retries.
+    // Cancel explicitly so the server frees up before we give up on it.
+    auto cancel_future = client->async_cancel_goal(goal_handle);
+    if (rclcpp::spin_until_future_complete(client_node, cancel_future, std::chrono::seconds(10)) !=
+        rclcpp::FutureReturnCode::SUCCESS) {
+      RCLCPP_WARN(this->get_logger(),
+                  "Cancel request for the timed-out goal did not complete within 10s; "
+                  "server may still be busy with it for subsequent attempts");
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Cancelled the timed-out execute_task_solution goal");
+    }
     return error_code;
   }
 
