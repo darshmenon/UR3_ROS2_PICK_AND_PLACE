@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    container: ros:humble
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3-pip libpcl-dev \
+            libeigen3-dev ros-humble-ament-cmake-gtest
+          source /opt/ros/humble/setup.bash
+          rosdep update
+          rosdep install --from-paths ur_interfaces ur_mtc_pick_place_demo src/moveit_task_constructor \
+            --ignore-src -y --skip-keys "moveit_task_constructor_core moveit_task_constructor_msgs ur_interfaces"
+
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --packages-up-to ur_mtc_pick_place_demo --event-handlers console_direct+
+
+      - name: Run tests
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon test --packages-select ur_mtc_pick_place_demo \
+            --ctest-args -R test_object_segmentation --event-handlers console_direct+
+          colcon test-result --verbose
