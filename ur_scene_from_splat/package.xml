@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>ur_scene_from_splat</name>
+  <version>0.0.0</version>
+  <description>Turn a reconstructed Gaussian-splat point cloud into a Gazebo scene (object meshes, mass, collision)</description>
+  <maintainer email="darshmenon02@gmail.com">darsh</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>
