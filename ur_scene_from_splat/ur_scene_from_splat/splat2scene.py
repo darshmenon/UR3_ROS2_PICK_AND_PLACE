@@ -14,6 +14,7 @@ Writes <out>/models/<obj>/{model.sdf,mesh.obj}, <out>/world.sdf and
 import argparse
 import json
 import os
+import re
 
 import numpy as np
 import open3d as o3d
@@ -23,9 +24,27 @@ HEADER_WORLD = os.path.join(os.path.dirname(__file__), '..', '..', 'ur_gazebo',
                             'worlds', 'empty.world')
 FRICTION = '<surface><friction><ode><mu>0.9</mu><mu2>0.9</mu2></ode></friction></surface>'
 MARKER = '<!-- Matches the GUI'
+CLEARANCE = 0.002  # spawn height above the support so hulls don't start interpenetrating
+# empty.world pulls the Sun from Fuel (needs internet); swap in an inline light so scenes load offline.
+SUN_INCLUDE = re.compile(r'<include>\s*<uri>\s*https://fuel\.gazebosim\.org/[^<]*?/Sun\s*</uri>\s*</include>')
+SUN_LIGHT = '''<light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows><pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse><specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>'''
 
 
-def load(npz, roi, min_opacity):
+UP_ROT = {  # rotation taking the splat's up axis to +z
+    'z': np.eye(3),
+    '-z': np.diag([1, -1, -1.0]),
+    'y': np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0.0]]),
+    '-y': np.array([[1, 0, 0], [0, 0, 1], [0, -1, 0.0]]),
+    'x': np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0.0]]),
+    '-x': np.array([[0, 0, 1], [0, 1, 0], [-1, 0, 0.0]]),
+}
+
+
+def load(npz, roi, min_opacity, up='z', scale=1.0):
     d = np.load(npz)
     xyz, rgb, op = d['xyz'].astype(np.float64), d['rgb'], d['opacity']
     keep = op >= min_opacity
@@ -33,7 +52,7 @@ def load(npz, roi, min_opacity):
         lo, hi = np.array(roi[:3]), np.array(roi[3:])
         keep &= np.all((xyz >= lo) & (xyz <= hi), axis=1)
     pc = o3d.geometry.PointCloud()
-    pc.points = o3d.utility.Vector3dVector(xyz[keep])
+    pc.points = o3d.utility.Vector3dVector((xyz[keep] @ UP_ROT[up].T) * scale)
     pc.colors = o3d.utility.Vector3dVector(rgb[keep] / 255.0)
     return pc
 
@@ -53,7 +72,7 @@ def find_support(pc, tol):
     return best, None
 
 
-def cluster_objects(pc, support_z, args):
+def cluster_objects(pc, support_z, args, support_box=None):
     P, C = np.asarray(pc.points), np.asarray(pc.colors)
     h = P[:, 2] - support_z
     m = (h > args.clear) & (h < args.max_height)
@@ -70,12 +89,28 @@ def cluster_objects(pc, support_z, args):
             continue
         if not args.keep_tall and pts[:, 2].max() - support_z >= args.max_height - 0.01:
             continue  # ran into the height cap: background structure, not an object
+        if support_box is not None and args.edge_margin > 0:
+            lo, hi = support_box
+            cxy = (pts.min(0)[:2] + pts.max(0)[:2]) / 2
+            if np.any(cxy < lo[:2] + args.edge_margin) or np.any(cxy > hi[:2] - args.edge_margin):
+                continue  # on the rim of the crop: likely a cut-off wall/shelf item, not a tabletop object
         out.append((pts, col))
     out.sort(key=lambda t: -len(t[0]))
     return out[:args.max_objects]
 
 
-def build_object(i, pts, col, support_z, models_dir, density, fill, decompose=False):
+COLORS = {'red': (.8, .1, .1), 'green': (.1, .6, .2), 'blue': (.15, .25, .8), 'yellow': (.85, .8, .15),
+          'orange': (.9, .5, .1), 'white': (.9, .9, .9), 'black': (.08, .08, .08), 'gray': (.5, .5, .5),
+          'brown': (.45, .3, .15)}
+
+
+def label_for(rgb, extents):
+    c = min(COLORS, key=lambda k: np.sum((np.array(COLORS[k]) - rgb) ** 2))
+    shape = 'flat' if extents[2] < 0.5 * extents[:2].max() else 'tall' if extents[2] > 1.5 * extents[:2].max() else 'chunky'
+    return f'{c}_{shape}'
+
+
+def build_object(i, pts, col, support_z, models_dir, density, fill, decompose=False, mass_override=None):
     # Convex hull of the splat points: robust to the holes/blur on unseen sides.
     # Sit the hull on the support surface so unseen undersides don't float.
     pts = pts.copy()
@@ -87,7 +122,11 @@ def build_object(i, pts, col, support_z, models_dir, density, fill, decompose=Fa
     mass = float(max(0.02, density * hull.volume * fill))
     rgb = np.clip(col.mean(0), 0, 1)
     inertia = hull.moment_inertia / hull.volume * mass  # scale unit-density tensor
-    name = f'obj_{i:02d}'
+    label = label_for(rgb, hull.extents)
+    name = f'{label}_{i:02d}'
+    if mass_override and name in mass_override:
+        mass = mass_override[name]
+        inertia = hull.moment_inertia / hull.volume * mass
     d = os.path.join(models_dir, name)
     os.makedirs(d, exist_ok=True)
     hull.export(os.path.join(d, 'mesh.obj'))
@@ -123,7 +162,7 @@ def build_object(i, pts, col, support_z, models_dir, density, fill, decompose=Fa
 '''
     with open(os.path.join(d, 'model.sdf'), 'w') as f:
         f.write(sdf)
-    return name, com0, mass, hull.extents
+    return name, com0, mass, hull.extents, label
 
 
 def main():
@@ -142,13 +181,25 @@ def main():
     ap.add_argument('--max-size', type=float, default=0.4)
     ap.add_argument('--max-objects', type=int, default=8)
     ap.add_argument('--table-z', type=float, default=0.0, help='world z of the support surface (splat frame is shifted to match)')
+    ap.add_argument('--seed', type=int, default=0, help='RNG seed so the same input gives the same scene')
+    ap.add_argument('--up', choices=sorted(UP_ROT), default='z', help="splat's up axis")
+    ap.add_argument('--scale', type=float, default=1.0, help='metric scale factor for the splat')
+    ap.add_argument('--support-length', type=float, help='true length (m) of the support surface long edge; sets scale')
+    ap.add_argument('--mass', action='append', default=[], metavar='NAME=KG', help='override an object mass (repeatable)')
+    ap.add_argument('--table-center', type=float, nargs=2, metavar=('X', 'Y'),
+                    help='world XY for the support surface centre (default: keep the splat frame); put it within arm reach')
+    ap.add_argument('--edge-margin', type=float, default=0.1,
+                    help='drop clusters whose centre is within this many m of the support edge (0 keeps all)')
     ap.add_argument('--keep-tall', action='store_true', help='keep clusters that hit --max-height')
     ap.add_argument('--decompose', action='store_true', help='CoACD convex decomposition for collision (needs coacd)')
     ap.add_argument('--density', type=float, default=600.0, help='kg/m^3')
     ap.add_argument('--fill', type=float, default=0.5, help='hollowness factor on volume')
     args = ap.parse_args()
 
-    pc = load(args.npz, args.roi, args.min_opacity).voxel_down_sample(args.voxel)
+    np.random.seed(args.seed)
+    o3d.utility.random.seed(args.seed)
+    mass_override = {k: float(v) for k, v in (m.split('=') for m in args.mass)}
+    pc = load(args.npz, args.roi, args.min_opacity, args.up, args.scale).voxel_down_sample(args.voxel)
     print(f'{len(pc.points)} points after crop/downsample')
     z, inl = find_support(pc, args.plane_tol)
     if inl is None:
@@ -156,25 +207,41 @@ def main():
     sp = np.asarray(pc.points)[inl]
     print(f'support plane z={z:.3f}, {len(inl)} pts, extent {np.ptp(sp[:, :2], axis=0)}')
 
-    objs = cluster_objects(pc, z, args)
+    if args.support_length:
+        k = args.support_length / float(np.ptp(sp[:, :2], axis=0).max())
+        print(f'rescaling by {k:.4f} to make the support {args.support_length} m long')
+        pc = o3d.geometry.PointCloud(pc)
+        pc.points = o3d.utility.Vector3dVector(np.asarray(pc.points) * k)
+        z, sp = z * k, sp * k
+    objs = cluster_objects(pc, z, args, (sp.min(0), sp.max(0)))
     print(f'{len(objs)} object clusters')
 
     dz = args.table_z - z  # splat frame has arbitrary height; put the surface at --table-z
+    sc = (sp.min(0) + sp.max(0)) / 2
+    shift = np.array([args.table_center[0] - sc[0], args.table_center[1] - sc[1], dz]) if args.table_center else np.array([0, 0, dz])
     models_dir = os.path.join(args.out, 'models')
     os.makedirs(models_dir, exist_ok=True)
     includes, meta = [], []
+    names = set()
     for i, (pts, col) in enumerate(objs):
-        name, com, mass, ext = build_object(i, pts, col, z, models_dir, args.density, args.fill, args.decompose)
+        name, com, mass, ext, label = build_object(i, pts, col, z, models_dir, args.density, args.fill, args.decompose, mass_override)
         print(f'  {name}: n={len(pts)} mass={mass:.3f}kg extents={np.round(ext, 3)} at {np.round(com, 3)}')
+        pose = com + shift + [0, 0, CLEARANCE]
         body = open(os.path.join(models_dir, name, 'model.sdf')).read()
         body = body.split('?>', 1)[1].split('<sdf version="1.7">')[1].rsplit('</sdf>', 1)[0]
         body = body.replace(f'<model name="{name}">',
-                            f'<model name="{name}">\n      <pose>{com[0]:.4f} {com[1]:.4f} {com[2] + dz + 0.002:.4f} 0 0 0</pose>', 1)
+                            f'<model name="{name}">\n      <pose>{pose[0]:.4f} {pose[1]:.4f} {pose[2]:.4f} 0 0 0</pose>', 1)
+        names.add(name)
         includes.append(body.rstrip())
-        meta.append({'name': name, 'pose': (com + [0, 0, dz]).tolist(), 'mass': mass, 'extents': ext.tolist()})
+        meta.append({'name': name, 'label': label, 'pose': pose.tolist(), 'mass': mass, 'extents': ext.tolist()})
+
+    for k in mass_override.keys() - names:
+        print(f'warning: --mass {k} matches no object (have: {", ".join(sorted(names))})')
 
     lo, hi = sp.min(0), sp.max(0)
-    c, s = (lo + hi) / 2, hi - lo
+    c, s = (lo + hi) / 2 + shift * [1, 1, 0], hi - lo
+    c[2] = args.table_z
+    s[2] = 0.02
     table = f'''    <model name="support_surface">
       <static>true</static>
       <pose>{c[0]:.4f} {c[1]:.4f} {args.table_z - 0.01:.4f} 0 0 0</pose>
@@ -187,6 +254,7 @@ def main():
 
     with open(HEADER_WORLD) as f:
         world = f.read()
+    world = SUN_INCLUDE.sub(SUN_LIGHT, world, count=1)
     world = world.replace(MARKER, table + '\n' + '\n'.join(includes) + '\n\n    ' + MARKER, 1)
     with open(os.path.join(args.out, 'world.sdf'), 'w') as f:
         f.write(world)

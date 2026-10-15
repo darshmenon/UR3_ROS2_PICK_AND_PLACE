@@ -5,31 +5,81 @@
   <title>UR3 Robot Dashboard</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Segoe UI", Arial, sans-serif; background: #0f1117; color: #e2e8f0; }
+
+    :root {
+      --bg: #f3f4f8;
+      --panel-bg: #ffffff;
+      --border: #dde1ea;
+      --text: #1c2130;
+      --text-dim: #6b7280;
+      --text-faint: #9aa1b0;
+      --accent: #6366f1;
+      --accent-dark: #4f46e5;
+      --accent-soft: #eef0ff;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --warn: #d97706;
+      --input-bg: #f7f8fb;
+      --track-bg: #e5e7f0;
+      --shadow: 0 1px 2px rgba(20, 22, 40, 0.06);
+    }
+    :root[data-theme="dark"] {
+      --bg: #0f1117;
+      --panel-bg: #1a1d27;
+      --border: #2d3148;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --text-faint: #64748b;
+      --accent: #818cf8;
+      --accent-dark: #6366f1;
+      --accent-soft: #23263a;
+      --danger: #f87171;
+      --success: #86efac;
+      --warn: #fbbf24;
+      --input-bg: #0f1117;
+      --track-bg: #2d3148;
+      --shadow: none;
+    }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
 
     header {
       display: flex; align-items: center; gap: 12px;
-      padding: 14px 24px; background: #1a1d27; border-bottom: 1px solid #2d3148;
+      padding: 14px 24px; background: var(--panel-bg); border-bottom: 1px solid var(--border);
     }
-    header h1 { font-size: 1.2rem; font-weight: 600; color: #a78bfa; }
+    header h1 { font-size: 1.2rem; font-weight: 600; color: var(--accent); }
     #conn-badge {
       margin-left: auto; padding: 4px 12px; border-radius: 20px;
-      font-size: 0.75rem; font-weight: 600; background: #dc2626; color: #fff;
+      font-size: 0.75rem; font-weight: 600; background: var(--danger); color: #fff;
     }
-    #conn-badge.connected { background: #16a34a; }
+    #conn-badge.connected { background: var(--success); color: #06240f; }
+    :root[data-theme="dark"] #conn-badge.connected { color: #06240f; }
+
+    #theme-toggle {
+      padding: 6px 12px; background: var(--input-bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-dim); cursor: pointer; font-size: 0.85rem;
+    }
+    #theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
 
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: auto auto;
       gap: 16px; padding: 16px;
     }
 
     .card {
-      background: #1a1d27; border: 1px solid #2d3148;
-      border-radius: 10px; padding: 16px;
+      background: var(--panel-bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 16px; box-shadow: var(--shadow);
     }
-    .card h2 { font-size: 0.85rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin-bottom: 12px; }
+    .card h2 {
+      font-size: 0.85rem; font-weight: 600; color: var(--text-dim);
+      text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.03em;
+    }
+    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .card-head h2 { margin-bottom: 0; }
 
     /* Camera */
     #camera-card { grid-column: 1; grid-row: 1 / 3; }
@@ -37,55 +87,93 @@
       width: 100%; border-radius: 6px; background: #0a0c14;
       min-height: 240px; object-fit: contain;
     }
-    #camera-status { font-size: 0.72rem; color: #64748b; margin-top: 6px; }
+    #camera-status { font-size: 0.72rem; color: var(--text-faint); margin-top: 6px; }
 
     /* Joint bars */
     #joints-card { grid-column: 2; grid-row: 1; }
     .joint-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .joint-label { width: 130px; font-size: 0.78rem; color: #94a3b8; flex-shrink: 0; }
-    .bar-track { flex: 1; height: 10px; background: #2d3148; border-radius: 4px; overflow: hidden; }
-    .bar-fill  { height: 100%; background: #6366f1; border-radius: 4px; transition: width 0.2s; }
-    .joint-val { width: 52px; text-align: right; font-size: 0.75rem; color: #c4b5fd; font-family: monospace; }
+    .joint-label { width: 130px; font-size: 0.78rem; color: var(--text-dim); flex-shrink: 0; }
+    .bar-track { flex: 1; height: 10px; background: var(--track-bg); border-radius: 4px; overflow: hidden; }
+    .bar-fill  { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.2s; }
+    .joint-val { width: 52px; text-align: right; font-size: 0.75rem; color: var(--accent); font-family: monospace; }
 
     /* Objects */
     #objects-card { grid-column: 2; grid-row: 2; }
     #objects-list { font-size: 0.78rem; }
     .obj-row {
       display: flex; justify-content: space-between;
-      padding: 5px 0; border-bottom: 1px solid #1e2230;
+      padding: 5px 0; border-bottom: 1px solid var(--border);
       gap: 8px;
     }
-    .obj-id  { color: #f472b6; font-weight: 600; min-width: 80px; }
-    .obj-pos { font-family: monospace; color: #7dd3fc; }
-    .obj-conf { color: #86efac; }
+    .obj-id  { color: #db2777; font-weight: 600; min-width: 80px; }
+    :root[data-theme="dark"] .obj-id { color: #f472b6; }
+    .obj-pos { font-family: monospace; color: #0891b2; }
+    :root[data-theme="dark"] .obj-pos { color: #7dd3fc; }
+    .obj-conf { color: var(--success); }
+
+    /* Logs */
+    #logs-card { grid-column: 1 / 3; }
+    .logs-controls { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .logs-controls select, .logs-controls input {
+      padding: 6px 10px; border-radius: 6px; background: var(--input-bg);
+      border: 1px solid var(--border); color: var(--text); font-size: 0.78rem;
+    }
+    .logs-controls input { flex: 1; min-width: 160px; }
+    .logs-controls button {
+      padding: 6px 12px; border-radius: 6px; background: var(--input-bg);
+      border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; font-size: 0.78rem;
+    }
+    .logs-controls button:hover { border-color: var(--accent); color: var(--accent); }
+    #logs-count { font-size: 0.72rem; color: var(--text-faint); align-self: center; margin-left: auto; white-space: nowrap; }
+    #logs-list {
+      max-height: 260px; overflow-y: auto; font-family: monospace; font-size: 0.75rem;
+      background: var(--input-bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+    }
+    .log-row { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+    .log-row:last-child { border-bottom: none; }
+    .log-ts { color: var(--text-faint); flex-shrink: 0; }
+    .log-lvl { flex-shrink: 0; width: 44px; font-weight: 700; }
+    .log-node { color: var(--accent); flex-shrink: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-msg { color: var(--text); word-break: break-word; }
+    .log-row.lvl-debug .log-lvl { color: var(--text-faint); }
+    .log-row.lvl-info  .log-lvl { color: var(--success); }
+    .log-row.lvl-warn  .log-lvl { color: var(--warn); }
+    .log-row.lvl-error .log-lvl, .log-row.lvl-fatal .log-lvl { color: var(--danger); }
+    .log-row.lvl-error, .log-row.lvl-fatal { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+    #logs-empty { color: var(--text-faint); }
 
     /* Command */
     #cmd-card { grid-column: 1 / 3; }
     .cmd-row { display: flex; gap: 10px; }
     #cmd-input {
       flex: 1; padding: 10px 14px; border-radius: 8px;
-      background: #0f1117; border: 1px solid #2d3148; color: #e2e8f0;
+      background: var(--input-bg); border: 1px solid var(--border); color: var(--text);
       font-size: 0.9rem;
     }
-    #cmd-input:focus { outline: none; border-color: #6366f1; }
+    #cmd-input:focus { outline: none; border-color: var(--accent); }
     #cmd-btn {
-      padding: 10px 22px; background: #6366f1; color: #fff; border: none;
+      padding: 10px 22px; background: var(--accent); color: #fff; border: none;
       border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
     }
-    #cmd-btn:hover { background: #4f46e5; }
+    #cmd-btn:hover { background: var(--accent-dark); }
     #cmd-log {
       margin-top: 10px; max-height: 120px; overflow-y: auto;
-      font-size: 0.75rem; font-family: monospace; color: #64748b;
+      font-size: 0.75rem; font-family: monospace; color: var(--text-faint);
     }
-    .log-entry { padding: 2px 0; border-bottom: 1px solid #1e2230; }
-    .log-entry.sent { color: #a78bfa; }
-    .log-entry.error { color: #f87171; }
+    .log-entry { padding: 2px 0; border-bottom: 1px solid var(--border); }
+    .log-entry.sent { color: var(--accent); }
+    .log-entry.error { color: var(--danger); }
 
     #voice-btn {
-      padding: 10px 16px; background: #1a1d27; border: 1px solid #2d3148;
-      border-radius: 8px; color: #94a3b8; cursor: pointer; font-size: 0.9rem;
+      padding: 10px 16px; background: var(--input-bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text-dim); cursor: pointer; font-size: 0.9rem;
     }
-    #voice-btn.active { border-color: #f87171; color: #f87171; }
+    #voice-btn.active { border-color: var(--danger); color: var(--danger); }
+
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      #camera-card, #joints-card, #objects-card, #logs-card, #cmd-card { grid-column: 1; grid-row: auto; }
+    }
   </style>
 </head>
 <body>
@@ -96,6 +184,7 @@
     <path d="M8 14 L14 8 L20 14 L14 20 Z" fill="#6366f1"/>
   </svg>
   <h1>UR3 Robot Dashboard</h1>
+  <button id="theme-toggle" title="Toggle theme">☀ Light</button>
   <div id="conn-badge">● Disconnected</div>
 </header>
 
@@ -117,7 +206,24 @@
   <!-- Detected objects -->
   <div class="card" id="objects-card">
     <h2>Detected Objects</h2>
-    <div id="objects-list"><span style="color:#64748b">Waiting for /detected_objects…</span></div>
+    <div id="objects-list"><span style="color:var(--text-faint)">Waiting for /detected_objects…</span></div>
+  </div>
+
+  <!-- Logs -->
+  <div class="card" id="logs-card">
+    <div class="card-head"><h2>Logs (/rosout)</h2></div>
+    <div class="logs-controls">
+      <select id="log-level-filter">
+        <option value="10">Debug+</option>
+        <option value="20" selected>Info+</option>
+        <option value="30">Warn+</option>
+        <option value="40">Error+</option>
+      </select>
+      <input id="log-search" type="text" placeholder="filter by node or message…" />
+      <button id="logs-clear">Clear</button>
+      <span id="logs-count">0 entries</span>
+    </div>
+    <div id="logs-list"><span id="logs-empty">Waiting for /rosout…</span></div>
   </div>
 
   <!-- Command input -->
@@ -135,6 +241,26 @@
 
 <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
 <script>
+// ── theme ───────────────────────────────────────────────────────────────────
+const themeBtn = document.getElementById("theme-toggle");
+function applyTheme(theme) {
+  if (theme === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+    themeBtn.textContent = "🌙 Dark";
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+    themeBtn.textContent = "☀ Light";
+  }
+}
+let savedTheme = "light";
+try { savedTheme = localStorage.getItem("ur3-dashboard-theme") || "light"; } catch (e) {}
+applyTheme(savedTheme);
+themeBtn.onclick = () => {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try { localStorage.setItem("ur3-dashboard-theme", next); } catch (e) {}
+};
+
 // ── config ──────────────────────────────────────────────────────────────────
 const ROS_WS_URL     = "ws://" + location.hostname + ":9090";
 const VIDEO_URL      = "http://" + location.hostname + ":8080/stream?topic=/detection_image&type=ros_compressed";
@@ -206,12 +332,12 @@ const objSub = new ROSLIB.Topic({
 objSub.subscribe(msg => {
   const list = document.getElementById("objects-list");
   if (!msg.objects || msg.objects.length === 0) {
-    list.innerHTML = '<span style="color:#64748b">No objects detected</span>';
+    list.innerHTML = '<span style="color:var(--text-faint)">No objects detected</span>';
     return;
   }
   list.innerHTML = msg.objects.map(o => `
     <div class="obj-row">
-      <span class="obj-id">${o.id}</span>
+      <span class="obj-id">${escapeHtml(o.id)}</span>
       <span class="obj-pos">(${o.position.x.toFixed(3)}, ${o.position.y.toFixed(3)}, ${o.position.z.toFixed(3)})</span>
       <span class="obj-conf">${(o.confidence * 100).toFixed(0)}%</span>
     </div>`).join("");
@@ -228,6 +354,81 @@ img.onerror = () => {
 img.onload = () => {
   document.getElementById("camera-status").textContent = "Live";
 };
+
+// ── logs (/rosout) ────────────────────────────────────────────────────────────
+const LOG_LEVELS = { 10: "DEBUG", 20: "INFO", 30: "WARN", 40: "ERROR", 50: "FATAL" };
+const LOG_CAP = 500;
+const RENDER_CAP = 300;
+let logBuffer = [];
+
+const logsList   = document.getElementById("logs-list");
+const logsCount  = document.getElementById("logs-count");
+const levelFilterEl = document.getElementById("log-level-filter");
+const searchEl   = document.getElementById("log-search");
+
+const logSub = new ROSLIB.Topic({
+  ros, name: "/rosout",
+  messageType: "rcl_interfaces/msg/Log",
+});
+logSub.subscribe(msg => {
+  logBuffer.push({
+    ts: new Date().toLocaleTimeString(),
+    level: msg.level,
+    name: msg.name || "?",
+    msg: msg.msg || "",
+  });
+  if (logBuffer.length > LOG_CAP) logBuffer.shift();
+  renderLogs();
+});
+
+function levelClass(level) {
+  if (level >= 50) return "fatal";
+  if (level >= 40) return "error";
+  if (level >= 30) return "warn";
+  if (level >= 20) return "info";
+  return "debug";
+}
+
+function renderLogs() {
+  const minLevel = parseInt(levelFilterEl.value, 10);
+  const search = searchEl.value.trim().toLowerCase();
+  const filtered = logBuffer.filter(e =>
+    e.level >= minLevel &&
+    (!search || e.name.toLowerCase().includes(search) || e.msg.toLowerCase().includes(search))
+  );
+
+  logsCount.textContent = filtered.length + " / " + logBuffer.length + " entries";
+
+  if (filtered.length === 0) {
+    logsList.innerHTML = '<span id="logs-empty">No matching log entries</span>';
+    return;
+  }
+
+  const nearBottom = logsList.scrollTop + logsList.clientHeight >= logsList.scrollHeight - 24;
+  logsList.innerHTML = filtered.slice(-RENDER_CAP).map(e => `
+    <div class="log-row lvl-${levelClass(e.level)}">
+      <span class="log-ts">${e.ts}</span>
+      <span class="log-lvl">${LOG_LEVELS[e.level] || e.level}</span>
+      <span class="log-node">${escapeHtml(e.name)}</span>
+      <span class="log-msg">${escapeHtml(e.msg)}</span>
+    </div>`).join("");
+  if (nearBottom) logsList.scrollTop = logsList.scrollHeight;
+}
+
+levelFilterEl.addEventListener("change", renderLogs);
+searchEl.addEventListener("input", renderLogs);
+document.getElementById("logs-clear").onclick = () => {
+  logBuffer = [];
+  renderLogs();
+};
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 // ── command input ─────────────────────────────────────────────────────────────
 const cmdPub = new ROSLIB.Topic({

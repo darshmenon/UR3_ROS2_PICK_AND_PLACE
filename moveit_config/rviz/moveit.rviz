@@ -8,7 +8,7 @@ Panels:
         - /Status1
         - /RobotModel1
       Splitter Ratio: 0.5
-    Tree Height: 176
+    Tree Height: 280
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -28,6 +28,11 @@ Panels:
     SyncMode: 0
     SyncSource: ""
   - Class: moveit_task_constructor/Motion Planning Tasks
+    Global Settings:
+      Task View Settings:
+        Old task handling: Keep
+        Show Computation Times: true
+        Task Expansion: All Expanded
     Name: Motion Planning Tasks
 Visualization Manager:
   Class: ""
@@ -659,6 +664,24 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: false
       Value: true
+    - Class: rviz_default_plugins/Image
+      Enabled: false
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Detection Image
+      Normalize Range: true
+      Queue Size: 2
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /detection_image
+      Transport Hint: raw
+      Unreliable: false
+      Value: false
     - Class: moveit_task_constructor/Motion Planning Tasks
       Enabled: true
       Name: Motion Planning Tasks
@@ -711,22 +734,22 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 10
+      Distance: 2.7999999523162842
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0
+        X: 0.20000000298023224
         Y: 0
-        Z: 0
+        Z: 0.30000001192092896
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.785398006439209
+      Pitch: 0.6103978753089905
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
       Yaw: 0.785398006439209
