@@ -1124,6 +1124,22 @@ mtc::Task MTCTaskNode::createTask()
    ***************************************************/
   // This stage is responsible for opening the robot's gripper in preparation for picking
   // up an object in the pick-and-place task.
+  //
+  // move_group re-validates every trajectory component against the LIVE scene
+  // before executing it, and the perceived support_surface can graze the
+  // fingers at the start pose (live-reproduced: left_outer_knuckle vs
+  // support_surface -> error -3 on component 2/19, every attempt). Allow
+  // gripper<->support contact for just this move; scene diffs are applied
+  // between components, so it takes effect before component 2 is checked.
+  {
+    auto stage = std::make_unique<mtc::stages::ModifyPlanningScene>("allow collision (gripper,support_surface)");
+    stage->allowCollisions({ support_surface_id_ },
+                           task.getRobotModel()
+                               ->getJointModelGroup(gripper_group_name)
+                               ->getLinkModelNamesWithCollisionGeometry(),
+                           true);
+    task.add(std::move(stage));
+  }
   auto stage_open_gripper =
     std::make_unique<mtc::stages::MoveTo>("open gripper", interpolation_planner);
   stage_open_gripper->setGroup(gripper_group_name);
@@ -1131,6 +1147,16 @@ mtc::Task MTCTaskNode::createTask()
   stage_open_gripper->properties().set("trajectory_execution_info",
                       mtc::TrajectoryExecutionInfo().set__controller_names({"gripper_controller"}));
   task.add(std::move(stage_open_gripper));
+
+  {
+    auto stage = std::make_unique<mtc::stages::ModifyPlanningScene>("forbid collision (gripper,support_surface)");
+    stage->allowCollisions({ support_surface_id_ },
+                           task.getRobotModel()
+                               ->getJointModelGroup(gripper_group_name)
+                               ->getLinkModelNamesWithCollisionGeometry(),
+                           false);
+    task.add(std::move(stage));
+  }
 
   /****************************************************
    *                                                  *

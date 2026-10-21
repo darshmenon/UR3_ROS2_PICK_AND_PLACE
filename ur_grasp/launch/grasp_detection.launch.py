@@ -1,11 +1,19 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
+from ament_index_python.packages import PackageNotFoundError, get_package_prefix
+from launch.conditions import UnlessCondition
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
+    try:
+        get_package_prefix("simple_grasping")
+        have_sg = True
+    except PackageNotFoundError:
+        have_sg = False
+
     return LaunchDescription([
         DeclareLaunchArgument("colour",  default_value="any",
                               description="Colour filter: red|blue|green|yellow|any"),
@@ -23,6 +31,26 @@ def generate_launch_description():
         DeclareLaunchArgument("continuous_detect_hz", default_value="0.0",
                               description="If > 0, re-detect on a timer at this rate "
                                           "instead of only on /ur_grasp/detect calls"),
+
+        # simple_grasping's FindGraspableObjects server (/find_objects). Nothing
+        # else starts it, so backend:=simple_grasping always timed out into the
+        # numpy fallback. voxel_limit_min must sit below the table (z~0 in
+        # base_link) or the support plane is clipped and no objects are found.
+        Node(
+            package="simple_grasping",
+            executable="basic_grasping_perception_node",
+            name="basic_grasping_perception",
+            output="screen",
+            parameters=[{
+                "frame_id": "base_link",
+                "voxel_limit_min": -0.2,
+                "use_sim_time": True,
+            }],
+            remappings=[("/head_camera/depth_registered/points",
+                         LaunchConfiguration("camera_topic"))],
+            condition=UnlessCondition(
+                PythonExpression(["'", LaunchConfiguration("backend"), "' == 'numpy' or not ", str(have_sg)])),
+        ),
 
         Node(
             package="ur_grasp",

@@ -100,6 +100,10 @@ class GraspNode(Node):
         self.declare_parameter("reconstructed_topic", "/ur_perception/reconstructed_points")
         self.declare_parameter("min_recon_points", 200)
         self.declare_parameter("continuous_detect_hz", 0.0)
+        # Table workspace in base_link; simple_grasping also segments the robot's
+        # own links (live-seen: a "grasp" at z=0.70 m, 362 mm from the cylinder).
+        self.declare_parameter("workspace_min", [0.10, -0.40, -0.05])
+        self.declare_parameter("workspace_max", [0.65, 0.40, 0.25])
 
         self._colour     = self.get_parameter("colour").value
         self._backend    = self.get_parameter("backend").value
@@ -109,6 +113,8 @@ class GraspNode(Node):
         self._reconstructed_topic = self.get_parameter("reconstructed_topic").value
         self._min_recon_points = int(self.get_parameter("min_recon_points").value)
         self._continuous_hz = float(self.get_parameter("continuous_detect_hz").value)
+        self._ws_min = np.array(self.get_parameter("workspace_min").value, dtype=float)
+        self._ws_max = np.array(self.get_parameter("workspace_max").value, dtype=float)
 
         # ── state ────────────────────────────────────────────────────────────
         self._latest_cloud: Optional[PointCloud2] = None
@@ -341,13 +347,20 @@ class GraspNode(Node):
             self.get_logger().info("simple_grasping found no objects — trying numpy.")
             return self._detect_numpy()
 
-        # Pick the object with the most grasps (highest confidence)
-        best_obj = max(result.result.objects, key=lambda o: len(o.grasps))
-        grasps = best_obj.grasps
-        if not grasps:
-            return self._detect_numpy()
+        # Best grasp = first (simple_grasping ranks by quality) of the object with
+        # the most grasps, restricted to objects whose grasp is inside the table
+        # workspace (drops the robot's own links and other clutter).
+        def _in_ws(o):
+            p = o.grasps[0].grasp_pose.pose.position
+            return bool(np.all(np.array([p.x, p.y, p.z]) >= self._ws_min)
+                        and np.all(np.array([p.x, p.y, p.z]) <= self._ws_max))
 
-        # Best grasp = first (simple_grasping ranks by quality)
+        candidates = [o for o in result.result.objects if o.grasps and _in_ws(o)]
+        if not candidates:
+            self.get_logger().info("simple_grasping: no object with a grasp inside the workspace — trying numpy.")
+            return self._detect_numpy()
+        best_obj = max(candidates, key=lambda o: len(o.grasps))
+        grasps = best_obj.grasps
         g = grasps[0]
         pose = PoseStamped()
         pose.header.frame_id = "base_link"
