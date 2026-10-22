@@ -122,7 +122,7 @@ mtc_node:
     # Pad centre distance from gripper_frame (robotiq_arg2f_base_link -> *_inner_finger_pad, from TF).
     grasp_pad_offset: 0.130
     # Approach pitches for the grasp ladder; 3.14159 = straight top-down.
-    grasp_pitches: [3.14159, 2.7, 2.4]
+    grasp_pitches: [3.14159]
     # Place on the pick table at the world's drop_zone (0.35, 0.20). z is the SURFACE height (table top,
     # 0.04 in base_link); mtc_node adds place_pose_z_offset_factor * object_height for the object centre.
     place_pose: [0.35, 0.20, 0.04, 0.0, 0.0, 0.0]
@@ -144,7 +144,7 @@ mtc_node:
     arm_transit_clear_pose: "transit_clear"
     use_transit_clear_via: true
     transit_planner_id: "RRTConnectkConfigDefault"
-    planning_robot_padding: 0.004
+    planning_robot_padding: 0.0
     planning_support_inflation: 0.005
 
     # Grasp generation (critical fixes)

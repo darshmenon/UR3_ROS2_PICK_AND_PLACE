@@ -46,10 +46,14 @@ gripper_controller:
     joint: finger_joint
     # Robotiq in Gazebo often stalls short of the commanded finger position;
     # without this, GripperCommand goals never finish and MTC execute hangs.
-    allow_stalling: true
+    # Stall detection is off: on a stall the controller holds the *measured* position, which drops the squeeze
+    # force to zero, so the gripped object creeps, tilts and the fingers drift open. Instead the close goal is
+    # accepted within goal_tolerance: contact stops the finger ~0.1 rad short of the commanded close target, so
+    # 0.15 completes the goal at contact while the controller keeps driving toward the target (squeeze stays on).
+    allow_stalling: false
     stall_timeout: 0.5
     stall_velocity_threshold: 0.001
-    goal_tolerance: 0.02
+    goal_tolerance: 0.15
 # arm_with_gripper_controller:
 #   ros__parameters:
 #     joints:

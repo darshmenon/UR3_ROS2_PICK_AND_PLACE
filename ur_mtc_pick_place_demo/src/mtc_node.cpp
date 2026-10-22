@@ -1327,7 +1327,14 @@ mtc::Task MTCTaskNode::createTask()
       // the pads 1.5-5.5 cm above it: the winning 0.07 candidate closed on air above a 5 cm cube.
       // `clearance` is now how far the pads sit above the object centre, capped so they stay on the object.
       const double max_depth = std::max(0.0, object_half_height - 0.008);
-      const double grasp_hold_height = std::min(max_depth, 0.03);
+      // Hold the pads as close to the object's centre as possible (a contact above the centre of mass lets the
+      // object pivot between the pads), but high enough that the palm clears the object's top: the palm bottom is
+      // ~0.09 m past the gripper frame, so the frame must be >= top + 0.09 + margin. For a 5 cm cube that is
+      // satisfied at the centre; a 9 cm box or 8 cm cylinder would otherwise have the palm sitting on top of it
+      // and push it over while the fingers close.
+      const double palm_reach = 0.09, palm_margin = 0.015;
+      const double palm_clear_hold = object_half_height + palm_reach + palm_margin - grasp_pad_offset;
+      const double grasp_hold_height = std::min(max_depth, std::max(0.005, palm_clear_hold));
 
       // A box must be gripped across two opposite FACES. Yaws that close the pads on opposite corners (45 and
       // 135 deg off the box axes) made the cube rotate out of the fingers and tilt onto an edge, stalling the
@@ -1340,11 +1347,11 @@ mtc::Task MTCTaskNode::createTask()
 
       struct GraspCandidate { double clearance; double pitch; double yaw; };
       std::vector<GraspCandidate> candidates;
-      for (double pitch : this->get_parameter("grasp_pitches").as_double_array()) {
-        // Keep the pads well above the table: a pad 0-1 cm above the object centre sat within a few mm of
-        // the support surface, and move_group aborted the lift ("left_inner_finger_pad" vs "support_surface",
-        // error -3). Use the highest hold the object allows, then 70% of it.
-        for (double depth : { grasp_hold_height, 0.7 * grasp_hold_height }) {
+      // Copy first: as_double_array() returns a reference into the temporary Parameter, so iterating it
+      // directly in a range-for is a dangling reference (pitch read back as 0 -> gripper pointing up).
+      const std::vector<double> grasp_pitches = this->get_parameter("grasp_pitches").as_double_array();
+      for (double pitch : grasp_pitches) {
+        for (double depth : { grasp_hold_height, std::min(max_depth, grasp_hold_height + 0.005) }) {
           const double clearance = std::min(depth, max_depth);
           // A few yaw samples — full 24-angle sweeps were too slow and did not
           // help when the underlying pose was unreachable.

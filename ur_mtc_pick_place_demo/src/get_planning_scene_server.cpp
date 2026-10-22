@@ -55,6 +55,7 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/features/normal_3d.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 class GetPlanningSceneServer : public rclcpp::Node {
@@ -216,7 +217,9 @@ class GetPlanningSceneServer : public rclcpp::Node {
                      "Reject fitted support whose top face z is below this (filters mount_table at z≈0)");
 
     // Declare parameters for the model-free fallback detector (used when the RSD pipeline finds no target)
-    declare_parameter("simple_detect_enabled", true, "Run the model-free fallback detector when the main pipeline finds no target");
+    declare_parameter("simple_detect_enabled", true, "Enable the PCL plane/cluster/primitive object detector");
+    declare_parameter("prefer_simple_detector", true,
+                      "Run the PCL detector first and use the RSD pipeline only if it finds nothing (the RSD cylinder height was ~50% off)");
     declare_parameter("simple_detect_min_x", 0.15, "Ignore clusters whose centroid x is below this (robot base / links)");
     declare_parameter("simple_ground_z", 0.0, "Plane height assumed when no table/ground plane is visible");
     declare_parameter("simple_cluster_tolerance", 0.015, "Euclidean cluster tolerance for the fallback detector (m)");
@@ -979,7 +982,8 @@ class GetPlanningSceneServer : public rclcpp::Node {
   }
 
   std::vector<moveit_msgs::msg::CollisionObject> simpleObjectDetection(
-      const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input, double& plane_z, bool& plane_found) {
+      const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input, double& plane_z, bool& plane_found,
+      std::array<double, 4>& plane_bounds) {
     std::vector<moveit_msgs::msg::CollisionObject> result;
     const double min_x = this->get_parameter("simple_detect_min_x").as_double();
     const double ground_z = this->get_parameter("simple_ground_z").as_double();
@@ -1029,6 +1033,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
       const bool wide = (xmax - xmin) > 0.25 && (ymax - ymin) > 0.25;
       if (wide) {
         plane_found = true;
+        plane_bounds = { xmin, xmax, ymin, ymax };
         plane_z = zsum / inliers->indices.size();
         for (int i : inliers->indices) is_plane[i] = true;
         RCLCPP_INFO(this->get_logger(), "[simple] support plane at z=%.4f (%zu pts)", plane_z, inliers->indices.size());
@@ -1233,31 +1238,34 @@ class GetPlanningSceneServer : public rclcpp::Node {
     return result;
   }
 
-  // Runs after the main pipeline. If it produced no target, detect objects with the simple
-  // detector and fill the response (including a support surface when no table was seen).
-  void fallbackDetection(
+  // PCL detector: fills the response with the detected objects, the target and a support surface.
+  // Returns true on success. `require_no_target` is used when it runs after the RSD pipeline (only act if
+  // that found nothing); when it runs first the response is empty anyway.
+  bool detectObjects(
       const std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Request> request,
-      std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Response> response) {
-    if (!this->get_parameter("simple_detect_enabled").as_bool() || !response) return;
-    if (!response->target_object_id.empty()) return;
-    if (!latest_point_cloud || !latest_rgb_image) return;
-    if (request->target_shape.empty() || request->target_dimensions.empty()) return;
+      std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Response> response,
+      bool require_no_target) {
+    if (!this->get_parameter("simple_detect_enabled").as_bool() || !response) return false;
+    if (require_no_target && !response->target_object_id.empty()) return false;
+    if (!latest_point_cloud || !latest_rgb_image) return false;
+    if (request->target_shape.empty() || request->target_dimensions.empty()) return false;
 
-    RCLCPP_WARN(this->get_logger(), "Main pipeline found no target — running model-free fallback detector");
+    RCLCPP_INFO(this->get_logger(), "Running PCL object detector");
     auto transformed = transformPointCloud(latest_point_cloud, target_frame);
-    if (!transformed) return;
+    if (!transformed) return false;
     auto pcl_cloud = convertToPCL(transformed);
-    if (!pcl_cloud) return;
+    if (!pcl_cloud) return false;
 
     double plane_z = 0.0;
     bool plane_found = false;
-    auto objects = simpleObjectDetection(pcl_cloud, plane_z, plane_found);
+    std::array<double, 4> plane_bounds = { 0.0, 0.0, 0.0, 0.0 };
+    auto objects = simpleObjectDetection(pcl_cloud, plane_z, plane_found, plane_bounds);
     if (objects.empty()) {
-      RCLCPP_WARN(this->get_logger(), "[simple] fallback detector found no objects either");
-      return;
+      RCLCPP_WARN(this->get_logger(), "[simple] PCL detector found no objects");
+      return false;
     }
 
-    // Drop earlier (failed) object entries, keep the support surface if the main pipeline made one
+    // Drop earlier (failed) object entries, keep the support surface if the RSD pipeline made one
     std::vector<moveit_msgs::msg::CollisionObject> kept;
     for (const auto& o : response->scene_world.collision_objects) {
       if (o.id == support_surface_name) kept.push_back(o);
@@ -1274,16 +1282,24 @@ class GetPlanningSceneServer : public rclcpp::Node {
     }
 
     if (response->support_surface_id.empty()) {
-      // No table: synthesise a thin virtual support at the plane height under the objects.
+      // Support surface from the detected table plane (its visible extent), or a thin virtual slab at the
+      // assumed ground height under the objects when no table was seen.
       moveit_msgs::msg::CollisionObject support;
       support.header.frame_id = target_frame;
       support.id = support_surface_name;
       shape_msgs::msg::SolidPrimitive box;
       box.type = shape_msgs::msg::SolidPrimitive::BOX;
-      box.dimensions = {0.4, 0.4, min_surface_thickness};
       geometry_msgs::msg::Pose pose;
-      pose.position.x = objects.front().primitive_poses[0].position.x;
-      pose.position.y = objects.front().primitive_poses[0].position.y;
+      if (plane_found) {
+        box.dimensions = { plane_bounds[1] - plane_bounds[0], plane_bounds[3] - plane_bounds[2],
+                           min_surface_thickness };
+        pose.position.x = 0.5 * (plane_bounds[0] + plane_bounds[1]);
+        pose.position.y = 0.5 * (plane_bounds[2] + plane_bounds[3]);
+      } else {
+        box.dimensions = {0.4, 0.4, min_surface_thickness};
+        pose.position.x = objects.front().primitive_poses[0].position.x;
+        pose.position.y = objects.front().primitive_poses[0].position.y;
+      }
       pose.position.z = plane_z - 0.5 * min_surface_thickness;  // top face at plane_z
       pose.orientation.w = 1.0;
       support.primitives.push_back(box);
@@ -1291,7 +1307,8 @@ class GetPlanningSceneServer : public rclcpp::Node {
       support.operation = moveit_msgs::msg::CollisionObject::ADD;
       kept.push_back(support);
       response->support_surface_id = support_surface_name;
-      RCLCPP_INFO(this->get_logger(), "[simple] added virtual support surface with top at z=%.4f", plane_z);
+      RCLCPP_INFO(this->get_logger(), "[simple] support surface from %s, top at z=%.4f",
+                  plane_found ? "detected table plane" : "assumed ground", plane_z);
     }
 
     response->scene_world.collision_objects = kept;
@@ -1299,7 +1316,8 @@ class GetPlanningSceneServer : public rclcpp::Node {
     response->full_cloud = *latest_point_cloud;
     response->rgb_image = *latest_rgb_image;
     response->success = true;
-    RCLCPP_INFO(this->get_logger(), "[simple] fallback detector selected target '%s'", target_id.c_str());
+    RCLCPP_INFO(this->get_logger(), "[simple] PCL detector selected target '%s'", target_id.c_str());
+    return true;
   }
 
   /***********************************************************************************
@@ -1310,6 +1328,16 @@ class GetPlanningSceneServer : public rclcpp::Node {
   void handleService(
       const std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Request> request,
       std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Response> response) {
+    // PCL detector first (accurate heights and works for boxes, cylinders and with no table); the RSD
+    // pipeline below only runs when it finds nothing.
+    if (this->get_parameter("prefer_simple_detector").as_bool()) {
+      try {
+        if (detectObjects(request, response, false)) return;
+      } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "PCL detector failed: %s", e.what());
+      }
+      *response = ur_interfaces::srv::GetPlanningScene::Response();
+    }
     try {
     handleServiceImpl(request, response);
     } catch (const std::exception& e) {
@@ -1319,11 +1347,13 @@ class GetPlanningSceneServer : public rclcpp::Node {
       RCLCPP_ERROR(this->get_logger(), "Unknown exception in service handler");
       response->success = false;
     }
-    // Independent of the main pipeline: it may have thrown or returned early without a target.
-    try {
-      fallbackDetection(request, response);
-    } catch (const std::exception& e) {
-      RCLCPP_ERROR(this->get_logger(), "Fallback detector failed: %s", e.what());
+    // Safety net when the PCL detector was not run first: use it if the RSD pipeline found no target.
+    if (!this->get_parameter("prefer_simple_detector").as_bool()) {
+      try {
+        detectObjects(request, response, true);
+      } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "PCL detector failed: %s", e.what());
+      }
     }
   }
 
