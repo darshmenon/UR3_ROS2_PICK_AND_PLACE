@@ -686,7 +686,7 @@ Visualization Manager:
       Enabled: true
       Name: Motion Planning Tasks
       Robot Description: robot_description
-      Task Solution Topic: ""
+      Task Solution Topic: /solution
       Value: true
   Enabled: true
   Global Options:
