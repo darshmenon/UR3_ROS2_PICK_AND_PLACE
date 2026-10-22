@@ -400,6 +400,8 @@ declare_parameter("grasp_frame_transform",
 
   // Grasp generation parameters
   declare_parameter("grasp_pose_angle_delta", 0.1309, "Angular resolution for sampling grasp poses (radians)");
+  declare_parameter("grasp_pitches", std::vector<double>{ 3.14159, 2.7, 2.4 }, "Approach pitches to try for the grasp ladder (rad); pi = straight top-down");
+  declare_parameter("grasp_pad_offset", 0.130, "Distance from gripper_frame to the finger pad centres along its z axis (m); measured via TF");
   declare_parameter("grasp_pose_max_ik_solutions", 25, "Maximum number of IK solutions for grasp pose generation");
   declare_parameter("grasp_pose_min_solution_distance", 0.5, "Minimum distance in joint-space units between IK solutions for grasp pose");
 
@@ -1048,6 +1050,7 @@ mtc::Task MTCTaskNode::createTask()
   // Grasp generation parameters
   auto grasp_pose_angle_delta = this->get_parameter("grasp_pose_angle_delta").as_double();
   (void)grasp_pose_angle_delta;  // retained param; absolute grasp ladder sets yaw explicitly
+  const double grasp_pad_offset = this->get_parameter("grasp_pad_offset").as_double();
   auto grasp_pose_max_ik_solutions = this->get_parameter("grasp_pose_max_ik_solutions").as_int();
   auto grasp_pose_min_solution_distance = this->get_parameter("grasp_pose_min_solution_distance").as_double();
 
@@ -1205,22 +1208,32 @@ mtc::Task MTCTaskNode::createTask()
    *                                                  *
    ***************************************************/
   // Create a stage to move the arm to a pre-grasp position
-  auto stage_move_to_pick = std::make_unique<mtc::stages::Connect>(
-      "move to pick",
-      mtc::stages::Connect::GroupPlannerVector{
-        // Arm only — gripper is already opened in the previous stage; including
-        // it here made Connect fail to link the successful grasp IK solutions
-        // back to the start state (0 Connect solutions while pick IK succeeded).
-        {arm_group_name, ompl_planner_transit}
-      });
-  stage_move_to_pick->setTimeout(move_to_pick_timeout);
-  stage_move_to_pick->properties().configureInitFrom(mtc::Stage::PARENT);
-  stage_move_to_pick->properties().set(
-      "trajectory_execution_info",
-      mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
-  // Transit uses APS/LBKPIECE + joint via + planning padding; path constraints
-  // previously made OMPL find nothing within 40s and were reverted.
-  task.add(std::move(stage_move_to_pick));
+  // RRTConnect is random-seed dependent (~25% raw success), so each Connect is
+  // wrapped in Fallbacks: RRTConnect first, then different OMPL planners that
+  // fail in different ways. Arm only — gripper is already opened in the
+  // previous stage; including it made Connect fail to link the successful
+  // grasp IK solutions back to the start state.
+  auto make_connect_with_fallbacks = [&](const std::string& name, double timeout) {
+    auto fallbacks = std::make_unique<mtc::Fallbacks>(name);
+    for (const std::string planner_id :
+         { transit_planner_id, std::string("BiTRRTkConfigDefault"), std::string("LazyPRMstarkConfigDefault") }) {
+      auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(this->shared_from_this(), "ompl");
+      planner->setPlannerId(planner_id);
+      auto connect = std::make_unique<mtc::stages::Connect>(
+          name + " (" + planner_id + ")",
+          mtc::stages::Connect::GroupPlannerVector{ { arm_group_name, planner } });
+      connect->setTimeout(timeout);
+      connect->properties().configureInitFrom(mtc::Stage::PARENT);
+      connect->properties().set(
+          "trajectory_execution_info",
+          mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+      fallbacks->add(std::move(connect));
+    }
+    return fallbacks;
+  };
+  // Transit uses joint via + planning padding; path constraints previously
+  // made OMPL find nothing within 40s and were reverted.
+  task.add(make_connect_with_fallbacks("move to pick", move_to_pick_timeout / 2.0));
   (void)ompl_planner_arm;  // available for non-transit stages if needed later
   (void)arm_home_pose;
 
@@ -1307,16 +1320,35 @@ mtc::Task MTCTaskNode::createTask()
       const double oy = object_pose_param[1];
       const double oz = object_pose_param[2];
       const double object_half_height = object_height / 2.0;
-      // Palm of robotiq_arg2f_base_link extends ~0.09m past the frame origin.
-      const double gripper_reach_offset = 0.090;
+
+      // Close the fingers with the pads centred on the object. The pads sit grasp_pad_offset (measured
+      // via TF) from the gripper frame, so the frame goes that far above the grasp point. The old
+      // half-height + 0.09 palm + clearance formula put the frame 0.145-0.185 m above the centre, i.e.
+      // the pads 1.5-5.5 cm above it: the winning 0.07 candidate closed on air above a 5 cm cube.
+      // `clearance` is now how far the pads sit above the object centre, capped so they stay on the object.
+      const double max_depth = std::max(0.0, object_half_height - 0.008);
+      const double grasp_hold_height = std::min(max_depth, 0.03);
+
+      // A box must be gripped across two opposite FACES. Yaws that close the pads on opposite corners (45 and
+      // 135 deg off the box axes) made the cube rotate out of the fingers and tilt onto an edge, stalling the
+      // finger at ~0.17 instead of ~0.35. Round objects have no preferred yaw, so keep the spread for them.
+      std::vector<double> yaw_samples = { 0.0, 0.7854, 1.5708, 2.3562 };
+      if (this->get_parameter("object_type").as_string() == "box" && object_pose_param.size() >= 6) {
+        const double box_yaw = object_pose_param[5];
+        yaw_samples = { box_yaw, box_yaw + 1.5708, box_yaw + 3.14159, box_yaw + 4.7124 };
+      }
 
       struct GraspCandidate { double clearance; double pitch; double yaw; };
       std::vector<GraspCandidate> candidates;
-      for (double pitch : { 3.14159, 2.7, 2.4 }) {
-        for (double clearance : { 0.03, 0.05, 0.07 }) {
+      for (double pitch : this->get_parameter("grasp_pitches").as_double_array()) {
+        // Keep the pads well above the table: a pad 0-1 cm above the object centre sat within a few mm of
+        // the support surface, and move_group aborted the lift ("left_inner_finger_pad" vs "support_surface",
+        // error -3). Use the highest hold the object allows, then 70% of it.
+        for (double depth : { grasp_hold_height, 0.7 * grasp_hold_height }) {
+          const double clearance = std::min(depth, max_depth);
           // A few yaw samples — full 24-angle sweeps were too slow and did not
           // help when the underlying pose was unreachable.
-          for (double yaw : { 0.0, 0.7854, 1.5708, 2.3562 }) {
+          for (double yaw : yaw_samples) {
             candidates.push_back({ clearance, pitch, yaw });
           }
         }
@@ -1329,8 +1361,7 @@ mtc::Task MTCTaskNode::createTask()
       for (size_t i = 0; i < candidates.size(); ++i) {
         const double pitch = candidates[i].pitch;
         const double yaw = candidates[i].yaw;
-        const double vertical =
-            object_half_height + gripper_reach_offset + candidates[i].clearance;
+        const double vertical = grasp_pad_offset + candidates[i].clearance;
         // Gripper origin for a top-down/tilted approach centered on the object:
         // same offsets_for_clearance math, applied in base_link.
         const double gx = ox - vertical * std::sin(pitch) * std::cos(yaw);
@@ -1401,7 +1432,24 @@ mtc::Task MTCTaskNode::createTask()
     {
       auto stage = std::make_unique<mtc::stages::MoveTo>("close gripper", interpolation_planner);
       stage->setGroup(gripper_group_name);
-      stage->setGoal(gripper_close_pose);
+      // Close onto the object's width instead of the fully-closed pose: commanding 0.8 on a 5 cm cube
+      // over-squeezes and the cube pops out of the pads. The 2F-85 is ~linear: finger_joint ~= 0.8 *
+      // (1 - width / 0.085), which gives ~0.37 for a 5 cm cube (measured stall 0.32-0.38). The 4 mm
+      // margin keeps a firm squeeze.
+      double grasp_width = 0.0;
+      if (object_type == "box" && object_dimensions.size() >= 2) {
+        grasp_width = std::min(object_dimensions[0], object_dimensions[1]);
+      } else if (object_type == "cylinder" && object_dimensions.size() >= 2) {
+        grasp_width = 2.0 * object_dimensions[1];
+      }
+      if (grasp_width > 0.01 && grasp_width < 0.08) {
+        const double close_target = std::clamp(0.8 * (1.0 - (grasp_width - 0.004) / 0.085), 0.05, 0.8);
+        RCLCPP_INFO(this->get_logger(), "Closing gripper to finger_joint=%.3f for object width %.3f m",
+                    close_target, grasp_width);
+        stage->setGoal(std::map<std::string, double>{ { "finger_joint", close_target } });
+      } else {
+        stage->setGoal(gripper_close_pose);
+      }
       stage->properties().set("trajectory_execution_info",
                       mtc::TrajectoryExecutionInfo().set__controller_names({"gripper_controller"}));
       grasp->insert(std::move(stage));
@@ -1473,17 +1521,7 @@ mtc::Task MTCTaskNode::createTask()
     // Connect the grasped (lifted) state to the pre-place state.
     // No carry via here: moving to transit_clear with the cylinder attached
     // repeatedly hit torso↔object / support↔object under padding.
-    auto stage_move_to_place = std::make_unique<mtc::stages::Connect>(
-      "move to place",
-      mtc::stages::Connect::GroupPlannerVector{
-        {arm_group_name, ompl_planner_transit}
-      });
-    stage_move_to_place->setTimeout(move_to_place_timeout);
-    stage_move_to_place->properties().configureInitFrom(mtc::Stage::PARENT);
-    stage_move_to_place->properties().set(
-        "trajectory_execution_info",
-        mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
-    task.add(std::move(stage_move_to_place));
+    task.add(make_connect_with_fallbacks("move to place", move_to_place_timeout / 2.0));
   }
 
   /******************************************************
@@ -1533,16 +1571,16 @@ mtc::Task MTCTaskNode::createTask()
       place->properties().exposeTo(place_ik->properties(), { "eef", "group", "ik_frame" });
       place_ik->properties().configureInitFrom(mtc::Stage::PARENT, { "eef", "group", "ik_frame" });
 
-      const double object_half_height = object_height / 2.0;
-      const double gripper_reach_offset = 0.090;
       const double px = place_pose[0];
       const double py = place_pose[1];
       // Object center height at place: configured z plus a fraction of height.
       const double pz = place_pose[2] + place_pose_z_offset_factor * object_height;
 
       size_t idx = 0;
-      for (double clearance : { 0.03, 0.05, 0.07, 0.10 }) {
-        const double vertical = object_half_height + gripper_reach_offset + clearance;
+      // Same pad-centred geometry as the grasp: the held object's centre is at pz when the gripper frame is
+      // grasp_pad_offset above pz. `clearance` is the release height above the surface.
+      for (double clearance : { 0.02, 0.03, 0.05, 0.08 }) {
+        const double vertical = grasp_pad_offset + clearance;
         geometry_msgs::msg::PoseStamped grasp_pose;
         grasp_pose.header.frame_id = world_frame;
         grasp_pose.pose.position.x = px;

@@ -21,15 +21,23 @@
          touching the joint math below: offset places the camera beside the
          gripper body, tilt/yaw re-aim it at the TCP so the fingers don't
          block the center of frame. Starting guess only - verify in RViz. -->
-    <xacro:property name="wrist_cam_offset_y" value="0.055"/>
-    <xacro:property name="wrist_cam_offset_z" value="-0.02"/>
+    <!-- The gz camera looks along its link +X. The pitch of -90 deg turns that
+         onto tool0 +Z (out along the fingers); the tilt then leans it a further
+         wrist_cam_tilt_deg, and the 180 deg yaw about tool0 Z makes that lean
+         point at the gripper axis (-X, since the camera sits at +X). To move
+         the camera to the other side use offset_x=-0.065 with yaw 0, or offset_y
+         with yaw -90 / +90. The old yaw of -15 left the camera leaning along +X, and
+         with z=-0.02 it sat behind the flange and mostly saw the wrist housing. -->
+    <xacro:property name="wrist_cam_offset_x" value="0.065"/>
+    <xacro:property name="wrist_cam_offset_y" value="0.0"/>
+    <xacro:property name="wrist_cam_offset_z" value="0.0"/>
     <xacro:property name="wrist_cam_tilt_deg" value="20"/>
-    <xacro:property name="wrist_cam_yaw_deg" value="-15"/>
+    <xacro:property name="wrist_cam_yaw_deg" value="180"/>
 
     <joint name="$(arg prefix)tool0_to_camera_wrist_link" type="fixed">
       <parent link="$(arg prefix)tool0"/>
       <child link="camera_wrist_link" />
-      <origin xyz="0 ${wrist_cam_offset_y} ${wrist_cam_offset_z}"
+      <origin xyz="${wrist_cam_offset_x} ${wrist_cam_offset_y} ${wrist_cam_offset_z}"
               rpy="0.0 ${-M_PI/2 + wrist_cam_tilt_deg * M_PI / 180} ${wrist_cam_yaw_deg * M_PI / 180}"/>
       <!-- Without this, SDFormat lumps this fixed joint's link into
            wrist_3_link during URDF->SDF reduction (same as every other

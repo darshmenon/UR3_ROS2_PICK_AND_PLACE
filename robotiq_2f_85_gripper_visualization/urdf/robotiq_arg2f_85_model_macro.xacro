@@ -124,6 +124,11 @@
         </material>
       </collision>
     </link>
+    <!-- Grippy rubber pads: unset friction fell back to the simulator default and the cube slipped out -->
+    <gazebo reference="${prefix}${fingerprefix}_inner_finger_pad">
+      <mu1>2.0</mu1>
+      <mu2>2.0</mu2>
+    </gazebo>
   </xacro:macro>
 
   <xacro:macro name="outer_finger_joint" params="prefix fingerprefix">

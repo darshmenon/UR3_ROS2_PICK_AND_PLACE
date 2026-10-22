@@ -119,14 +119,19 @@ mtc_node:
     # regardless of standoff. Reverted to the documented pitch=pi/0.135
     # baseline rather than commit a millimeter-fragile tilt value.
     grasp_frame_transform: [0.0, 0.0, 0.135, 0.0, 3.14159, 0.0]  # top-down grasp
-    # Place near the right bin, object-center height ~table/bin surface in base_link.
-    place_pose: [-0.15, -0.25, 0.06, 0.0, 0.0, 0.0]
+    # Pad centre distance from gripper_frame (robotiq_arg2f_base_link -> *_inner_finger_pad, from TF).
+    grasp_pad_offset: 0.130
+    # Approach pitches for the grasp ladder; 3.14159 = straight top-down.
+    grasp_pitches: [3.14159, 2.7, 2.4]
+    # Place on the pick table at the world's drop_zone (0.35, 0.20). z is the SURFACE height (table top,
+    # 0.04 in base_link); mtc_node adds place_pose_z_offset_factor * object_height for the object centre.
+    place_pose: [0.35, 0.20, 0.04, 0.0, 0.0, 0.0]
 
     # Motion planning (critical IK parameters)
     approach_object_min_dist: 0.05
     approach_object_max_dist: 0.3
-    lift_object_min_dist: 0.01
-    lift_object_max_dist: 0.3
+    lift_object_min_dist: 0.10
+    lift_object_max_dist: 0.25
 
     # Timeout parameters
     # move_to_pick_timeout raised 10.0 -> 40.0: this transit is a tight
