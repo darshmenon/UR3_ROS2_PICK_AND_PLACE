@@ -49,6 +49,13 @@
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/crop_box.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/features/normal_3d.h>
+#include <algorithm>
+#include <cmath>
 
 class GetPlanningSceneServer : public rclcpp::Node {
  public:
@@ -207,6 +214,15 @@ class GetPlanningSceneServer : public rclcpp::Node {
     declare_parameter("min_surface_thickness", 0.02, "Minimum thickness for the support surface (in meters)");
     declare_parameter("support_min_z", 0.015,
                      "Reject fitted support whose top face z is below this (filters mount_table at z≈0)");
+
+    // Declare parameters for the model-free fallback detector (used when the RSD pipeline finds no target)
+    declare_parameter("simple_detect_enabled", true, "Run the model-free fallback detector when the main pipeline finds no target");
+    declare_parameter("simple_detect_min_x", 0.15, "Ignore clusters whose centroid x is below this (robot base / links)");
+    declare_parameter("simple_ground_z", 0.0, "Plane height assumed when no table/ground plane is visible");
+    declare_parameter("simple_cluster_tolerance", 0.015, "Euclidean cluster tolerance for the fallback detector (m)");
+    declare_parameter("simple_min_cluster_points", 30, "Minimum points for a fallback-detector cluster");
+    declare_parameter("simple_max_object_size", 0.15, "Largest footprint dimension accepted as a graspable object (m)");
+    declare_parameter("simple_min_object_height", 0.015, "Shortest object accepted by the fallback detector (m)");
 
     // Declare parameters for normal, curvature, and RSD estimation
     declare_parameter("k_neighbors", 30, "Number of neighbors to consider for normal estimation");
@@ -862,6 +878,14 @@ class GetPlanningSceneServer : public rclcpp::Node {
 
   // Used for debugging to see the point cloud at interim steps
   void savePointCloudToPCD(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud, const std::string& filename) {
+    if (!cloud || cloud->empty()) {
+      RCLCPP_WARN(this->get_logger(), "Skipping debug save of %s: cloud is empty", filename.c_str());
+      return;
+    }
+    if (!cloud || cloud->empty()) {
+      RCLCPP_WARN(this->get_logger(), "Skipping debug save of %s: cloud is empty", filename.c_str());
+      return;
+    }
     std::string full_path = output_directory + filename;
     if (pcl::io::savePCDFileBinary(full_path, *cloud) == -1)
     {
@@ -871,6 +895,411 @@ class GetPlanningSceneServer : public rclcpp::Node {
     {
       RCLCPP_INFO(this->get_logger(), "Saved %s with %zu points.", full_path.c_str(), cloud->size());
     }
+  }
+
+  /***********************************************************************************
+   *                                                                                 *
+   *   Model-free fallback detector                                                  *
+   *   crop -> drop dominant horizontal plane (if any) -> Euclidean clusters ->      *
+   *   footprint of the top face -> box / cylinder primitive. Works with no table    *
+   *   (height is measured from the visible plane or simple_ground_z) and for boxes. *
+   *                                                                                 *
+   **********************************************************************************/
+  static std::vector<std::pair<double, double>> convexHull2D(std::vector<std::pair<double, double>> pts) {
+    if (pts.size() < 3) return pts;
+    std::sort(pts.begin(), pts.end());
+    auto cross = [](const std::pair<double, double>& o, const std::pair<double, double>& a,
+                    const std::pair<double, double>& b) {
+      return (a.first - o.first) * (b.second - o.second) - (a.second - o.second) * (b.first - o.first);
+    };
+    std::vector<std::pair<double, double>> hull(2 * pts.size());
+    size_t k = 0;
+    for (size_t i = 0; i < pts.size(); ++i) {
+      while (k >= 2 && cross(hull[k - 2], hull[k - 1], pts[i]) <= 0) --k;
+      hull[k++] = pts[i];
+    }
+    for (size_t i = pts.size() - 1, t = k + 1; i > 0; --i) {
+      while (k >= t && cross(hull[k - 2], hull[k - 1], pts[i - 1]) <= 0) --k;
+      hull[k++] = pts[i - 1];
+    }
+    hull.resize(k - 1);
+    return hull;
+  }
+
+  static double polygonArea2D(const std::vector<std::pair<double, double>>& poly) {
+    double area = 0.0;
+    for (size_t i = 0; i < poly.size(); ++i) {
+      const auto& a = poly[i];
+      const auto& b = poly[(i + 1) % poly.size()];
+      area += a.first * b.second - b.first * a.second;
+    }
+    return std::abs(area) * 0.5;
+  }
+
+  static double hullArea2D(const std::vector<std::pair<double, double>>& pts) {
+    return polygonArea2D(convexHull2D(pts));
+  }
+
+  // Samples points along a closed polygon outline every `step` metres.
+  static std::vector<std::pair<double, double>> sampleOutline(
+      const std::vector<std::pair<double, double>>& poly, double step) {
+    std::vector<std::pair<double, double>> out;
+    for (size_t i = 0; i < poly.size(); ++i) {
+      const auto& a = poly[i];
+      const auto& b = poly[(i + 1) % poly.size()];
+      const double len = std::hypot(b.first - a.first, b.second - a.second);
+      const int n = std::max(1, static_cast<int>(len / step));
+      for (int j = 0; j < n; ++j) {
+        const double f = static_cast<double>(j) / n;
+        out.emplace_back(a.first + f * (b.first - a.first), a.second + f * (b.second - a.second));
+      }
+    }
+    return out;
+  }
+
+  // Algebraic (Kasa) least-squares circle fit; returns false if degenerate.
+  static bool fitCircle2D(const std::vector<std::pair<double, double>>& pts,
+                          double& cx, double& cy, double& r) {
+    if (pts.size() < 3) return false;
+    Eigen::MatrixXd A(pts.size(), 3);
+    Eigen::VectorXd b(pts.size());
+    for (size_t i = 0; i < pts.size(); ++i) {
+      A(i, 0) = 2.0 * pts[i].first;
+      A(i, 1) = 2.0 * pts[i].second;
+      A(i, 2) = 1.0;
+      b(i) = pts[i].first * pts[i].first + pts[i].second * pts[i].second;
+    }
+    const Eigen::Vector3d x = A.colPivHouseholderQr().solve(b);
+    cx = x(0);
+    cy = x(1);
+    const double r2 = x(2) + cx * cx + cy * cy;
+    if (!(r2 > 0.0)) return false;
+    r = std::sqrt(r2);
+    return true;
+  }
+
+  std::vector<moveit_msgs::msg::CollisionObject> simpleObjectDetection(
+      const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input, double& plane_z, bool& plane_found) {
+    std::vector<moveit_msgs::msg::CollisionObject> result;
+    const double min_x = this->get_parameter("simple_detect_min_x").as_double();
+    const double ground_z = this->get_parameter("simple_ground_z").as_double();
+    const double tol = this->get_parameter("simple_cluster_tolerance").as_double();
+    const int min_pts = this->get_parameter("simple_min_cluster_points").as_int();
+    const double max_size = this->get_parameter("simple_max_object_size").as_double();
+    const double min_height = this->get_parameter("simple_min_object_height").as_double();
+
+    plane_z = ground_z;
+    plane_found = false;
+
+    // 1. Crop to the workspace
+    auto cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+    for (const auto& p : input->points) {
+      if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) continue;
+      if (enable_cropping && (p.x < crop_min_x || p.x > crop_max_x || p.y < crop_min_y ||
+                              p.y > crop_max_y || p.z < crop_min_z || p.z > crop_max_z)) continue;
+      cloud->push_back(p);
+    }
+    RCLCPP_INFO(this->get_logger(), "[simple] %zu points after crop", cloud->size());
+    if (cloud->size() < static_cast<size_t>(min_pts)) return result;
+
+    // 2. Remove a large horizontal plane (table/ground). A plane only counts if it is wide, so the
+    //    top face of the object itself is never mistaken for the support.
+    pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+    seg.setOptimizeCoefficients(true);
+    seg.setModelType(pcl::SACMODEL_PERPENDICULAR_PLANE);
+    seg.setAxis(Eigen::Vector3f::UnitZ());
+    seg.setEpsAngle(0.1);
+    seg.setMethodType(pcl::SAC_RANSAC);
+    seg.setMaxIterations(300);
+    seg.setDistanceThreshold(0.008);
+    seg.setInputCloud(cloud);
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+    pcl::ModelCoefficients coeff;
+    seg.segment(*inliers, coeff);
+
+    std::vector<bool> is_plane(cloud->size(), false);
+    if (inliers->indices.size() > 0 && coeff.values.size() == 4 && std::abs(coeff.values[2]) > 0.5) {
+      double xmin = 1e9, xmax = -1e9, ymin = 1e9, ymax = -1e9, zsum = 0.0;
+      for (int i : inliers->indices) {
+        const auto& p = cloud->points[i];
+        xmin = std::min<double>(xmin, p.x); xmax = std::max<double>(xmax, p.x);
+        ymin = std::min<double>(ymin, p.y); ymax = std::max<double>(ymax, p.y);
+        zsum += p.z;
+      }
+      const bool wide = (xmax - xmin) > 0.25 && (ymax - ymin) > 0.25;
+      if (wide) {
+        plane_found = true;
+        plane_z = zsum / inliers->indices.size();
+        for (int i : inliers->indices) is_plane[i] = true;
+        RCLCPP_INFO(this->get_logger(), "[simple] support plane at z=%.4f (%zu pts)", plane_z, inliers->indices.size());
+      }
+    }
+    if (!plane_found) {
+      RCLCPP_INFO(this->get_logger(), "[simple] no table visible — measuring heights from z=%.3f", plane_z);
+    }
+
+    auto objects_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+    for (size_t i = 0; i < cloud->size(); ++i) {
+      if (is_plane[i]) continue;
+      if (cloud->points[i].z < plane_z + 0.008) continue;  // table edge / ground noise
+      objects_cloud->push_back(cloud->points[i]);
+    }
+    if (objects_cloud->size() < static_cast<size_t>(min_pts)) return result;
+
+    // Flying pixels at depth discontinuities would corrupt object height and top-face selection.
+    {
+      auto filtered = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+      pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
+      sor.setInputCloud(objects_cloud);
+      sor.setMeanK(15);
+      sor.setStddevMulThresh(1.5);
+      sor.filter(*filtered);
+      RCLCPP_INFO(this->get_logger(), "[simple] outlier removal: %zu -> %zu points",
+                  objects_cloud->size(), filtered->size());
+      if (filtered->size() >= static_cast<size_t>(min_pts)) objects_cloud = filtered;
+    }
+
+    // 3. Euclidean clustering
+    pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+    tree->setInputCloud(objects_cloud);
+    std::vector<pcl::PointIndices> cluster_indices;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+    ec.setClusterTolerance(tol);
+    ec.setMinClusterSize(min_pts);
+    ec.setMaxClusterSize(200000);
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(objects_cloud);
+    ec.extract(cluster_indices);
+    RCLCPP_INFO(this->get_logger(), "[simple] %zu candidate clusters", cluster_indices.size());
+
+    int idx = 0;
+    for (const auto& ci : cluster_indices) {
+      // 98th-percentile top height: robust to the few stray points the outlier filter misses
+      std::vector<double> zs;
+      zs.reserve(ci.indices.size());
+      for (int i : ci.indices) zs.push_back(objects_cloud->points[i].z);
+      std::sort(zs.begin(), zs.end());
+      const double ztop = zs[static_cast<size_t>(0.98 * (zs.size() - 1))];
+      const double height = ztop - plane_z;
+
+      // Footprint from the top face (fully visible from above, unlike the sides)
+      std::vector<std::pair<double, double>> top;
+      for (int i : ci.indices) {
+        const auto& p = objects_cloud->points[i];
+        if (p.z > ztop - 0.01) top.emplace_back(p.x, p.y);
+      }
+      if (top.size() < 8) {
+        top.clear();
+        for (int i : ci.indices) top.emplace_back(objects_cloud->points[i].x, objects_cloud->points[i].y);
+      }
+      double mx = 0.0, my = 0.0;
+      for (const auto& t : top) { mx += t.first; my += t.second; }
+      mx /= top.size(); my /= top.size();
+      // Minimum-area bounding rectangle: PCA is arbitrary for a square top face, so scan angles.
+      double theta = 0.0, best_area = 1e9;
+      for (int deg = 0; deg < 90; deg += 2) {
+        const double a = deg * M_PI / 180.0, ca = std::cos(a), sa = std::sin(a);
+        double u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9;
+        for (const auto& t : top) {
+          const double u = ca * (t.first - mx) + sa * (t.second - my);
+          const double v = -sa * (t.first - mx) + ca * (t.second - my);
+          u0 = std::min(u0, u); u1 = std::max(u1, u);
+          v0 = std::min(v0, v); v1 = std::max(v1, v);
+        }
+        if ((u1 - u0) * (v1 - v0) < best_area) { best_area = (u1 - u0) * (v1 - v0); theta = a; }
+      }
+      const double c = std::cos(theta), s = std::sin(theta);
+      double umin = 1e9, umax = -1e9, vmin = 1e9, vmax = -1e9;
+      for (const auto& t : top) {
+        const double u = c * (t.first - mx) + s * (t.second - my);
+        const double v = -s * (t.first - mx) + c * (t.second - my);
+        umin = std::min(umin, u); umax = std::max(umax, u);
+        vmin = std::min(vmin, v); vmax = std::max(vmax, v);
+      }
+      const double w = umax - umin, l = vmax - vmin;
+      const double ucen = 0.5 * (umax + umin), vcen = 0.5 * (vmax + vmin);
+      const double ox = mx + c * ucen - s * vcen;
+      const double oy = my + s * ucen + c * vcen;
+
+      if (std::max(w, l) > max_size || height < min_height || ox < min_x) {
+        RCLCPP_INFO(this->get_logger(),
+                    "[simple] skip cluster (%zu pts) at (%.3f, %.3f): footprint %.3fx%.3f height %.3f",
+                    ci.indices.size(), ox, oy, w, l, height);
+        continue;
+      }
+
+      // Model selection on the fully visible top-face outline: which fits better, a rectangle or a circle?
+      const auto hull = convexHull2D(top);
+      const auto outline = sampleOutline(hull, 0.002);
+      const double fill = polygonArea2D(hull) / std::max(1e-9, w * l);  // box ~1.0, disc ~0.785
+      double rms_rect = 0.0, rms_circle = 1e9, ccx = ox, ccy = oy, cr = 0.25 * (w + l);
+      if (!outline.empty()) {
+        double sum = 0.0;
+        for (const auto& q : outline) {
+          const double u = c * (q.first - mx) + s * (q.second - my) - ucen;
+          const double v = -s * (q.first - mx) + c * (q.second - my) - vcen;
+          const double d = std::min(0.5 * w - std::abs(u), 0.5 * l - std::abs(v));
+          sum += d * d;
+        }
+        rms_rect = std::sqrt(sum / outline.size());
+        double fx, fy, fr;
+        if (fitCircle2D(outline, fx, fy, fr) && fr < max_size) {
+          double csum = 0.0;
+          for (const auto& q : outline) {
+            const double d = std::hypot(q.first - fx, q.second - fy) - fr;
+            csum += d * d;
+          }
+          rms_circle = std::sqrt(csum / outline.size());
+          ccx = fx; ccy = fy; cr = fr;
+        }
+      }
+      const bool squarish = std::abs(w - l) / std::max(w, l) < 0.3;
+      const bool is_cylinder = squarish && rms_circle < 0.8 * rms_rect;
+
+      // Refine a cylinder with a PCL RANSAC cylinder fit (upright axis) when it is well supported
+      if (is_cylinder) {
+        auto cl = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
+        for (int i : ci.indices) cl->push_back(objects_cloud->points[i]);
+        auto normals = std::make_shared<pcl::PointCloud<pcl::Normal>>();
+        pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> ne;
+        pcl::search::KdTree<pcl::PointXYZRGB>::Ptr ntree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+        ne.setSearchMethod(ntree);
+        ne.setInputCloud(cl);
+        ne.setRadiusSearch(0.02);
+        ne.compute(*normals);
+        pcl::SACSegmentationFromNormals<pcl::PointXYZRGB, pcl::Normal> cseg;
+        cseg.setOptimizeCoefficients(true);
+        cseg.setModelType(pcl::SACMODEL_CYLINDER);
+        cseg.setMethodType(pcl::SAC_RANSAC);
+        cseg.setMaxIterations(500);
+        cseg.setDistanceThreshold(0.004);
+        cseg.setRadiusLimits(0.01, 0.1);
+        cseg.setNormalDistanceWeight(0.1);
+        cseg.setAxis(Eigen::Vector3f::UnitZ());
+        cseg.setEpsAngle(0.15);
+        cseg.setInputCloud(cl);
+        cseg.setInputNormals(normals);
+        pcl::PointIndices cin;
+        pcl::ModelCoefficients ccoef;
+        cseg.segment(cin, ccoef);
+        const double ratio = static_cast<double>(cin.indices.size()) / cl->size();
+        if (ccoef.values.size() == 7 && ratio > 0.3 &&
+            std::hypot(ccoef.values[0] - ccx, ccoef.values[1] - ccy) < 0.02) {
+          RCLCPP_INFO(this->get_logger(),
+                      "[simple] RANSAC cylinder refine: r %.4f -> %.4f, center (%.3f,%.3f) -> (%.3f,%.3f), inliers %.0f%%",
+                      cr, ccoef.values[6], ccx, ccy, ccoef.values[0], ccoef.values[1], 100.0 * ratio);
+          cr = ccoef.values[6];
+          ccx = ccoef.values[0];
+          ccy = ccoef.values[1];
+        }
+      }
+
+      moveit_msgs::msg::CollisionObject obj;
+      obj.header.frame_id = target_frame;
+      shape_msgs::msg::SolidPrimitive prim;
+      geometry_msgs::msg::Pose pose;
+      pose.position.x = ox;
+      pose.position.y = oy;
+      pose.position.z = plane_z + 0.5 * height;
+      if (is_cylinder) {
+        prim.type = shape_msgs::msg::SolidPrimitive::CYLINDER;
+        prim.dimensions.resize(2);
+        prim.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_HEIGHT] = height;
+        prim.dimensions[shape_msgs::msg::SolidPrimitive::CYLINDER_RADIUS] = cr;
+        pose.position.x = ccx;
+        pose.position.y = ccy;
+        pose.orientation.w = 1.0;
+        obj.id = "cylinder_" + std::to_string(idx);
+      } else {
+        prim.type = shape_msgs::msg::SolidPrimitive::BOX;
+        prim.dimensions.resize(3);
+        prim.dimensions[shape_msgs::msg::SolidPrimitive::BOX_X] = w;
+        prim.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Y] = l;
+        prim.dimensions[shape_msgs::msg::SolidPrimitive::BOX_Z] = height;
+        pose.orientation.z = std::sin(0.5 * theta);
+        pose.orientation.w = std::cos(0.5 * theta);
+        obj.id = "box_" + std::to_string(idx);
+      }
+      obj.primitives.push_back(prim);
+      obj.primitive_poses.push_back(pose);
+      obj.operation = moveit_msgs::msg::CollisionObject::ADD;
+      RCLCPP_INFO(this->get_logger(),
+                  "[simple] %s at (%.3f, %.3f, %.3f): footprint %.3fx%.3f height %.3f fill %.2f rms rect %.4f circle %.4f (%zu pts)",
+                  obj.id.c_str(), pose.position.x, pose.position.y, pose.position.z, w, l, height, fill,
+                  rms_rect, rms_circle, ci.indices.size());
+      result.push_back(obj);
+      ++idx;
+    }
+    return result;
+  }
+
+  // Runs after the main pipeline. If it produced no target, detect objects with the simple
+  // detector and fill the response (including a support surface when no table was seen).
+  void fallbackDetection(
+      const std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Request> request,
+      std::shared_ptr<ur_interfaces::srv::GetPlanningScene::Response> response) {
+    if (!this->get_parameter("simple_detect_enabled").as_bool() || !response) return;
+    if (!response->target_object_id.empty()) return;
+    if (!latest_point_cloud || !latest_rgb_image) return;
+    if (request->target_shape.empty() || request->target_dimensions.empty()) return;
+
+    RCLCPP_WARN(this->get_logger(), "Main pipeline found no target — running model-free fallback detector");
+    auto transformed = transformPointCloud(latest_point_cloud, target_frame);
+    if (!transformed) return;
+    auto pcl_cloud = convertToPCL(transformed);
+    if (!pcl_cloud) return;
+
+    double plane_z = 0.0;
+    bool plane_found = false;
+    auto objects = simpleObjectDetection(pcl_cloud, plane_z, plane_found);
+    if (objects.empty()) {
+      RCLCPP_WARN(this->get_logger(), "[simple] fallback detector found no objects either");
+      return;
+    }
+
+    // Drop earlier (failed) object entries, keep the support surface if the main pipeline made one
+    std::vector<moveit_msgs::msg::CollisionObject> kept;
+    for (const auto& o : response->scene_world.collision_objects) {
+      if (o.id == support_surface_name) kept.push_back(o);
+    }
+    for (const auto& o : objects) kept.push_back(o);
+
+    // Pick the target by shape/size; fall back to the closest-sized object of any shape so an
+    // object-type mismatch in the request does not leave the arm without a target.
+    std::string target_id = identifyTargetObject(objects, request->target_shape, request->target_dimensions);
+    if (target_id.empty()) {
+      target_id = objects.front().id;
+      RCLCPP_WARN(this->get_logger(), "[simple] no object of shape '%s' — using %s instead",
+                  request->target_shape.c_str(), target_id.c_str());
+    }
+
+    if (response->support_surface_id.empty()) {
+      // No table: synthesise a thin virtual support at the plane height under the objects.
+      moveit_msgs::msg::CollisionObject support;
+      support.header.frame_id = target_frame;
+      support.id = support_surface_name;
+      shape_msgs::msg::SolidPrimitive box;
+      box.type = shape_msgs::msg::SolidPrimitive::BOX;
+      box.dimensions = {0.4, 0.4, min_surface_thickness};
+      geometry_msgs::msg::Pose pose;
+      pose.position.x = objects.front().primitive_poses[0].position.x;
+      pose.position.y = objects.front().primitive_poses[0].position.y;
+      pose.position.z = plane_z - 0.5 * min_surface_thickness;  // top face at plane_z
+      pose.orientation.w = 1.0;
+      support.primitives.push_back(box);
+      support.primitive_poses.push_back(pose);
+      support.operation = moveit_msgs::msg::CollisionObject::ADD;
+      kept.push_back(support);
+      response->support_surface_id = support_surface_name;
+      RCLCPP_INFO(this->get_logger(), "[simple] added virtual support surface with top at z=%.4f", plane_z);
+    }
+
+    response->scene_world.collision_objects = kept;
+    response->target_object_id = target_id;
+    response->full_cloud = *latest_point_cloud;
+    response->rgb_image = *latest_rgb_image;
+    response->success = true;
+    RCLCPP_INFO(this->get_logger(), "[simple] fallback detector selected target '%s'", target_id.c_str());
   }
 
   /***********************************************************************************
@@ -889,6 +1318,12 @@ class GetPlanningSceneServer : public rclcpp::Node {
     } catch (...) {
       RCLCPP_ERROR(this->get_logger(), "Unknown exception in service handler");
       response->success = false;
+    }
+    // Independent of the main pipeline: it may have thrown or returned early without a target.
+    try {
+      fallbackDetection(request, response);
+    } catch (const std::exception& e) {
+      RCLCPP_ERROR(this->get_logger(), "Fallback detector failed: %s", e.what());
     }
   }
 
