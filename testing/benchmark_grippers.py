@@ -362,13 +362,15 @@ def run_trials(gripper, obj_name, top_z, trials, tol, node, ex, det=None, grasp_
         lifted = (watcher.max_z - before[2]) if (before is not None and watcher.max_z is not None) \
             else float("nan")
         ex_xy = ex_z = float("nan")
+        err_dx = err_dy = float("nan")
         success = False
         if before is None or after is None:
             notes = (notes + "; " if notes else "") + "no gz pose"
         else:
             tx = before[0] + (PLACE_XY[0] - PICK_XY[0])
             ty = before[1] + (PLACE_XY[1] - PICK_XY[1])
-            ex_xy = math.hypot(after[0] - tx, after[1] - ty)
+            err_dx, err_dy = after[0] - tx, after[1] - ty
+            ex_xy = math.hypot(err_dx, err_dy)
             ex_z = after[2] - before[2]
             moved = math.hypot(after[0] - before[0], after[1] - before[1]) > 0.05
             # Judge by where the object ended up. The final retreat/home move often fails with
@@ -378,7 +380,8 @@ def run_trials(gripper, obj_name, top_z, trials, tol, node, ex, det=None, grasp_
                 notes = (notes + "; " if notes else "") + "object not moved"
         rows.append(dict(gripper=gripper, object=obj_name, trial=t, executed=executed,
                          success=success, error_xy_m=ex_xy, error_z_m=ex_z, perception_error_xy_m=perc_err,
-                         cycle_time_s=cycle, lifted_m=lifted, notes=notes))
+                         cycle_time_s=cycle, lifted_m=lifted, err_dx_m=err_dx, err_dy_m=err_dy,
+                         notes=notes))
         node.get_logger().info(f"{gripper}/{obj_name} trial {t}: {rows[-1]}")
         if recorder is not None:
             recorder.save(f"{gripper}_{obj_name}_t{t}", success)
@@ -436,7 +439,8 @@ def load_rows(path):
 
 def load_rows_from(rows):
     for r in rows:
-        for k in ("error_xy_m", "error_z_m", "perception_error_xy_m", "cycle_time_s", "lifted_m"):
+        for k in ("error_xy_m", "error_z_m", "perception_error_xy_m", "cycle_time_s", "lifted_m",
+                  "err_dx_m", "err_dy_m"):
             r[k] = float(r[k]) if r.get(k) not in (None, "") else float("nan")
         r["trial"] = int(r["trial"])
         r["success"] = str(r["success"]) == "True"
@@ -473,6 +477,8 @@ def orchestrate(args):
         base += ["--jitter-cm", str(args.jitter_cm)]
     if args.record_dir:
         base += ["--record-dir", args.record_dir]
+    if args.record_topic:
+        base += ["--record-topic", args.record_topic]
     all_rows = []
     for g in args.grippers:
         for name in args.objects:
@@ -489,7 +495,8 @@ def orchestrate(args):
                 rows = [dict(gripper=g, object=name, trial=0, executed=False, success=False,
                              error_xy_m=float("nan"), error_z_m=float("nan"),
                              perception_error_xy_m=float("nan"), cycle_time_s=0.0,
-                             lifted_m=float("nan"), notes="sim not ready")]
+                             lifted_m=float("nan"), err_dx_m=float("nan"), err_dy_m=float("nan"),
+                             notes="sim not ready")]
             all_rows += load_rows_from(rows)
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
@@ -524,6 +531,9 @@ def main():
     ap.add_argument("--no-yaw-align", action="store_true", help="baseline: ignore object yaw when grasping")
     ap.add_argument("--jitter-cm", type=float, default=0.0,
                     help="shift the object by up to this many cm in x and y each trial (seeded)")
+    ap.add_argument("--record-topic", default=None,
+                    help="camera topic for --record-dir (default: head camera, wrist camera with --perception); "
+                         "/camera_wrist/color/image_raw gives a close-up of the fingers")
     ap.add_argument("--record-dir", default=None,
                     help="save a labelled strip of camera frames for every trial here")
     ap.add_argument("--summarise-csv", default=None,
@@ -553,7 +563,7 @@ def main():
     YAW_SIGN = args.yaw_sign
     blank = dict(executed=False, success=False, error_xy_m=float("nan"),
                  error_z_m=float("nan"), perception_error_xy_m=float("nan"), cycle_time_s=0.0,
-                 lifted_m=float("nan"))
+                 lifted_m=float("nan"), err_dx_m=float("nan"), err_dy_m=float("nan"))
     all_rows = []
     for g in args.grippers:
         for name in args.objects:
@@ -586,8 +596,9 @@ def main():
                             f"{g}/{name}: sim not serving goals (attempt {attempt}/{args.launch_retries})")
                         continue
                     recorder = Recorder(
-                        node, "/camera_wrist/color/image_raw" if args.perception
-                        else "/camera_head/color/image_raw", args.record_dir) if args.record_dir else None
+                        node, args.record_topic or ("/camera_wrist/color/image_raw" if args.perception
+                                                    else "/camera_head/color/image_raw"),
+                        args.record_dir) if args.record_dir else None
                     rows_for_cell = run_trials(g, name, obj["top_z"], args.trials, args.tol, node, ex,
                                                det, args.grasp_depth, obj["height"],
                                                jitter=args.jitter_cm / 100.0, recorder=recorder)

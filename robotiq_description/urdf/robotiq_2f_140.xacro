@@ -123,6 +123,12 @@
         </geometry>
       </collision>
     </link>
+    <!-- The pad boxes below do not collide with the object (they sink 10+ mm into it), so the inner finger
+         mesh is the real contact surface: it needs the grip, not only the pad. -->
+    <gazebo reference="${prefix}${fingerprefix}_inner_finger">
+      <mu1>2.0</mu1>
+      <mu2>2.0</mu2>
+    </gazebo>
   </xacro:macro>
 
   <!-- Finger pad link, the default are the "big pads" with rubber-->
@@ -147,6 +153,12 @@
         </material>
       </collision>
     </link>
+    <!-- Grippy rubber pads, same as the 2F-85: unset friction fell back to the simulator default
+         and objects slipped out of the fingers while being carried. -->
+    <gazebo reference="${prefix}${fingerprefix}_inner_finger_pad">
+      <mu1>2.0</mu1>
+      <mu2>2.0</mu2>
+    </gazebo>
   </xacro:macro>
 
   <xacro:macro name="finger_joint" params="prefix">
