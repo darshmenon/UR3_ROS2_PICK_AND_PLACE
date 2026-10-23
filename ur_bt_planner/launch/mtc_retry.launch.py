@@ -12,6 +12,7 @@ After launch, call:
 (or /<namespace>/mtc_bt/status) for progress.
 """
 
+import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
@@ -69,7 +70,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument("gripper", default_value="robotiq_2f_85",
+        DeclareLaunchArgument("gripper", default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
                               description="Gripper to attach to the robot"),
         DeclareLaunchArgument("max_attempts", default_value="5",
                               description="Pick-place attempts before giving up"),

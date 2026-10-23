@@ -56,7 +56,7 @@ def generate_launch_description():
         DeclareLaunchArgument("robot_name",  default_value="ur"),
         DeclareLaunchArgument("use_sim_time",default_value="true"),
         DeclareLaunchArgument("ur_type",     default_value="ur3"),
-        DeclareLaunchArgument("gripper",     default_value="robotiq_2f_85"),
+        DeclareLaunchArgument("gripper",     default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2")),
         DeclareLaunchArgument(
             "brain",
             default_value="llm",

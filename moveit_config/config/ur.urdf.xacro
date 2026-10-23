@@ -3,7 +3,7 @@
     <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
     <xacro:arg name="use_gazebo" default="true"/> <!-- Added missing argument -->
     <xacro:arg name="robot_name" default="ur"/>
-    <xacro:arg name="gripper" default="robotiq_2f_85"/>
+    <xacro:arg name="gripper" default="$(optenv UR_GRIPPER onrobot_rg2)"/>
     <xacro:arg name="name" default="ur"/>
     <xacro:arg name="ur_type" default="ur3"/>
     <xacro:arg name="tf_prefix" default=""/>

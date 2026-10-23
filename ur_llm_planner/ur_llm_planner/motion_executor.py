@@ -101,7 +101,7 @@ GRIPPER_PROFILES: dict[str, dict] = {
     "robotiq_2f_85":  dict(joint="finger_joint", closed=GRIPPER_CLOSED,
                            half=GRIPPER_HALF, tcp_z=GRIPPER_TCP_OFFSET_Z),
     "robotiq_2f_140": dict(joint="finger_joint", closed=0.7, half=0.35, tcp_z=0.192),
-    "onrobot_rg2":    dict(joint="gripper_joint", closed=1.3, half=0.65, tcp_z=0.14),
+    "onrobot_rg2":    dict(joint="gripper_joint", closed=1.3, half=0.65, tcp_z=0.19),   # swept: 0.18-0.195 6/6, 0.14 2/6
     "onrobot_rg6":    dict(joint="gripper_joint", closed=1.3, half=0.65, tcp_z=0.19),
 }
 
@@ -136,7 +136,7 @@ class MotionExecutor:
         self._logger = node.get_logger()
         self._prefix = prefix
         self._arm_joints = [f"{prefix}{j}" for j in _ARM_JOINTS]
-        self.set_gripper(gripper or os.environ.get("UR_GRIPPER", "robotiq_2f_85"))
+        self.set_gripper(gripper or os.environ.get("UR_GRIPPER", "onrobot_rg2"))
 
         self._move_group_client = ActionClient(
             node,
@@ -297,9 +297,28 @@ class MotionExecutor:
         return self._send_move_group_goal(goal, timeout)
 
     def open_gripper(self, timeout: float = 10.0) -> bool:
-        """Open the gripper fully."""
+        """Open the gripper fully.
+
+        The controller reports the goal done once the fingers are within goal_tolerance of open, and
+        that tolerance is wide (closing on an object never reaches its target). So wait until the
+        finger joint really is open, otherwise the arm retreats with the object still pinched and
+        carries it away.
+        """
         self._logger.info("[MotionExecutor] open_gripper")
-        return self._send_gripper_goal(GRIPPER_OPEN, 10.0, timeout)
+        ok = self._send_gripper_goal(GRIPPER_OPEN, 10.0, timeout)
+        self._wait_gripper_open()
+        return ok
+
+    def _wait_gripper_open(self, timeout: float = 3.0, tol: float = 0.05) -> bool:
+        end = time.time() + timeout
+        while time.time() < end:
+            js = self._latest_joint_state
+            if js is not None and self._gripper_joint_name in js.name:
+                if js.position[js.name.index(self._gripper_joint_name)] <= GRIPPER_OPEN + tol:
+                    return True
+            time.sleep(0.05)
+        self._logger.warn("[MotionExecutor] gripper did not fully open in time")
+        return False
 
     def close_gripper(self, timeout: float = 6.0) -> bool:
         """Close the gripper fully.
@@ -760,6 +779,9 @@ class MotionExecutor:
         if js is None or self._gripper_joint_name not in js.name:
             return False
         pos = js.position[js.name.index(self._gripper_joint_name)]
+        self._logger.info(
+            f"[MotionExecutor] finger position {pos:.3f} (fully closed counts from "
+            f"{self._gripper_closed - margin:.3f})")
         return pos >= self._gripper_closed - margin
 
     def _execute_place(self, task: dict) -> bool:

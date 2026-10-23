@@ -144,3 +144,62 @@ def test_shape_label_is_voted_across_frames():
     assert seen[-1] == "box"                                   # one odd frame does not flip the label
     other = SimpleNamespace(pose=SimpleNamespace(position=SimpleNamespace(x=0.35, y=0.30)))
     assert node._stable_shape("red", other, "cylinder") == "cylinder"   # a different spot has its own votes
+
+
+def test_grasp_predictor_round_trip(tmp_path):
+    import torch
+    from grasp_predictor import GraspPredictor
+    from train_grasp_model import GraspNet
+    for task, n_extra in (("held", 0), ("quality", 5)):
+        path = tmp_path / f"{task}.pt"
+        torch.save({"task": task, "state": GraspNet(n_extra).state_dict(), "img": (160, 90),
+                    "test_acc": 0.5, "test_auc": 0.5}, path)
+        pred = GraspPredictor(path, device="cpu")
+        img = (np.random.rand(240, 424, 3) * 255).astype(np.uint8)
+        if task == "held":
+            assert 0.0 <= pred.held_probability(img) <= 1.0
+        else:
+            cands = [(0.0, 0.0, 0.0), (0.01, -0.01, 0.2), (-0.02, 0.02, -0.3)]
+            assert len(pred.quality(img, cands)) == 3
+            best, score = pred.best_grasp(img, cands)
+            assert best in cands and 0.0 <= score <= 1.0
+
+
+# ---- MTC settings must point at things that exist for each gripper ------------------------------
+import subprocess
+import xml.etree.ElementTree as ET
+
+import yaml
+
+REPO = Path(__file__).resolve().parent.parent
+MTC_YAML = {   # mirrors ur_mtc_pick_place_demo/launch/pick_place_demo.launch.py
+    "robotiq_2f_85": "mtc_node_params.yaml",
+    "robotiq_2f_140": "mtc_node_params_robotiq_2f_140.yaml",
+    "onrobot_rg2": "mtc_node_params_onrobot.yaml",
+    "onrobot_rg6": "mtc_node_params_onrobot_rg6.yaml",
+}
+
+
+def _xacro(path, gripper):
+    return subprocess.run(["xacro", str(path), f"gripper:={gripper}"], capture_output=True, text=True,
+                          check=True).stdout
+
+
+@pytest.mark.parametrize("gripper", list(MTC_YAML))
+def test_mtc_params_match_the_gripper(gripper):
+    cfg_dir = REPO / "ur_mtc_pick_place_demo" / "config"
+    p = yaml.safe_load(open(cfg_dir / MTC_YAML[gripper]))["mtc_node"]["ros__parameters"]
+    urdf = ET.fromstring(_xacro(REPO / "moveit_config/config/ur.urdf.xacro", gripper))
+    links = {l.get("name") for l in urdf.findall("link")}
+    joints = {j.get("name"): j for j in urdf.findall("joint")}
+    srdf = _xacro(REPO / "moveit_config/config/ur.srdf.xacro", gripper)
+    poses = {g.get("name") for g in ET.fromstring(srdf).findall("group_state") if g.get("group") == "gripper"}
+
+    assert p["gripper_frame"] in links, f"gripper_frame {p['gripper_frame']!r} is not a link of {gripper}"
+    assert p["gripper_open_pose"] in poses and p["gripper_close_pose"] in poses, (p["gripper_close_pose"], poses)
+    assert p["force_fallback_scene"] is False, "must use the camera, not the made-up fallback scene"
+    assert p["place_pose"][:2] == [0.35, 0.20], "place target must match the benchmark"
+    if "gripper_joint_name" in p:
+        assert p["gripper_joint_name"] in joints
+        upper = float(joints[p["gripper_joint_name"]].find("limit").get("upper"))
+        assert 0 < p["gripper_closed_value"] <= upper + 1e-9, "close target beyond the joint limit"

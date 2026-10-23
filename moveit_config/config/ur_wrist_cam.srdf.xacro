@@ -8,7 +8,7 @@
      camera sits right next to wrist_3_link/the gripper base and would
      otherwise register as a permanent self-collision. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="ur">
-    <xacro:arg name="gripper" default="robotiq_2f_85"/>
+    <xacro:arg name="gripper" default="$(optenv UR_GRIPPER onrobot_rg2)"/>
     <xacro:property name="selected_gripper" value="$(arg gripper)"/>
     <xacro:property name="gripper_base_link" value="${'robotiq_140_base_link' if selected_gripper == 'robotiq_2f_140' else 'robotiq_arg2f_base_link'}"/>
 

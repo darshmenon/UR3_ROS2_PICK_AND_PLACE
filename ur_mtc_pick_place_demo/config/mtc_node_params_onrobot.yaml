@@ -1,3 +1,5 @@
+# MTC parameters for the OnRobot RG2: the working Robotiq set (mtc_node_params.yaml) with the gripper-specific
+# frame, joint and grasp offsets. The old OnRobot file used a fake fallback scene and a sideways grasp.
 mtc_node:
   ros__parameters:
     # General parameters
@@ -12,14 +14,13 @@ mtc_node:
     # Robot configuration
     arm_group_name: "arm"
     gripper_group_name: "gripper"
-    gripper_frame: "gripper_grasp_frame"
+    gripper_frame: "gripper_grasp_frame"   # OnRobot: the grasp point itself, between the pads
     gripper_open_pose: "open"
     gripper_close_pose: "half_closed"
-    arm_home_pose: "home"
-    # Close-to-width mapping (mtc_node.cpp); RG2 values -- RG6 is stroke 0.160.
     gripper_joint_name: "gripper_joint"
     gripper_closed_value: 1.3
     gripper_stroke: 0.110
+    arm_home_pose: "home"
 
     # Scene configuration
     world_frame: "base_link"
@@ -29,27 +30,135 @@ mtc_node:
     object_name: "cylinder_1"
     object_type: "cylinder"
     object_reference_frame: "base_link"
-    object_dimensions: [0.35, 0.0125]  # Match exact dimensions from error log
-    object_pose: [0.22, 0.12, 0.15, 0.0, 0.0, 0.0]  # Z increased +0.05
+    # Short cylinder (~0.12m, bumped to 0.14m for perception testing — see
+    # red_cylinder/model.sdf). The original model.sdf was 0.35m tall — at the
+    # ~0.42m base-distance needed to clear the wrist singularity dead zone,
+    # a top-down grasp above a 0.35m object puts the EE at ~0.63m spherical
+    # from base_link (beyond UR3's ~0.5m reach), so every Fallbacks candidate
+    # returned "no IK found". 0.14m keeps EE ≈sqrt(0.42^2+0.26^2)≈0.49m.
+    object_dimensions: [0.14, 0.018]
+    # On the +X axis (y=0) at 0.36m — far enough to leave the ~0.32m
+    # singularity dead zone, close enough that a top-down grasp above a
+    # 0.14m cylinder stays inside UR3 reach (~0.49m spherical).
+    # z: the pick table prop was removed (2026-08-07) — objects now rest
+    # directly on the ground (base_link z≈0), so center z = half the
+    # cylinder's length (0.14/2 = 0.07), not the old table-top height.
+    object_pose: [0.36, 0.0, 0.07, 0.0, 0.0, 0.0]
+    # Pick-table box in base_link (see pick_and_place_demo.world). Used when
+    # perception falls back so we don't keep a RANSAC mount_table slab at z≈0.
+    fallback_support_dimensions: [0.30, 0.45, 0.04]
+    fallback_support_pose: [0.275, 0.04, 0.02, 0.0, 0.0, 0.0]
+    # Reliable demo path: always use known pick-table + cylinder geometry.
+    force_fallback_scene: false
+    # support_min_z was 0.015, tuned to reject a mount_table slab at z≈0 back
+    # when the real pick surface was an elevated table prop. That prop was
+    # removed (see object_pose comment above) — the real surface now legitimately
+    # measures top_z≈0.0004 every run, so 0.015 rejected it unconditionally and
+    # silently fell back to fallback_support_pose above every single time.
+    # -0.01 accepts the real ground-level surface while still catching a
+    # genuinely bad (below-ground) plane fit.
+    support_min_z: -0.01
+    # support_max_xy_area was 0.25, sized for the removed elevated table prop
+    # (0.30x0.45=0.135 m^2 + margin). The real mount_table surface, cropped by
+    # get_planning_scene_server's crop_min/max_x/y box (0.75x0.90=0.675 m^2 max
+    # possible), measures ~0.42 m^2 — bigger than the old prop, so 0.25 rejected
+    # it unconditionally too. 0.6 accepts the real reading with margin while
+    # still rejecting a plane that spans almost the entire crop box.
+    support_max_xy_area: 0.6
+    move_group_wait_timeout: 30.0
 
     # Grasp parameters (key collision fixes)
-    grasp_frame_transform: [0.0, 0.0, 0.12, 0.0, 1.5708, 0.0]  # fingers grab sideways
-    place_pose: [-0.183, -0.14, 0.0, 0.0, 0.0, 0.0]  # Maintain Z-height
+    # z = distance from gripper_frame (robotiq_arg2f_base_link) to the fingertip
+    # grasp point (~0.135m — see ur_visual_servo/servo_node.py's ~0.145m
+    # tool0->fingertip measurement, minus ~0.010m tool0->base_link offset).
+    #
+    # GenerateGraspPose (moveit_task_constructor/core/src/stages/generate_grasp_pose.cpp)
+    # samples target_pose = Rotation(angle, object_z_axis) with ZERO translation —
+    # every candidate is centered exactly at the object's own origin, only the
+    # orientation varies with angle. gripper_frame_pose = target_pose *
+    # grasp_frame_transform^-1, so grasp_frame_transform's rotation controls
+    # which way the gripper approaches from, independent of the per-angle
+    # sampling. pitch=pi (180°) anti-aligns the gripper's Z-axis with the
+    # object's Z-axis, pointing it down into the table: a true top-down
+    # approach, closing fingers horizontally over the object from above.
+    #
+    # The previous pitch=1.5708 (90°) tilted that to horizontal — a sideways
+    # approach that swept the gripper base around at the object's own (low,
+    # table-level) height, unavoidably clipping the table (support_surface)
+    # at most angles for any object resting low/flush on it (verified: for
+    # both a cylinder and a box target, most of the 24 sampled angles
+    # collided with "support_surface", not the object).
+    #
+    # pitch=0 (identity) also gives a collision-free position (z=-0.135 puts
+    # the gripper 0.135m above the object) but points the gripper's approach
+    # axis *away* from the table instead of into it — physically requiring
+    # the arm to reach the grasp from below, through the table. Confirmed
+    # unreachable at any position/standoff: repositioning the object and
+    # increasing standoff both left IK stuck around the same large error
+    # (~0.52-0.66m, scaling with standoff distance) — a constant, geometry-
+    # independent failure, not a workspace dead zone.
+    #
+    # pitch=pi (this value) is verified collision-free (checked at both
+    # z=0.135 and z=0.25) and points the correct direction, but IK still
+    # fails to converge for the sampled positions tested — most likely
+    # KDL's known weakness solving near the UR wrist singularity for a
+    # straight-down orientation (see project notes on kinematics.yaml).
+    # A UR-specific analytical solver or TRAC-IK (neither available via apt
+    # here, both would need building from source) would resolve this
+    # definitively; not yet done.
+    #
+    # 2026-08-04: re-investigated with real explainFailure() diagnostics
+    # (see mtc_node.cpp) instead of guessing blind. Confirmed this IS a
+    # real reachability boundary, not an IK-search-budget problem: bumping
+    # kinematics_solver_timeout 5x (0.2s->1.0s) and attempts 5x (10->50)
+    # made no difference. Tilting off the exact pitch=pi singularity
+    # (tried pitch=3.0, 2.7, 2.4, 2.0 rad) does trade "no IK found" for
+    # "eef in collision" at a nearby standoff, confirming IK *can* succeed
+    # off-axis, but at every tilt tried the collision-free-and-reachable
+    # window was consistently 1-8mm wide or nonexistent, well inside the
+    # run-to-run jitter of the point-cloud-detected object pose/dimensions
+    # — not a stable value to commit. Root cause looks structural: the
+    # pick targets sit very close to the arm base in both the cylinder's
+    # (x=0.22-0.25) and box's (x=0.28ish) case, at close to the base's own
+    # height, which is a tight reach for any steep approach angle
+    # regardless of standoff. Reverted to the documented pitch=pi/0.135
+    # baseline rather than commit a millimeter-fragile tilt value.
+    grasp_frame_transform: [0.0, 0.0, 0.0, 0.0, 3.14159, 0.0]  # top-down grasp; frame is already at the pads
+    # Pad centre distance from gripper_frame (robotiq_arg2f_base_link -> *_inner_finger_pad, from TF).
+    grasp_pad_offset: 0.0   # pads sit at gripper_grasp_frame (RG2/RG6 URDF: within 6 mm)
+    # Approach pitches for the grasp ladder; 3.14159 = straight top-down.
+    grasp_pitches: [3.14159]
+    # Place on the pick table at the world's drop_zone (0.35, 0.20). z is the SURFACE height (table top,
+    # 0.04 in base_link); mtc_node adds place_pose_z_offset_factor * object_height for the object centre.
+    place_pose: [0.35, 0.20, 0.04, 0.0, 0.0, 0.0]
 
     # Motion planning (critical IK parameters)
     approach_object_min_dist: 0.05
     approach_object_max_dist: 0.3
-    lift_object_min_dist: 0.01
-    lift_object_max_dist: 0.3
+    lift_object_min_dist: 0.10
+    lift_object_max_dist: 0.25
 
     # Timeout parameters
-    move_to_pick_timeout: 10.0
-    move_to_place_timeout: 10.0
+    # move_to_pick_timeout raised 10.0 -> 40.0: this transit is a tight
+    # narrow-passage motion (table/object close to the arm base). Extra
+    # budget costs nothing when planning succeeds quickly.
+    move_to_pick_timeout: 40.0
+    move_to_place_timeout: 40.0
+
+    # Narrow-passage transit fixes (joint via + APS + planning margin)
+    arm_transit_clear_pose: "transit_clear"
+    use_transit_clear_via: true
+    transit_planner_id: "RRTConnectkConfigDefault"
+    planning_robot_padding: 0.0
+    planning_support_inflation: 0.005
 
     # Grasp generation (critical fixes)
     grasp_pose_angle_delta: 0.2618  # ~15 degrees
-    grasp_pose_max_ik_solutions: 25
-    grasp_pose_min_solution_distance: 0.5
+    # Was 25 / 0.5 — with KDL near top-down poses, demanding 25 mutually
+    # ≥0.5rad-apart solutions burns the timeout and yields 0 successes.
+    # Prefer fewer solutions so each setFromIK call can finish.
+    grasp_pose_max_ik_solutions: 1
+    grasp_pose_min_solution_distance: 0.1
 
     # Place generation
     place_pose_max_ik_solutions: 15

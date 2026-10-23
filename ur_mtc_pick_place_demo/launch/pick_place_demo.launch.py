@@ -54,7 +54,7 @@ def generate_launch_description():
 
     declare_gripper_cmd = DeclareLaunchArgument(
         name='gripper',
-        default_value='robotiq_2f_85',
+        default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
         description='Gripper to attach to the robot',
         choices=['robotiq_2f_85', 'robotiq_2f_140', 'onrobot_rg2', 'onrobot_rg6'])
 
@@ -142,7 +142,11 @@ def generate_launch_description():
 
         if mtc_node_params_override:
             mtc_node_params_file_path = mtc_node_params_override
-        elif gripper_str in ('onrobot_rg2', 'onrobot_rg6'):
+        elif gripper_str == 'robotiq_2f_140':
+            mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_robotiq_2f_140.yaml')
+        elif gripper_str == 'onrobot_rg6':
+            mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_onrobot_rg6.yaml')
+        elif gripper_str == 'onrobot_rg2':
             mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_onrobot.yaml')
         else:
             mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params.yaml')

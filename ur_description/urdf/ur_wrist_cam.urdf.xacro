@@ -17,7 +17,7 @@
    <xacro:arg name="safety_pos_margin" default="0.15"/>
    <xacro:arg name="safety_k_position" default="20"/>
    <xacro:arg name="force_abs_paths" default="false"/>
-   <xacro:arg name="gripper" default="robotiq_2f_85"/>
+   <xacro:arg name="gripper" default="$(optenv UR_GRIPPER onrobot_rg2)"/>
    <xacro:arg name="robot_name" default="ur"/>
    <xacro:arg name="use_gazebo" default="true"/>
 

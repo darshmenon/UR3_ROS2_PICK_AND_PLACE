@@ -101,7 +101,7 @@ def generate_launch_description():
                               choices=["ur3", "ur3e", "ur5", "ur5e", "ur10", "ur10e", "ur16e", "ur20", "ur30"]),
         DeclareLaunchArgument(
             "gripper",
-            default_value="robotiq_2f_85",
+            default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
             description="Gripper to attach to the robot",
             choices=["robotiq_2f_85", "robotiq_2f_140", "onrobot_rg2", "onrobot_rg6"],
         ),

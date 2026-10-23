@@ -3,7 +3,7 @@
 initial_positions:
   elbow_joint: 0
   finger_joint: 0
-  gripper_joint: 0.01
+  gripper_joint: 0.0   # = the SRDF open pose; 0.01 made MTC Connect stages fail on the mimic-joint deviation
   shoulder_lift_joint: -1.6315
   shoulder_pan_joint: -0.1
   wrist_1_joint: 1.8251

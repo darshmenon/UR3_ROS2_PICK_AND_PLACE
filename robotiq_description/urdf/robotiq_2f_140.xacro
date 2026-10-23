@@ -134,6 +134,12 @@
   <!-- Finger pad link, the default are the "big pads" with rubber-->
   <xacro:macro name="inner_finger_pad" params="prefix fingerprefix">
     <link name="${prefix}${fingerprefix}_inner_finger_pad">
+      <!-- A link without inertia is lumped away / its collision ignored in the sim; give it a little mass. -->
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.005" />
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6" />
+      </inertial>
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>

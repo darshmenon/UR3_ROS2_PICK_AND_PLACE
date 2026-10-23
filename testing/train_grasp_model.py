@@ -46,6 +46,9 @@ def load_samples(dirs, task):
     suffix = "close" if task == "held" else "scan"
     for d in dirs:
         d = Path(d).expanduser()
+        if not (d / "data.jsonl").exists():     # e.g. a collection run that never got going
+            print(f"skipping {d}: no data.jsonl")
+            continue
         rows = [json.loads(line) for line in open(d / "data.jsonl")]
         for r in rows:
             if r["skipped"]:

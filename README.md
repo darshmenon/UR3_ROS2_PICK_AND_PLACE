@@ -24,6 +24,7 @@ UR3 + Robotiq 2-Finger Gripper on **ROS 2 Humble** + **Gazebo Harmonic**: URDF/r
 - [Conveyor Belt Simulation (ur_conveyor)](#conveyor-belt-simulation-ur_conveyor)
 - [Dual-Arm Support](#dual-arm-support)
 - [Visualization & Logging](#visualization--logging)
+- [Gripper Benchmark (testing/)](#gripper-benchmark-testing)
 - [Future Scope / Work in Progress](#future-scope--work-in-progress)
 
 </details>
@@ -151,6 +152,8 @@ ros2 control list_controllers   # arm_controller, gripper_controller, joint_stat
 | Robotiq 2F-140 | `robotiq_2f_140` | `finger_joint` | 0.0 → 0.8 |
 | OnRobot RG2 | `onrobot_rg2` | `gripper_joint` | 0.0 → 1.3 |
 | OnRobot RG6 | `onrobot_rg6` | `gripper_joint` | 0.0 → 1.3 |
+
+**Default gripper: `onrobot_rg2`** (best benchmark result, see below). Every single-arm launch file reads `UR_GRIPPER`, so `export UR_GRIPPER=robotiq_2f_85` switches the whole stack (Gazebo, MoveIt, MTC, `MotionExecutor`) at once; the `gripper:=` launch argument still overrides it. The dual-arm launches stay on the Robotiq grippers.
 
 All use `position_controllers/GripperActionController`. Mimic joints are state-only — Gazebo Harmonic enforces `<mimic>` constraints at the physics level.
 
@@ -395,6 +398,54 @@ ros2 launch ur_web_dashboard dashboard.launch.py   # rosbridge (9090) + web_vide
 ros2 launch ur_web_dashboard view_logs.launch.py                    # both
 ros2 launch ur_web_dashboard view_logs.launch.py plotjuggler:=false # rqt_console only
 ```
+
+---
+
+## Gripper Benchmark (`testing/`)
+
+![OnRobot RG2 picking a 5 cm cube: approach, grasp, lift, carry, release, placed](assets/pick_and_place_onrobot_rg2.png)
+
+*OnRobot RG2 picking a 5 cm cube (left to right, top to bottom: arm at home, approach, grasp, lift, carry, placed).*
+
+![OnRobot RG2 picking four different shapes](assets/pick_and_place_shapes.png)
+
+*Four shapes, OnRobot RG2. Rows, top to bottom: 5 cm cube, tall box, 5 cm cylinder, 4 cm cylinder. Columns: approach, grasp, carry, placed.*
+
+<details>
+<summary>Other grippers (each picking the 5 cm cube)</summary>
+
+Robotiq 2F-85:
+
+![Robotiq 2F-85 picking a 5 cm cube](assets/pick_and_place_robotiq_2f_85.png)
+
+Robotiq 2F-140:
+
+![Robotiq 2F-140 picking a 5 cm cube](assets/pick_and_place_robotiq_2f_140.png)
+
+OnRobot RG6:
+
+![OnRobot RG6 picking a 5 cm cube](assets/pick_and_place_onrobot_rg6.png)
+
+</details>
+
+```bash
+python3 testing/benchmark_grippers.py --trials 5 --domain 91 --output results.csv   # all grippers x objects
+python3 testing/benchmark_grippers.py --grippers onrobot_rg2 --objects cube_5cm --record-dir frames/   # + PASS/FAIL image strips
+python3 testing/benchmark_grippers.py --summarise-csv results.csv                   # print the table again
+```
+
+| Script | Purpose |
+|---|---|
+| `benchmark_grippers.py` | The benchmark (per-gripper profiles live in `MotionExecutor.GRIPPER_PROFILES`) |
+| `measure_tcp.py` | Where the finger pads really are vs where the code aimed (fingertip offset per gripper) |
+| `sweep_tcp.py` | Try several fingertip offsets in the sim and report passes per offset |
+| `collect_grasp_data.py`, `train_grasp_model.py`, `grasp_predictor.py` | Collect labelled grasps, train a "held?" / grasp-quality model, use it |
+| `capture_frames.py` | Save camera frames from the headless sim as PNGs |
+| `benchmark_mtc.py` | The same benchmark through MoveIt Task Constructor (`mtc_retry.launch.py`) |
+| `gripper_selftest.py` | Check a gripper mechanism in the sim: joints follow commands, fingers symmetric, no jams |
+| `test_grasp_logic.py` | Offline unit tests (no sim): `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest testing/test_grasp_logic.py` |
+
+Latest full run (4 objects x 5 trials each, pick & place): RG2 80%, 2F-85 60%, 2F-140 35%, RG6 30%.
 
 ---
 
