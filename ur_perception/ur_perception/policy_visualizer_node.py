@@ -32,7 +32,7 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReli
 
 import tf2_ros
 import tf2_geometry_msgs  # registers PoseStamped transforms
-from cv_bridge import CvBridge, CvBridgeError
+from ur_perception.image_convert import NumpyBridge as CvBridge, CvBridgeError
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import CameraInfo, Image
 

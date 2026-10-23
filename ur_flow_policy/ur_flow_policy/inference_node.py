@@ -35,7 +35,8 @@ from sensor_msgs.msg import Image, JointState
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 try:
-    from cv_bridge import CvBridge
+    # NumPy-only bridge: the ROS cv_bridge crashes under NumPy 2.x ("_ARRAY_API not found").
+    from ur_perception.image_convert import NumpyBridge as CvBridge
     CV_BRIDGE_AVAILABLE = True
 except ImportError:
     CV_BRIDGE_AVAILABLE = False

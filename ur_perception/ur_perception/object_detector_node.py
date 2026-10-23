@@ -38,7 +38,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 
 import message_filters
-from cv_bridge import CvBridge, CvBridgeError
+from ur_perception.image_convert import NumpyBridge as CvBridge, CvBridgeError
 
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped, TransformStamped
@@ -336,7 +336,7 @@ class ObjectDetectorNode(Node):
                 bbox=det['bbox'],
                 depth_image=depth_image,
                 label=det['label'],
-                frame_id=color_msg.header.frame_id,
+                frame_id=self._optical_frame(color_msg.header.frame_id),
                 stamp=stamp,
                 min_depth_m=self._min_depth_m,
                 max_depth_m=self._max_depth_m,
@@ -356,6 +356,10 @@ class ObjectDetectorNode(Node):
             pose_base = self._transform_pose(pose_cam, target_frame='base_link', stamp=stamp)
             if pose_base is None:
                 continue
+
+            det['shape'] = self._stable_shape(det['label'], pose_base, det.get('shape', 'cylinder'))
+            det['yaw'] = self._base_yaw(pose_cam, det.get('yaw_px', 0.0), stamp) \
+                if det.get('shape') == 'box' else 0.0
 
             objects_3d.append((det, pose_base, radius_m, height_m))
 
@@ -433,6 +437,54 @@ class ObjectDetectorNode(Node):
     # TF helper
     # ------------------------------------------------------------------ #
 
+    def _stable_shape(self, label: str, pose_base, shape: str) -> str:
+        """Majority vote of the last frames' box/cylinder label for the object at this spot.
+
+        The fill-ratio test flips with viewing angle (a cube seen from above and aside looks
+        round), so a single frame is not trusted. Objects are keyed by colour and a 6 cm grid
+        cell in base_link, which is stable because the objects sit still while being scanned.
+        """
+        from collections import Counter, deque
+        votes = self.__dict__.setdefault('_shape_votes', {})
+        key = (label, round(pose_base.pose.position.x / 0.06), round(pose_base.pose.position.y / 0.06))
+        if key not in votes and len(votes) > 200:
+            votes.clear()
+        hist = votes.setdefault(key, deque(maxlen=9))
+        hist.append(shape)
+        best, n = Counter(hist).most_common(1)[0]
+        return best if n * 2 > len(hist) else shape
+
+    @staticmethod
+    def _optical_frame(frame_id: str) -> str:
+        """Optical-convention frame (x right, y down, z forward) for an image's frame.
+
+        gz publishes the images in the native camera frame (<name>_depth_frame, x forward), but
+        the pixel -> 3D maths here is optical. The URDF already has the optical child frame.
+        """
+        suffix = '_depth_frame'
+        if frame_id.endswith(suffix):
+            return frame_id[:-len(suffix)] + '_depth_optical_frame'
+        return frame_id
+
+    def _base_yaw(self, pose_cam, yaw_px, stamp) -> float:
+        """Yaw about base_link z of an image-plane direction at pose_cam.
+
+        Two points 5 cm apart along the direction (image x/y = optical x/y) are transformed to
+        base_link; the angle between them is the yaw. Folded to [-pi/4, pi/4) for boxes.
+        """
+        import copy
+        import math
+        tip = copy.deepcopy(pose_cam)
+        tip.pose.position.x += 0.05 * math.cos(yaw_px)
+        tip.pose.position.y += 0.05 * math.sin(yaw_px)
+        a = self._transform_pose(pose_cam, target_frame='base_link', stamp=stamp)
+        b = self._transform_pose(tip, target_frame='base_link', stamp=stamp)
+        if a is None or b is None:
+            return 0.0
+        yaw = math.atan2(b.pose.position.y - a.pose.position.y,
+                         b.pose.position.x - a.pose.position.x)
+        return (yaw + math.pi / 4) % (math.pi / 2) - math.pi / 4
+
     def _transform_pose(
         self,
         pose_stamped: PoseStamped,
@@ -484,6 +536,7 @@ class ObjectDetectorNode(Node):
             obj.id = f"{det['label']}_{idx}"
             obj.label = det['label']
             obj.confidence = float(det['confidence'])
+            obj.yaw = float(det.get('yaw', 0.0))
 
             # position — matches geometry_msgs/Point in DetectedObject.msg
             obj.position.x = pose_base.pose.position.x
@@ -500,7 +553,7 @@ class ObjectDetectorNode(Node):
         self._pub_detected_objects.publish(array_msg)
 
     def _publish_planning_scene(self, objects_3d, stamp) -> None:
-        """Publish all detected objects as cylinder CollisionObjects to MoveIt."""
+        """Publish all detected objects as box/cylinder CollisionObjects to MoveIt."""
         scene_msg = PlanningScene()
         scene_msg.is_diff = True
 
@@ -512,9 +565,14 @@ class ObjectDetectorNode(Node):
             co.operation = CollisionObject.ADD
 
             primitive = SolidPrimitive()
-            primitive.type = SolidPrimitive.CYLINDER
-            # CYLINDER dimensions: [height, radius] — per-object estimate
-            primitive.dimensions = [height_m, radius_m]
+            if det.get('shape') == 'box':
+                primitive.type = SolidPrimitive.BOX
+                # BOX dimensions: [x, y, z]; footprint is square (width from the bbox)
+                primitive.dimensions = [radius_m * 2.0, radius_m * 2.0, height_m]
+            else:
+                primitive.type = SolidPrimitive.CYLINDER
+                # CYLINDER dimensions: [height, radius] — per-object estimate
+                primitive.dimensions = [height_m, radius_m]
 
             co.primitives.append(primitive)
             co.primitive_poses.append(pose_base.pose)

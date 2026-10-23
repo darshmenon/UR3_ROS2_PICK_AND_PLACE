@@ -17,7 +17,7 @@ import threading
 import cv2
 import numpy as np
 import rclpy
-from cv_bridge import CvBridge
+from ur_perception.image_convert import NumpyBridge as CvBridge  # cv_bridge crashes under NumPy 2
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import Image

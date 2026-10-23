@@ -15,6 +15,7 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>cv_bridge</depend>
+  <exec_depend>ur_perception</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

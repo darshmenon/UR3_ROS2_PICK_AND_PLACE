@@ -55,6 +55,10 @@ _COLOR_RGB_FLOAT: Dict[str, tuple] = {
     'orange': (1.0, 0.647, 0.0),
 }
 
+# Blob area / min-area-rectangle area above which a blob is called a box. A filled
+# rectangle is ~1.0, a circle (cylinder seen end-on) is pi/4 ~= 0.785.
+_BOX_FILL_RATIO = 0.90
+
 # Minimum contour area in pixels to suppress tiny detections
 _MIN_CONTOUR_AREA = 500
 
@@ -115,6 +119,7 @@ class ColorDetector:
             - confidence   : float        - 0-1, based on fill ratio of convex hull
             - color_rgb    : (r, g, b)    - float 0-1 representative color
             - mask         : np.ndarray   - binary mask (same HxW as input), uint8
+            - shape        : str          - "box" or "cylinder" (from blob fill ratio)
         """
         if bgr_image is None or bgr_image.size == 0:
             return []
@@ -142,6 +147,8 @@ class ColorDetector:
                     'confidence':  confidence,
                     'color_rgb':   _COLOR_RGB_FLOAT[color_name],
                     'mask':        blob['mask'],
+                    'shape':       blob['shape'],
+                    'yaw_px':      blob['yaw_px'],
                 })
 
         return detections
@@ -213,7 +220,24 @@ class ColorDetector:
             blob_mask = np.zeros_like(mask)
             cv2.drawContours(blob_mask, [cnt], -1, 255, thickness=cv2.FILLED)
 
+            rect = cv2.minAreaRect(cnt)
+            (_, (rw, rh), _) = rect
+            rect_area = rw * rh
+            fill = area / rect_area if rect_area > 0 else 0.0
+            is_box = fill >= _BOX_FILL_RATIO
+
+            # Direction (image pixels) of one rectangle edge, folded to [-pi/4, pi/4) because a
+            # box looks the same every 90 degrees. Cylinders are round, so yaw means nothing.
+            yaw_px = 0.0
+            if is_box:
+                pts = cv2.boxPoints(rect)
+                edge = pts[1] - pts[0]
+                a = float(np.arctan2(edge[1], edge[0]))
+                yaw_px = (a + np.pi / 4) % (np.pi / 2) - np.pi / 4
+
             blobs.append({
+                'yaw_px':    yaw_px,
+                'shape':     'box' if is_box else 'cylinder',
                 'bbox':      (x, y, w, h),
                 'area':      area,
                 'hull_area': hull_area,

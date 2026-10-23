@@ -62,6 +62,14 @@ def generate_launch_description() -> LaunchDescription:
         description='1.0 for Gazebo metres; 0.001 for RealSense millimetres',
     )
 
+    publish_scene_arg = DeclareLaunchArgument(
+        'publish_planning_scene',
+        default_value='true',
+        description='Publish detected objects as MoveIt collision objects. Turn off when the '
+                    'arm picks them with MotionExecutor: the object then collides with the '
+                    'fingers and every lift plan is rejected.',
+    )
+
     object_detector_node = Node(
         package='ur_perception',
         executable='object_detector_node.py',
@@ -79,6 +87,9 @@ def generate_launch_description() -> LaunchDescription:
                 'depth_scale': ParameterValue(
                     LaunchConfiguration('depth_scale'), value_type=float
                 ),
+                'publish_planning_scene': ParameterValue(
+                    LaunchConfiguration('publish_planning_scene'), value_type=bool
+                ),
             },
         ],
     )
@@ -90,5 +101,6 @@ def generate_launch_description() -> LaunchDescription:
         depth_topic_arg,
         camera_info_topic_arg,
         depth_scale_arg,
+        publish_scene_arg,
         object_detector_node,
     ])
