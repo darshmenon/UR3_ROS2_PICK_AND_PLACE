@@ -48,12 +48,13 @@ gripper_controller:
     # without this, GripperCommand goals never finish and MTC execute hangs.
     # Stall detection is off: on a stall the controller holds the *measured* position, which drops the squeeze
     # force to zero, so the gripped object creeps, tilts and the fingers drift open. Instead the close goal is
-    # accepted within goal_tolerance: contact stops the finger ~0.1 rad short of the commanded close target, so
-    # 0.15 completes the goal at contact while the controller keeps driving toward the target (squeeze stays on).
+    # accepted within goal_tolerance: contact stops the finger short of the commanded close target (0.1 rad for a thin
+    # cylinder, ~0.5 rad for a 5 cm box), so 0.5 completes the goal at contact while the controller keeps driving
+    # toward the target (squeeze stays on). A fully open gripper is 0.8 away, so it can't report success early.
     allow_stalling: false
     stall_timeout: 0.5
     stall_velocity_threshold: 0.001
-    goal_tolerance: 0.15
+    goal_tolerance: 0.5
 # arm_with_gripper_controller:
 #   ros__parameters:
 #     joints:

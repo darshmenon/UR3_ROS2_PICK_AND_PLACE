@@ -44,6 +44,14 @@ arm_controller:
 gripper_controller:
   ros__parameters:
     joint: gripper_joint
+    # Same reasoning as the Robotiq config: contact stops the finger short of the close target, so accept
+    # the goal within tolerance while the controller keeps squeezing (stall detection would drop the force).
+    # The close target is the joint limit (1.3) but a 4-5 cm object stops the fingers around 0.7-1.0, so the
+    # tolerance must be wide; 0.8 still exceeds the 1.3 error of a fully open gripper (no instant "success").
+    allow_stalling: false
+    stall_timeout: 0.5
+    stall_velocity_threshold: 0.001
+    goal_tolerance: 0.8
 # arm_with_gripper_controller:
 #   ros__parameters:
 #     joints:

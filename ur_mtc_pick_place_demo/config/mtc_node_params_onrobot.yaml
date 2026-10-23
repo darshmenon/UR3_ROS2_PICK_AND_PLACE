@@ -16,6 +16,10 @@ mtc_node:
     gripper_open_pose: "open"
     gripper_close_pose: "half_closed"
     arm_home_pose: "home"
+    # Close-to-width mapping (mtc_node.cpp); RG2 values -- RG6 is stroke 0.160.
+    gripper_joint_name: "gripper_joint"
+    gripper_closed_value: 1.3
+    gripper_stroke: 0.110
 
     # Scene configuration
     world_frame: "base_link"

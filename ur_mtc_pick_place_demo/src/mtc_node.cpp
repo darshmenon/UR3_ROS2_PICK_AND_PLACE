@@ -401,6 +401,9 @@ declare_parameter("grasp_frame_transform",
   // Grasp generation parameters
   declare_parameter("grasp_pose_angle_delta", 0.1309, "Angular resolution for sampling grasp poses (radians)");
   declare_parameter("grasp_pitches", std::vector<double>{ 3.14159, 2.7, 2.4 }, "Approach pitches to try for the grasp ladder (rad); pi = straight top-down");
+  declare_parameter("gripper_joint_name", "finger_joint", "Actuated gripper joint commanded when closing onto an object's width");
+  declare_parameter("gripper_closed_value", 0.8, "Actuated joint value at fully closed (2F-85: 0.8 rad; OnRobot RG2/RG6: 1.3 rad)");
+  declare_parameter("gripper_stroke", 0.085, "Opening width at fully open (m); 2F-85 0.085, RG2 0.110, RG6 0.160");
   declare_parameter("grasp_pad_offset", 0.130, "Distance from gripper_frame to the finger pad centres along its z axis (m); measured via TF");
   declare_parameter("grasp_pose_max_ik_solutions", 25, "Maximum number of IK solutions for grasp pose generation");
   declare_parameter("grasp_pose_min_solution_distance", 0.5, "Minimum distance in joint-space units between IK solutions for grasp pose");
@@ -781,14 +784,17 @@ void MTCTaskNode::applyPlanningPadding()
 
   // Links that graze the pick table during transit. Do NOT pad finger pads —
   // 8mm there falsely collides with torso_link at folded configs.
-  static const char* kPaddedLinks[] = {
+  // The gripper base is whichever frame the active gripper config names (robotiq_arg2f_base_link by default;
+  // "robotiq_arg2f_base_link" is kept explicitly so existing configs behave exactly as before).
+  const std::string gripper_frame = this->get_parameter("gripper_frame").as_string();
+  const std::vector<std::string> kPaddedLinks = {
       "forearm_link", "wrist_1_link", "wrist_2_link", "wrist_3_link",
-      "upper_arm_link", "tool0", "robotiq_arg2f_base_link",
+      "upper_arm_link", "tool0", "robotiq_arg2f_base_link", gripper_frame,
   };
 
   moveit_msgs::msg::PlanningScene scene_msg;
   scene_msg.is_diff = true;
-  for (const char* link : kPaddedLinks) {
+  for (const auto& link : kPaddedLinks) {
     moveit_msgs::msg::LinkPadding lp;
     lp.link_name = link;
     lp.padding = padding;
@@ -994,6 +1000,9 @@ mtc::Task MTCTaskNode::createTask()
   // Gripper poses
   auto gripper_open_pose = this->get_parameter("gripper_open_pose").as_string();
   auto gripper_close_pose = this->get_parameter("gripper_close_pose").as_string();
+  const auto gripper_joint_name = this->get_parameter("gripper_joint_name").as_string();
+  const double gripper_closed_value = this->get_parameter("gripper_closed_value").as_double();
+  const double gripper_stroke = this->get_parameter("gripper_stroke").as_double();
 
   // Frame parameters
   auto world_frame = this->get_parameter("world_frame").as_string();
@@ -1440,8 +1449,8 @@ mtc::Task MTCTaskNode::createTask()
       auto stage = std::make_unique<mtc::stages::MoveTo>("close gripper", interpolation_planner);
       stage->setGroup(gripper_group_name);
       // Close onto the object's width instead of the fully-closed pose: commanding 0.8 on a 5 cm cube
-      // over-squeezes and the cube pops out of the pads. The 2F-85 is ~linear: finger_joint ~= 0.8 *
-      // (1 - width / 0.085), which gives ~0.37 for a 5 cm cube (measured stall 0.32-0.38). The 4 mm
+      // over-squeezes and the cube pops out of the pads. The gripper is ~linear: joint ~= closed *
+      // (1 - width / stroke); for the 2F-85 (closed 0.8, stroke 0.085) that gives ~0.37 for a 5 cm cube (measured stall 0.32-0.38). The 4 mm
       // margin keeps a firm squeeze.
       double grasp_width = 0.0;
       if (object_type == "box" && object_dimensions.size() >= 2) {
@@ -1449,11 +1458,12 @@ mtc::Task MTCTaskNode::createTask()
       } else if (object_type == "cylinder" && object_dimensions.size() >= 2) {
         grasp_width = 2.0 * object_dimensions[1];
       }
-      if (grasp_width > 0.01 && grasp_width < 0.08) {
-        const double close_target = std::clamp(0.8 * (1.0 - (grasp_width - 0.004) / 0.085), 0.05, 0.8);
-        RCLCPP_INFO(this->get_logger(), "Closing gripper to finger_joint=%.3f for object width %.3f m",
-                    close_target, grasp_width);
-        stage->setGoal(std::map<std::string, double>{ { "finger_joint", close_target } });
+      if (grasp_width > 0.01 && grasp_width < gripper_stroke - 0.005) {
+        const double close_target = std::clamp(
+            gripper_closed_value * (1.0 - (grasp_width - 0.004) / gripper_stroke), 0.05, gripper_closed_value);
+        RCLCPP_INFO(this->get_logger(), "Closing gripper to %s=%.3f for object width %.3f m",
+                    gripper_joint_name.c_str(), close_target, grasp_width);
+        stage->setGoal(std::map<std::string, double>{ { gripper_joint_name, close_target } });
       } else {
         stage->setGoal(gripper_close_pose);
       }

@@ -6,8 +6,10 @@ Bridges structured task dicts (produced by ClaudeClient) with actual
 ROS 2 action clients that command the robot arm and gripper.
 """
 
+import os
 import math
 import threading
+import time
 
 import rclpy.time
 from rclpy.action import ActionClient
@@ -34,6 +36,8 @@ from shape_msgs.msg import SolidPrimitive
 from tf2_ros import Buffer, TransformListener, LookupException, ExtrapolationException
 
 # Gripper position constants (metres, used by GripperActionController)
+SPEED_SCALE = 0.3          # normal motion speed
+CARRY_SPEED_SCALE = 0.15   # while carrying an object
 GRIPPER_OPEN = 0.0    # fully open
 GRIPPER_CLOSED = 0.8  # fully closed (maps ~85 mm stroke)
 GRIPPER_HALF = 0.4    # half-closed
@@ -88,6 +92,20 @@ DEFAULT_PLACE_Z = 0.10
 GRIPPER_TCP_OFFSET_Z = 0.145
 
 
+# Per-gripper values. The module constants above are the robotiq_2f_85 defaults;
+# the other grippers have a different actuated joint, close position and
+# tool0->fingertip distance (onrobot: joint upper limit 1.3 and grasp_frame z
+# from onrobot_description/config/rg{2,6}_v1.yaml). robotiq_2f_140: finger_joint
+# limit 0.7, pad frame 0.187 m from tool0 (from the expanded URDF; 2F-85 pad is 0.140).
+GRIPPER_PROFILES: dict[str, dict] = {
+    "robotiq_2f_85":  dict(joint="finger_joint", closed=GRIPPER_CLOSED,
+                           half=GRIPPER_HALF, tcp_z=GRIPPER_TCP_OFFSET_Z),
+    "robotiq_2f_140": dict(joint="finger_joint", closed=0.7, half=0.35, tcp_z=0.192),
+    "onrobot_rg2":    dict(joint="gripper_joint", closed=1.3, half=0.65, tcp_z=0.14),
+    "onrobot_rg6":    dict(joint="gripper_joint", closed=1.3, half=0.65, tcp_z=0.19),
+}
+
+
 class MotionExecutor:
     """
     Executes robot motion commands via ROS 2 action clients.
@@ -99,7 +117,7 @@ class MotionExecutor:
     - Executing a sequential list of task dicts produced by OllamaClient
     """
 
-    def __init__(self, node: Node, prefix: str = ""):
+    def __init__(self, node: Node, prefix: str = "", gripper: str | None = None):
         """
         Initialise action clients.
 
@@ -111,12 +129,14 @@ class MotionExecutor:
                 serves every planning group regardless of prefix, so
                 /move_action itself is never prefixed — only the
                 joint/link/controller names below are.
+            gripper: Key of GRIPPER_PROFILES. Defaults to $UR_GRIPPER, then
+                robotiq_2f_85 (the previous hardcoded behaviour).
         """
         self._node = node
         self._logger = node.get_logger()
         self._prefix = prefix
         self._arm_joints = [f"{prefix}{j}" for j in _ARM_JOINTS]
-        self._gripper_joint_name = f"{prefix}finger_joint"
+        self.set_gripper(gripper or os.environ.get("UR_GRIPPER", "robotiq_2f_85"))
 
         self._move_group_client = ActionClient(
             node,
@@ -132,6 +152,8 @@ class MotionExecutor:
 
         self._ik_client = node.create_client(GetPositionIK, "/compute_ik")
 
+        # Motion speed (fraction of the limits). Dropped while an object is held so it is not flung out.
+        self._speed_scale = SPEED_SCALE
         self._latest_joint_state: JointState | None = None
         node.create_subscription(
             JointState, "/joint_states", self._joint_state_cb, 10
@@ -148,6 +170,25 @@ class MotionExecutor:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def set_gripper(self, gripper: str) -> None:
+        """Select the gripper profile (joint name, close positions, TCP offset)."""
+        prof = GRIPPER_PROFILES.get(gripper)
+        if prof is None:
+            self._logger.warn(
+                f"Unknown gripper '{gripper}', using robotiq_2f_85. "
+                f"Known: {list(GRIPPER_PROFILES)}"
+            )
+            gripper, prof = "robotiq_2f_85", GRIPPER_PROFILES["robotiq_2f_85"]
+        self._gripper_name = gripper
+        self._gripper_joint_name = f"{self._prefix}{prof['joint']}"
+        self._gripper_closed = prof["closed"]
+        self._gripper_half = prof["half"]
+        self._tcp_offset_z = prof["tcp_z"]
+        self._named_gripper_poses = {
+            "open": GRIPPER_OPEN, "closed": prof["closed"],
+            "half_closed": prof["closed"] * 0.75,
+        }
 
     def wait_for_servers(self, timeout: float = 5.0) -> bool:
         """
@@ -216,11 +257,11 @@ class MotionExecutor:
                 return False
             joint_names = self._arm_joints
         elif group_name == f"{self._prefix}gripper":
-            finger_pos = _NAMED_GRIPPER_POSES.get(pose_name)
+            finger_pos = self._named_gripper_poses.get(pose_name)
             if finger_pos is None:
                 self._logger.error(
                     f"Unknown named gripper pose '{pose_name}'. "
-                    f"Known: {list(_NAMED_GRIPPER_POSES.keys())}"
+                    f"Known: {list(self._named_gripper_poses)}"
                 )
                 return False
             joint_names = [self._gripper_joint_name]
@@ -234,8 +275,8 @@ class MotionExecutor:
         req.group_name = group_name
         req.num_planning_attempts = 5
         req.allowed_planning_time = min(timeout * 0.7, 10.0)
-        req.max_velocity_scaling_factor = 0.3
-        req.max_acceleration_scaling_factor = 0.3
+        req.max_velocity_scaling_factor = self._speed_scale
+        req.max_acceleration_scaling_factor = self._speed_scale
         # Use Pilz PTP — generates its own timestamps, avoids TOTG zero-duration bug
         req.pipeline_id = "pilz_industrial_motion_planner"
         req.planner_id = "PTP"
@@ -260,10 +301,14 @@ class MotionExecutor:
         self._logger.info("[MotionExecutor] open_gripper")
         return self._send_gripper_goal(GRIPPER_OPEN, 10.0, timeout)
 
-    def close_gripper(self, timeout: float = 20.0) -> bool:
-        """Close the gripper fully."""
+    def close_gripper(self, timeout: float = 6.0) -> bool:
+        """Close the gripper fully.
+
+        Short timeout: once the fingers are on an object the goal may never reach its
+        tolerance, but the controller keeps squeezing, so waiting longer only wastes time.
+        """
         self._logger.info("[MotionExecutor] close_gripper")
-        return self._send_gripper_goal(GRIPPER_CLOSED, 10.0, timeout)
+        return self._send_gripper_goal(self._gripper_closed, 10.0, timeout)
 
     def compliant_close_gripper(
         self, max_effort: float = 5.0, timeout: float = 20.0
@@ -277,12 +322,12 @@ class MotionExecutor:
         self._logger.info(
             f"[MotionExecutor] compliant_close_gripper (max_effort={max_effort})"
         )
-        return self._send_gripper_goal(GRIPPER_CLOSED, max_effort, timeout)
+        return self._send_gripper_goal(self._gripper_closed, max_effort, timeout)
 
     def half_close_gripper(self, timeout: float = 10.0) -> bool:
         """Close the gripper to half position."""
         self._logger.info("[MotionExecutor] half_close_gripper")
-        return self._send_gripper_goal(GRIPPER_HALF, 10.0, timeout)
+        return self._send_gripper_goal(self._gripper_half, 10.0, timeout)
 
     def get_current_pose(
         self, tip_frame: str | None = None, reference_frame: str | None = None, timeout: float = 2.0
@@ -506,8 +551,8 @@ class MotionExecutor:
         req.group_name = group
         req.num_planning_attempts = 3
         req.allowed_planning_time = min(timeout * 0.7, 10.0)
-        req.max_velocity_scaling_factor = 0.3
-        req.max_acceleration_scaling_factor = 0.3
+        req.max_velocity_scaling_factor = self._speed_scale
+        req.max_acceleration_scaling_factor = self._speed_scale
         req.pipeline_id = "pilz_industrial_motion_planner"
         req.planner_id = "PTP"
 
@@ -598,6 +643,14 @@ class MotionExecutor:
         return True
 
     def _dispatch_task(self, task: dict) -> bool:
+        """Route a task to its executor method, keeping the slow carry speed only between a
+        successful pick and the task after it (the place)."""
+        ok = self._dispatch_task_impl(task)
+        if task.get("action") != "pick" or not ok:
+            self._speed_scale = SPEED_SCALE
+        return ok
+
+    def _dispatch_task_impl(self, task: dict) -> bool:
         """Route a single task dict to the appropriate executor method."""
         action = task.get("action", "")
 
@@ -646,17 +699,16 @@ class MotionExecutor:
         obj_x = float(task.get("object_x", 0.3))
         obj_y = float(task.get("object_y", 0.0))
         obj_z = float(task.get("object_z", 0.1))
+        obj_yaw = float(task.get("object_yaw", 0.0))
 
         self._logger.info(
             f"[MotionExecutor] pick: object={obj_id} at "
-            f"({obj_x:.3f}, {obj_y:.3f}, {obj_z:.3f})"
+            f"({obj_x:.3f}, {obj_y:.3f}, {obj_z:.3f}) yaw={math.degrees(obj_yaw):.0f} deg"
         )
 
         # Pre-grasp: hover above object
-        pregrasp_pose = self._make_downward_pose(
-            obj_x, obj_y, obj_z + PREGRASP_HEIGHT_OFFSET
-        )
-        if not self.move_to_pose(pregrasp_pose):
+        pregrasp_pose = self._move_above(obj_x, obj_y, obj_z, obj_yaw)
+        if pregrasp_pose is None:
             self._logger.error("[MotionExecutor] Failed to reach pre-grasp pose.")
             return False
 
@@ -665,7 +717,7 @@ class MotionExecutor:
             self._logger.warn("[MotionExecutor] Gripper open failed — continuing anyway.")
 
         # Grasp pose: move down to object
-        grasp_pose = self._make_downward_pose(obj_x, obj_y, obj_z + 0.01)
+        grasp_pose = self._make_downward_pose(obj_x, obj_y, obj_z + 0.01, obj_yaw)
         if not self.move_to_pose(grasp_pose):
             self._logger.error("[MotionExecutor] Failed to reach grasp pose.")
             return False
@@ -674,11 +726,41 @@ class MotionExecutor:
         if not self.close_gripper():
             self._logger.warn("[MotionExecutor] Gripper close failed — continuing anyway.")
 
+        # Grasp check: fingers that closed all the way have nothing between them.
+        time.sleep(0.5)
+        if self._gripper_fully_closed():
+            self._logger.error("[MotionExecutor] Grasp missed (fingers fully closed) — aborting pick.")
+            self.open_gripper()
+            self.move_to_pose(pregrasp_pose)
+            return False
+
+        # Slow down while the object is held; place() restores the normal speed after release.
+        self._speed_scale = CARRY_SPEED_SCALE
+
         # Lift back to pre-grasp height
         if not self.move_to_pose(pregrasp_pose):
             self._logger.warn("[MotionExecutor] Failed to lift after grasp — continuing.")
 
+        # Lift check: an object that slipped out during the lift lets the fingers close fully.
+        time.sleep(0.3)
+        if self._gripper_fully_closed():
+            self._logger.error("[MotionExecutor] Object lost during lift — aborting pick.")
+            self.open_gripper()
+            return False
+
         return True
+
+    def _gripper_fully_closed(self, margin: float = 0.05) -> bool:
+        """True if the gripper joint has reached its close target, i.e. holds nothing.
+
+        Returns False when the joint state is unavailable, so a missing reading never
+        blocks a pick that may be fine.
+        """
+        js = self._latest_joint_state
+        if js is None or self._gripper_joint_name not in js.name:
+            return False
+        pos = js.position[js.name.index(self._gripper_joint_name)]
+        return pos >= self._gripper_closed - margin
 
     def _execute_place(self, task: dict) -> bool:
         """
@@ -703,11 +785,15 @@ class MotionExecutor:
         )
 
         # Move above place location
-        above_pose = self._make_downward_pose(
-            place_x, place_y, place_z + PREGRASP_HEIGHT_OFFSET
-        )
-        if not self.move_to_pose(above_pose):
+        above_pose = self._move_above(place_x, place_y, place_z)
+        if above_pose is None:
             self._logger.error("[MotionExecutor] Failed to reach pre-place pose.")
+            return False
+
+        # Carry check: fingers fully closed on arrival means the object was lost in transit.
+        if self._gripper_fully_closed():
+            self._logger.error("[MotionExecutor] Object lost in transit — aborting place.")
+            self.open_gripper()
             return False
 
         # Descend
@@ -726,7 +812,20 @@ class MotionExecutor:
 
         return True
 
-    def _make_downward_pose(self, x: float, y: float, z: float) -> PoseStamped:
+    def _move_above(self, x: float, y: float, z: float, yaw: float = 0.0):
+        """Move above (x, y, z); return the pose reached, or None.
+
+        Long grippers (e.g. RG6) put the pre-grasp hover at the edge of the arm's top-down
+        reach for far targets, so IK fails; retry with a lower hover before giving up.
+        """
+        for offset in (PREGRASP_HEIGHT_OFFSET, 0.08, 0.05):
+            pose = self._make_downward_pose(x, y, z + offset, yaw)
+            if self.move_to_pose(pose):
+                return pose
+            self._logger.warn(f"[MotionExecutor] Hover +{offset:.2f} m unreachable — trying lower.")
+        return None
+
+    def _make_downward_pose(self, x: float, y: float, z: float, yaw: float = 0.0) -> PoseStamped:
         """
         Create a tool0 PoseStamped that puts the gripper's fingertip TCP,
         pointing straight down, at (x, y, z) in this instance's base_link.
@@ -738,7 +837,7 @@ class MotionExecutor:
 
         move_to_pose() drives the "arm" group's IK tip link, tool0 — not the
         gripper's fingertip contact point — so z is offset by
-        GRIPPER_TCP_OFFSET_Z here to compensate (see its definition above).
+        the gripper profile's tcp_z here to compensate (see its definition above).
 
         Args:
             x, y, z: Desired gripper-TCP contact position in base_link (metres).
@@ -750,11 +849,13 @@ class MotionExecutor:
         pose.header.frame_id = f"{self._prefix}base_link"
         pose.pose.position.x = x
         pose.pose.position.y = y
-        pose.pose.position.z = z + GRIPPER_TCP_OFFSET_Z
+        pose.pose.position.z = z + self._tcp_offset_z
         # End-effector pointing down: rotate 180 degrees about world X axis
         # q = (cos(pi/2), sin(pi/2)*x̂) = (0, 1, 0, 0) [w, x, y, z]
-        pose.pose.orientation.x = 1.0
-        pose.pose.orientation.y = 0.0
+        # A yaw about world Z, applied before the flip, turns the fingers to match a rotated
+        # box: qz(yaw) * qx(pi) = (cos(yaw/2), sin(yaw/2), 0, 0) as (x, y, z, w).
+        pose.pose.orientation.x = math.cos(yaw / 2.0)
+        pose.pose.orientation.y = math.sin(yaw / 2.0)
         pose.pose.orientation.z = 0.0
         pose.pose.orientation.w = 0.0
         return pose
@@ -773,6 +874,7 @@ class MotionExecutor:
         self,
         goal: MoveGroupAction.Goal,
         timeout: float,
+        _retry: bool = True,
     ) -> bool:
         """Send a MoveGroup goal and wait for the result."""
         if not self._move_group_client.server_is_ready():
@@ -804,6 +906,12 @@ class MotionExecutor:
             f"MoveGroup returned error code {error_code} "
             f"({self._moveit_error_name(error_code)})."
         )
+        # CONTROL_FAILED right after a contact move (e.g. releasing an object) is usually the
+        # arm controller still settling; a single retry a moment later normally goes through.
+        if _retry and error_code == MoveItErrorCodes.CONTROL_FAILED:
+            self._logger.warn("[MotionExecutor] CONTROL_FAILED — retrying once.")
+            time.sleep(1.5)
+            return self._send_move_group_goal(goal, timeout, _retry=False)
         return False
 
     def _send_gripper_goal(

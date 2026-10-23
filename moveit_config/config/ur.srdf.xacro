@@ -99,6 +99,12 @@
     <disable_collisions link1="camera_wrist_link" link2="${gripper_base_link}" reason="Adjacent"/>
     <disable_collisions link1="camera_wrist_link" link2="left_outer_knuckle" reason="Never"/>
     <disable_collisions link1="camera_wrist_link" link2="right_outer_knuckle" reason="Never"/>
+    <disable_collisions link1="camera_wrist_link" link2="left_outer_finger" reason="Never"/>
+    <disable_collisions link1="camera_wrist_link" link2="right_outer_finger" reason="Never"/>
+    <disable_collisions link1="camera_wrist_link" link2="left_inner_finger" reason="Never"/>
+    <disable_collisions link1="camera_wrist_link" link2="right_inner_finger" reason="Never"/>
+    <disable_collisions link1="camera_wrist_link" link2="left_inner_knuckle" reason="Never"/>
+    <disable_collisions link1="camera_wrist_link" link2="right_inner_knuckle" reason="Never"/>
     <disable_collisions link1="forearm_link" link2="upper_arm_link" reason="Adjacent"/>
     <disable_collisions link1="forearm_link" link2="wrist_1_link" reason="Adjacent"/>
     <disable_collisions link1="forearm_link" link2="wrist_2_link" reason="Never"/>
@@ -296,6 +302,18 @@
     <disable_collisions link1="camera_wrist_link" link2="forearm_link" reason="Never"/>
     <disable_collisions link1="camera_wrist_link" link2="gripper_bracket" reason="Adjacent"/>
     <disable_collisions link1="camera_wrist_link" link2="gripper_body" reason="Never"/>
+    <!-- OnRobot linkage links overlap at the open pose (found by the gripper benchmark: every plan from
+         home was rejected as invalid because these pairs were in collision in the start state). -->
+    <disable_collisions link1="gripper_body" link2="gripper_finger_1_moment_arm" reason="Never"/>
+    <disable_collisions link1="gripper_finger_1_moment_arm" link2="gripper_finger_1_finger_tip" reason="Never"/>
+    <disable_collisions link1="gripper_body" link2="gripper_finger_2_moment_arm" reason="Never"/>
+    <disable_collisions link1="gripper_finger_2_moment_arm" link2="gripper_finger_2_finger_tip" reason="Never"/>
+    <disable_collisions link1="gripper_body" link2="gripper_finger_1_truss_arm" reason="Never"/>
+    <disable_collisions link1="gripper_finger_1_truss_arm" link2="gripper_finger_1_moment_arm" reason="Never"/>
+    <disable_collisions link1="gripper_finger_1_truss_arm" link2="gripper_finger_1_finger_tip" reason="Never"/>
+    <disable_collisions link1="gripper_body" link2="gripper_finger_2_truss_arm" reason="Never"/>
+    <disable_collisions link1="gripper_finger_2_truss_arm" link2="gripper_finger_2_moment_arm" reason="Never"/>
+    <disable_collisions link1="gripper_finger_2_truss_arm" link2="gripper_finger_2_finger_tip" reason="Never"/>
     <disable_collisions link1="forearm_link" link2="upper_arm_link" reason="Adjacent"/>
     <disable_collisions link1="forearm_link" link2="wrist_1_link" reason="Adjacent"/>
     <disable_collisions link1="forearm_link" link2="wrist_2_link" reason="Never"/>
