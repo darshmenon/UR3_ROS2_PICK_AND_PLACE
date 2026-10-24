@@ -344,6 +344,18 @@ ros2 launch ur_bt_planner dual_mtc_retry.launch.py      # + BT auto-retry per ar
 ros2 launch ur_sorting_demo dual_sorting_demo.launch.py # workspace-split sorting
 ```
 
+**Whole-body coordination** (`ur_dual_coordination`): both hands holding one object, all 12 joints solved together in priority order: (1) keep the hands' relative pose frozen and the arms apart, (2) move the object to its target, (3) stay near a comfortable posture; joint limits are enforced by freezing the joints that would leave their range. Because the relative pose is the top priority, the object is neither squeezed nor pulled, and the motion is shared between the arms.
+
+```bash
+ros2 launch ur_dual_coordination dual_coordination.launch.py               # with the dual-arm sim running
+ros2 service call /dual/grasp std_srvs/srv/Trigger {}                      # freeze the hands' relative pose
+ros2 topic pub --once /dual/object_target geometry_msgs/msg/PoseStamped \
+  "{header: {frame_id: world}, pose: {position: {x: 0.2, y: 0.0, z: 0.31}, orientation: {w: 1.0}}}"
+ros2 service call /dual/release std_srvs/srv/Trigger {}
+```
+
+Verified offline against the real dual-arm URDF (`testing/test_dual_coordination.py`): the object reaches its target within 3 mm, the hands stay within 1 mm of each other, the arms keep at least 10 cm apart, and joint limits are never exceeded. Not yet verified on the simulated controllers.
+
 Namespacing (services, node names, `/left`/`right` topics) is live-verified with no collisions. Note: the object/place/bin/handover poses these use are TODO placeholders extrapolated from the single-arm demo's numbers, not yet confirmed reachable — tune them against real workspace geometry before treating a run as a working demo rather than a wired-up pipeline.
 
 ---
