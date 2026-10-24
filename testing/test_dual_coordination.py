@@ -102,3 +102,31 @@ def test_arms_pushed_apart_when_too_close(dual, meeting_q):
     start = dual.min_arm_distance(q)
     *_, min_dist, _, _ = carry(dual, q, [0.0, 0.0, 0.05], T=2.0)
     assert min_dist > start - 0.01
+
+
+def test_object_reaches_targets_with_a_lagging_arm(dual, meeting_q):
+    """The real arm trails its command (controller lag). Model it as a first-order lag and run the same logic as
+    the node (integrate our own command, resync only if the arm lags more than 0.35 rad): every move must still
+    land within 1 mm, including the faster return to the start that stalled 29 mm short in the simulator."""
+    ctl = DualArmController(dual, ControllerConfig(max_joint_speed=1.0))
+    q = meeting_q.copy()
+    ctl.set_grasp(q)
+    q_cmd, dt, tau = q.copy(), 0.02, 0.4
+    start_p = ctl.object_pose(q).translation.copy()
+    cur = start_p.copy()
+    for move in ([0, 0, 0.06], [0.06, 0, 0], [0, 0.06, 0], "back"):
+        goal = start_p if move == "back" else cur + np.array(move)
+        start = ctl.object_pose(q)
+        dur = max(1.5, np.linalg.norm(goal - start.translation) / 0.05)
+        t = 0.0
+        while t < dur + 6.0:
+            s = min(1.0, t / dur)
+            s = 10 * s ** 3 - 15 * s ** 4 + 6 * s ** 5
+            target = pin.SE3(start.rotation, start.translation + s * (goal - start.translation))
+            if np.max(np.abs(q_cmd - q)) > 0.35:
+                q_cmd = q.copy()
+            q_cmd = ctl.step(q_cmd, target, dt=dt).q
+            q = q + (q_cmd - q) * (1 - np.exp(-dt / tau))
+            t += dt
+        cur = ctl.object_pose(q).translation
+        assert np.linalg.norm(cur - goal) < 0.001, f"{move}: {1000 * np.linalg.norm(cur - goal):.1f} mm from the goal"

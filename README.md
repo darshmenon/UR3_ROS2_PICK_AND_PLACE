@@ -360,7 +360,7 @@ ros2 topic pub --once /dual/object_target geometry_msgs/msg/PoseStamped \
 ros2 service call /dual/release std_srvs/srv/Trigger {}
 ```
 
-Verified offline against the real dual-arm URDF (`testing/test_dual_coordination.py`): the object reaches its target within 3 mm, the hands stay within 1 mm of each other, the arms keep at least 10 cm apart, and joint limits are never exceeded. On the simulated controllers (`testing/dual_sim_test.py`): moving the object 6 cm up, forward and sideways it reaches each target within 0.6 mm and the hands stay within about 2 mm of each other; a fourth move back to the start stalls about 29 mm short (not yet explained).
+Verified offline against the real dual-arm URDF (`testing/test_dual_coordination.py`): the object reaches its target within 3 mm, the hands stay within 1 mm of each other, the arms keep at least 10 cm apart, and joint limits are never exceeded. On the simulated controllers (`testing/dual_sim_test.py`): moving the object 6 cm up, forward and sideways it reaches each target within 0.6 mm and the hands stay within about 2 mm of each other; all four moves (up, forward, sideways and back to the start) land within 0.5 mm of their targets and the hands stay within about 5 mm of each other.
 
 Namespacing (services, node names, `/left`/`right` topics) is live-verified with no collisions. Note: the object/place/bin/handover poses these use are TODO placeholders extrapolated from the single-arm demo's numbers, not yet confirmed reachable — tune them against real workspace geometry before treating a run as a working demo rather than a wired-up pipeline.
 

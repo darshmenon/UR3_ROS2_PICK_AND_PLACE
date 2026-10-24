@@ -42,10 +42,11 @@ class DualCoordinator(Node):
     def __init__(self):
         super().__init__("dual_coordinator")
         self.declare_parameter("rate_hz", 50.0)
-        self.declare_parameter("max_object_speed", 0.08)      # m/s along the object path
+        self.declare_parameter("max_object_speed", 0.05)      # m/s along the object path
         self.declare_parameter("min_move_time", 1.5)          # s
         self.declare_parameter("max_joint_speed", 1.0)        # rad/s
         self.declare_parameter("joint_state_timeout", 0.5)    # s: stop commanding if joint states go stale
+        self.declare_parameter("resync_threshold", 0.35)      # rad: resync the command to the measured joints if the arm lags this far
         self.declare_parameter("left_topic", "/left_arm_controller/joint_trajectory")
         self.declare_parameter("right_topic", "/right_arm_controller/joint_trajectory")
 
@@ -146,8 +147,8 @@ class DualCoordinator(Node):
             q_meas = self.q.copy()
         # Integrate our own command instead of restarting from the measured joints every tick: each step is only
         # a few milliradians, which the arm controller does not follow (the object stalled ~3 cm short). The measured
-        # joints are only a safety check: if the arm lags the command by more than 0.15 rad, resync to it.
-        if self.q_cmd is None or float(np.max(np.abs(self.q_cmd - q_meas))) > 0.15:
+        # joints are only a safety check: if the arm lags the command by more than resync_threshold, resync to it.
+        if self.q_cmd is None or float(np.max(np.abs(self.q_cmd - q_meas))) > self.get_parameter("resync_threshold").value:
             self.q_cmd = q_meas
         st = self.ctl.step(self.q_cmd, target, dt=dt)
         self.q_cmd = st.q
