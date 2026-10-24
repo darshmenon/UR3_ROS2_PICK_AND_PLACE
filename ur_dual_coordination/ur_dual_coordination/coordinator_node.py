@@ -30,7 +30,7 @@ from std_srvs.srv import Trigger
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from ur_dual_coordination.controller import ControllerConfig, DualArmController
-from ur_dual_coordination.kinematics import DualArm
+from ur_dual_coordination.kinematics import ARM_JOINTS, DualArm
 
 
 def min_jerk(t: float) -> float:
@@ -54,6 +54,7 @@ class DualCoordinator(Node):
         self.ctl: Optional[DualArmController] = None
         self.q: Optional[np.ndarray] = None
         self._q_stamp = 0.0
+        self.q_cmd: Optional[np.ndarray] = None     # what we last commanded (integrated, not re-read from the sim)
         self._mode = "idle"                  # idle | holding
         self._path = None                    # (start SE3, goal SE3, t0, duration)
 
@@ -117,6 +118,7 @@ class DualCoordinator(Node):
         with self._lock:
             self.ctl.set_grasp(self.q.copy())
             obj = self.ctl.object_pose(self.q)
+        self.q_cmd = self.q.copy()
         self._mode, self._path = "holding", (obj, obj, 0.0, 1.0)
         response.success = True
         response.message = f"holding: hands frozen at their current relative pose; object at {obj.translation.round(3).tolist()}"
@@ -141,17 +143,27 @@ class DualCoordinator(Node):
         target = pin.SE3(start.rotation @ pin.exp3(s * pin.log3(start.rotation.T @ goal.rotation)),
                          start.translation + s * (goal.translation - start.translation))
         with self._lock:
-            st = self.ctl.step(self.q.copy(), target, dt=dt)
+            q_meas = self.q.copy()
+        # Integrate our own command instead of restarting from the measured joints every tick: each step is only
+        # a few milliradians, which the arm controller does not follow (the object stalled ~3 cm short). The measured
+        # joints are only a safety check: if the arm lags the command by more than 0.15 rad, resync to it.
+        if self.q_cmd is None or float(np.max(np.abs(self.q_cmd - q_meas))) > 0.15:
+            self.q_cmd = q_meas
+        st = self.ctl.step(self.q_cmd, target, dt=dt)
+        self.q_cmd = st.q
         self._publish(st.q, dt)
-        self._status(f"obj err {st.obj_error * 1000:.1f} mm, hand err {st.rel_error * 1000:.2f} mm, "
+        meas_err = float(np.linalg.norm(pin.log6(target.inverse() * self.ctl.object_pose(q_meas)).vector[:3]))
+        self._status(f"object {meas_err * 1000:.1f} mm from target (measured), hand-to-hand {st.rel_error * 1000:.2f} mm, "
                      f"arm distance {st.min_distance * 100:.0f} cm" + (f", limits: {st.saturated}" if st.saturated else ""))
 
     def _publish(self, q_cmd: np.ndarray, dt: float):
-        for side, pub, cols in (("left", self._left_pub, self.dual.left_cols), ("right", self._right_pub, self.dual.right_cols)):
+        for side, pub in (("left", self._left_pub), ("right", self._right_pub)):
             msg = JointTrajectory()
-            msg.joint_names = [self.dual.joint_names[c] for c in cols]
+            # name each joint explicitly and read its position by name: the model's column order need not match
+            # the order of any list of names (indexing a name list with a column number sent the wrong names)
+            msg.joint_names = [f"{side}_{j}" for j in ARM_JOINTS]
             pt = JointTrajectoryPoint()
-            pt.positions = [float(q_cmd[c]) for c in cols]
+            pt.positions = [float(q_cmd[self.dual.col[n]]) for n in msg.joint_names]
             ns = int(2.5 * dt * 1e9)
             pt.time_from_start = Duration(sec=ns // 10 ** 9, nanosec=ns % 10 ** 9)
             msg.points = [pt]

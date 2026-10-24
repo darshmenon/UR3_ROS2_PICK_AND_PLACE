@@ -12,5 +12,6 @@ def generate_launch_description():
         Node(package="ur_dual_coordination", executable="coordinator_node.py", name="dual_coordinator", output="screen",
              parameters=[{"max_object_speed": LaunchConfiguration("max_object_speed"),
                           "max_joint_speed": LaunchConfiguration("max_joint_speed"),
-                          "use_sim_time": True}]),
+                          # wall clock on purpose: its timers must keep running even if the sim publishes no /clock
+                          "use_sim_time": False}]),
     ])
