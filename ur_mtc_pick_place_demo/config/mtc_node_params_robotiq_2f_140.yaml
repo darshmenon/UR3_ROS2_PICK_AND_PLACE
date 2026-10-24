@@ -3,7 +3,7 @@ mtc_node:
   ros__parameters:
     # General parameters
     execute: true
-    max_solutions: 50  # Increased from 25
+    max_solutions: 5   # was 50: planning kept searching for 50 solutions (1-3 min) before picking the best
 
     # Controller parameters
     controller_names:
@@ -122,9 +122,9 @@ mtc_node:
     # height, which is a tight reach for any steep approach angle
     # regardless of standoff. Reverted to the documented pitch=pi/0.135
     # baseline rather than commit a millimeter-fragile tilt value.
-    grasp_frame_transform: [0.0, 0.0, 0.182, 0.0, 3.14159, 0.0]  # top-down grasp; pads are 0.177 from the base link (2F-85: 0.130)
+    grasp_frame_transform: [0.0, 0.0, 0.207, 0.0, 3.14159, 0.0]  # top-down grasp; pads are 0.177 from the base link when open and swing ~2.2 cm further out as they close, so aim 2.5 cm higher than the open-pad offset (0.182): the closing pad tip otherwise hits the table (MoveIt: support_surface vs left_inner_finger_pad)
     # Pad centre distance from gripper_frame (robotiq_arg2f_base_link -> *_inner_finger_pad, from TF).
-    grasp_pad_offset: 0.177
+    grasp_pad_offset: 0.202
     # Approach pitches for the grasp ladder; 3.14159 = straight top-down.
     grasp_pitches: [3.14159]
     # Place on the pick table at the world's drop_zone (0.35, 0.20). z is the SURFACE height (table top,

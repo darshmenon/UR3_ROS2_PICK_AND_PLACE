@@ -124,6 +124,8 @@ def run_cell(args, g, name):
         # so return to that before every trial, gripper open.
         mover = MotionExecutor(node)
         mover.set_gripper(g)
+        recorder = bench.Recorder(node, args.record_topic, args.record_dir, args.record_period,
+                                  args.record_frames) if args.record_dir else None
         initial = bench.object_pose()
         for t in range(1, args.trials + 1):
             if args.restart_mtc and t > 1:        # diagnostic: does state leak from one MTC run into the next?
@@ -151,6 +153,8 @@ def run_cell(args, g, name):
             bench.reset_object(initial)
             before = bench.object_pose()
             status["text"] = ""
+            if recorder is not None:
+                recorder.start()
             t0 = time.time()
             with bench.LiftWatcher() as watcher:
                 resp = None
@@ -191,6 +195,8 @@ def run_cell(args, g, name):
                              executed="SUCCESS" in status["text"], success=success, error_xy_m=ex_xy,
                              error_z_m=ex_z, perception_error_xy_m=float("nan"), cycle_time_s=cycle,
                              lifted_m=lifted, err_dx_m=err_dx, err_dy_m=err_dy, notes=(notes + " | " if notes else "") + status["text"]))
+            if recorder is not None:
+                recorder.save(f"mtc_{g}_{name}_t{t}", success)
             print(f"[mtc] {g}/{name} trial {t}: success={success} xy={ex_xy * 1000:.0f}mm "
                   f"status={status['text']!r} {cycle:.0f}s", flush=True)
             bench.reset_object(initial)
@@ -213,13 +219,17 @@ def run_cell(args, g, name):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--grippers", nargs="+", default=bench.DEFAULT_GRIPPERS)
-    ap.add_argument("--objects", nargs="+", default=list(bench.OBJECTS), choices=list(bench.OBJECTS))
+    ap.add_argument("--objects", nargs="+", default=[o for o in bench.OBJECTS if o != "ball_6cm"], choices=list(bench.OBJECTS))
     ap.add_argument("--trials", type=int, default=3)
     ap.add_argument("--attempts", type=int, default=1, help="MTC attempts per trial (1 = no retries)")
     ap.add_argument("--tol", type=float, default=0.02)
     ap.add_argument("--domain", type=int, default=91)
     ap.add_argument("--settle", type=float, default=45.0, help="seconds after the sim launch")
     ap.add_argument("--mtc-startup", type=float, default=40.0, help="seconds after the MTC launch")
+    ap.add_argument("--record-dir", default=None, help="save a labelled frame strip per trial here")
+    ap.add_argument("--record-topic", default="/camera_head/color/image_raw")
+    ap.add_argument("--record-period", type=float, default=0.5)
+    ap.add_argument("--record-frames", type=int, default=24)
     ap.add_argument("--restart-mtc", action="store_true", help="relaunch the MTC nodes before every trial after the first")
     ap.add_argument("--trial-timeout", type=float, default=420.0)
     ap.add_argument("--output", default=None)
@@ -243,6 +253,9 @@ def main():
                             "--objects", name, "--trials", str(args.trials), "--attempts", str(args.attempts),
                             "--tol", str(args.tol), "--domain", str(args.domain), "--settle", str(args.settle),
                             "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout), *(["--restart-mtc"] if args.restart_mtc else []),
+                            *(["--record-dir", args.record_dir, "--record-topic", args.record_topic,
+                               "--record-period", str(args.record_period), "--record-frames", str(args.record_frames)]
+                              if args.record_dir else []),
                             "--output", str(tmp)], check=False)
             if tmp.exists():
                 all_rows += bench.load_rows_from(list(csv.DictReader(open(tmp))))

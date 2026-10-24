@@ -2,7 +2,7 @@ mtc_node:
   ros__parameters:
     # General parameters
     execute: true
-    max_solutions: 50  # Increased from 25
+    max_solutions: 5   # was 50: planning kept searching for 50 solutions (1-3 min) before picking the best
 
     # Controller parameters
     controller_names:
