@@ -69,6 +69,7 @@ PICK_XY = (0.35, 0.0)
 PLACE_XY = (0.35, 0.20)  # drop_zone
 # Perception scan pose: tool0 height and x-offset from the pick XY (camera ~0.20 m above the object top; higher is out of top-down IK reach).
 YAW_SIGN = 1.0   # --yaw-sign: -1 flips the grasp yaw direction
+PLACE_DZ = 0.01   # release height above the grasp height (--place-dz)
 NO_YAW_ALIGN = False   # --no-yaw-align: baseline, always grasp square-on
 OBJECT_YAW = 0.0   # rad, set by --object-yaw-deg: how far the object is rotated about z
 SCAN_TOOL_Z = 0.35
@@ -243,7 +244,7 @@ class LiftWatcher:
 class Recorder:
     """Keeps downscaled camera frames during a trial and writes one labelled strip per trial."""
 
-    def __init__(self, node, topic, out_dir, period=0.5):
+    def __init__(self, node, topic, out_dir, period=0.5, keep=12):
         import numpy as np
         from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Image
@@ -251,6 +252,7 @@ class Recorder:
         self.out_dir = Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.period = period
+        self.keep = keep
         self.frames = []
         self.active = False
         self._last = 0.0
@@ -279,7 +281,7 @@ class Recorder:
         self.active = False
         if not self.frames:
             return
-        keep = self._np.linspace(0, len(self.frames) - 1, min(12, len(self.frames))).astype(int)
+        keep = self._np.linspace(0, len(self.frames) - 1, min(self.keep, len(self.frames))).astype(int)
         t0 = self.frames[0][0]
         tiles = []
         for i in keep:
@@ -338,7 +340,7 @@ def run_trials(gripper, obj_name, top_z, trials, tol, node, ex, det=None, grasp_
             {"action": "open_gripper"},
             {"action": "pick", "object_id": OBJECT, "object_x": pick_xy[0],
              "object_y": pick_xy[1], "object_z": pick_z, "object_yaw": pick_yaw},
-            {"action": "place", "x": PLACE_XY[0], "y": PLACE_XY[1], "z": pick_z + 0.01},
+            {"action": "place", "x": PLACE_XY[0], "y": PLACE_XY[1], "z": pick_z + PLACE_DZ},
             {"action": "move_to_named_pose", "pose_name": "home"},
         ]
         print(f"[obj] trial {t} start yaw={object_yaw_deg()} deg (commanded grasp yaw "
@@ -477,8 +479,12 @@ def orchestrate(args):
         base += ["--jitter-cm", str(args.jitter_cm)]
     if args.record_dir:
         base += ["--record-dir", args.record_dir]
+    if args.place_dz != 0.01:
+        base += ["--place-dz", str(args.place_dz)]
     if args.record_topic:
         base += ["--record-topic", args.record_topic]
+    if args.record_dir:
+        base += ["--record-period", str(args.record_period), "--record-frames", str(args.record_frames)]
     all_rows = []
     for g in args.grippers:
         for name in args.objects:
@@ -534,6 +540,9 @@ def main():
     ap.add_argument("--record-topic", default=None,
                     help="camera topic for --record-dir (default: head camera, wrist camera with --perception); "
                          "/camera_wrist/color/image_raw gives a close-up of the fingers")
+    ap.add_argument("--place-dz", type=float, default=0.01, help="release this far above the grasp height (m)")
+    ap.add_argument("--record-period", type=float, default=0.5, help="seconds between recorded frames")
+    ap.add_argument("--record-frames", type=int, default=12, help="frames kept per trial strip")
     ap.add_argument("--record-dir", default=None,
                     help="save a labelled strip of camera frames for every trial here")
     ap.add_argument("--summarise-csv", default=None,
@@ -557,7 +566,8 @@ def main():
     out = Path(args.output or REPO / "testing" / f"benchmark_grippers_{datetime.now():%Y%m%d_%H%M%S}.csv")
     (REPO / "logs").mkdir(exist_ok=True)
     rclpy.init()
-    global OBJECT, OBJECT_YAW, NO_YAW_ALIGN, YAW_SIGN
+    global OBJECT, OBJECT_YAW, NO_YAW_ALIGN, YAW_SIGN, PLACE_DZ
+    PLACE_DZ = args.place_dz
     OBJECT_YAW = math.radians(args.object_yaw_deg)
     NO_YAW_ALIGN = args.no_yaw_align
     YAW_SIGN = args.yaw_sign
@@ -598,7 +608,7 @@ def main():
                     recorder = Recorder(
                         node, args.record_topic or ("/camera_wrist/color/image_raw" if args.perception
                                                     else "/camera_head/color/image_raw"),
-                        args.record_dir) if args.record_dir else None
+                        args.record_dir, args.record_period, args.record_frames) if args.record_dir else None
                     rows_for_cell = run_trials(g, name, obj["top_z"], args.trials, args.tol, node, ex,
                                                det, args.grasp_depth, obj["height"],
                                                jitter=args.jitter_cm / 100.0, recorder=recorder)

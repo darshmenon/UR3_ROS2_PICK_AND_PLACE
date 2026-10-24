@@ -18,7 +18,6 @@ UR3 + Robotiq 2-Finger Gripper on **ROS 2 Humble** + **Gazebo Harmonic**: URDF/r
 - [Full Autonomous Pipeline](#full-autonomous-pipeline)
 - [Grasp Detection (ur_grasp)](#grasp-detection-ur_grasp)
 - [UR3 Reinforcement Learning (SAC)](#ur3-reinforcement-learning-sac)
-- [Robot Learning Datasets with LeRobot](#robot-learning-datasets-with-lerobot)
 - [Force Control / Compliant Grasping (ur_force_control)](#force-control--compliant-grasping-ur_force_control)
 - [Behavior Tree Task Planner (ur_bt_planner)](#behavior-tree-task-planner-ur_bt_planner)
 - [Conveyor Belt Simulation (ur_conveyor)](#conveyor-belt-simulation-ur_conveyor)
@@ -243,40 +242,6 @@ Compare training runs (reads all `ur_rl_training/logs/*/evaluations.npz`, no lau
 python3 testing/plot_rl_run_comparison.py
 # -> testing/rl_learning_curves.png, testing/rl_best_reward_bar.png
 ```
-
----
-
-## Robot Learning Datasets with LeRobot
-
-For training ACT / Diffusion Policy / SmolVLA from Gazebo demonstrations.
-
-```bash
-# 1. Record demos
-ros2 launch ur_gazebo full_demo.launch.py brain:=none use_gazebo_gui:=true
-ros2 launch ur_data_collector data_collector.launch.py
-ros2 service call /data_collector/start_recording std_srvs/srv/Trigger {}
-# ...perform the task manually / with MTC...
-ros2 service call /data_collector/stop_recording std_srvs/srv/Trigger {}
-```
-
-Episodes are saved as HDF5 to `~/ur3_demos` (RGB, 6 arm joints, gripper, timestamps, 7D actions).
-
-```bash
-# 2. Install LeRobot separately (needs Python 3.12, Humble uses 3.10)
-cd ~/lerobot && python3.12 -m venv .venv && source .venv/bin/activate
-pip install -e ".[training,smolvla]" h5py
-
-# 3. Export
-python ur_data_collector/scripts/export_lerobot_dataset.py \
-  --input-dir ~/ur3_demos --output-root ~/lerobot_ur3_pickplace \
-  --repo-id local/ur3_pickplace --task "pick the red block and place it in the bin"
-
-# 4. Train (SmolVLA recommended — ~450M params, LeRobot-native)
-lerobot-train --policy.path=lerobot/smolvla_base --dataset.repo_id=local/ur3_pickplace \
-  --dataset.root=~/lerobot_ur3_pickplace --batch_size=8 --steps=20000 --output_dir=outputs/train/ur3_smolvla
-```
-
-Action convention throughout: 6 arm joint targets/deltas + 1 gripper command (7D). For RL refinement on top of a trained IL/VLA policy, use SAC (`ur_rl_training`) on the same convention and compare success rates — there's no supported way to load a VLA checkpoint directly into SAC.
 
 ---
 

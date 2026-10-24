@@ -30,6 +30,7 @@ Parameters:
 
 import random
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import time
 
@@ -153,9 +154,16 @@ class ConveyorNode(Node):
     def _belt_loop(self):
         self._publish_status("Conveyor running")
         next_spawn = time.time()
+        last = time.time()
+        # Each set_pose is a blocking `gz service` call (~0.5 s), so boxes are moved in parallel threads and by
+        # the REAL elapsed time. Assuming 0.1 s per pass made the belt ~10x too slow, and slower with more boxes.
+        pool = ThreadPoolExecutor(max_workers=8)
 
         while rclpy.ok() and self._running:
             now = time.time()
+            dt = min(now - last, 1.0)
+            last = now
+            moves = []
 
             # Spawn new box
             if now >= next_spawn:
@@ -172,9 +180,11 @@ class ConveyorNode(Node):
                 if box is None or box.get("picked"):
                     continue
 
-                box["x"] -= self._belt_speed * 0.1  # move 100 ms worth
+                box["x"] -= self._belt_speed * dt
+                if box["x"] < self._pick_x:       # a box waiting in the pick zone stays put, does not run past it
+                    box["x"] = self._pick_x
 
-                self._move_box(name, box["x"], self._belt_y, self._belt_z)
+                moves.append(pool.submit(self._move_box, name, box["x"], self._belt_y, self._belt_z))
 
                 # Reached pick zone?
                 if box["x"] <= self._pick_x + 0.02 and not box.get("announced"):
@@ -198,8 +208,11 @@ class ConveyorNode(Node):
                     )
                     self._despawn_box(name)
 
-            time.sleep(0.1)
+            for m in moves:
+                m.result()
+            time.sleep(0.05)
 
+        pool.shutdown(wait=False)
         self._publish_status("Conveyor stopped")
 
     def _spawn_box(self):
