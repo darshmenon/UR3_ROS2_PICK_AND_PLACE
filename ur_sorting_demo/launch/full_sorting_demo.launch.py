@@ -34,7 +34,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("spawn_interval_s", default_value="6.0"),
-        DeclareLaunchArgument("belt_speed",       default_value="0.06"),
+        DeclareLaunchArgument("belt_speed",       default_value="0.03"),
         DeclareLaunchArgument("min_confidence",   default_value="0.5"),
         DeclareLaunchArgument("settle_time",      default_value="2.0"),
         DeclareLaunchArgument("auto_start",       default_value="false",

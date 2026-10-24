@@ -93,11 +93,14 @@ ros2 launch ur_gazebo mtc_demo.launch.py gripper:=robotiq_2f_85        # default
 ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries on failure; progress on /mtc_bt/status
 ```
 
-Pick and place through MTC (RG2 on the left, 2F-85 on the right; the long planning pause is cut from the GIFs):
+<table>
+  <tr>
+    <td align="center"><img src="assets/gifs/mtc_rg2_cylinder.gif" width="340"><br><sub><b>OnRobot RG2</b>, 5 cm cylinder</sub></td>
+    <td align="center"><img src="assets/gifs/mtc_2f85_cube.gif" width="340"><br><sub><b>Robotiq 2F-85</b>, 5 cm cube</sub></td>
+  </tr>
+</table>
 
-| RG2, 5 cm cylinder | 2F-85, 5 cm cube |
-|---|---|
-| ![MTC RG2](assets/gifs/mtc_rg2_cylinder.gif) | ![MTC 2F-85](assets/gifs/mtc_2f85_cube.gif) |
+<sub>MTC plans the whole pick and place before moving; the long planning pause is cut from these GIFs.</sub>
 
 Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. The RG6 and 2F-140 settings exist but are not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
 
@@ -319,11 +322,15 @@ ros2 topic echo /mtc_bt/status
 Spawns random-color boxes at the belt entry, moves them to the pick zone, publishes `/conveyor/object_ready`.
 
 ```bash
-ros2 launch ur_conveyor conveyor.launch.py spawn_interval_s:=6.0 belt_speed:=0.06
+ros2 launch ur_conveyor conveyor.launch.py spawn_interval_s:=6.0 belt_speed:=0.03
 ros2 service call /conveyor/start std_srvs/srv/Trigger {}
 ```
 
 Topics/services: `/conveyor/object_ready`, `/conveyor/picked`, `/conveyor/start`, `/conveyor/stop`.
+
+The arm picks each box off the belt and drops it on the bin of its colour (`python3 testing/conveyor_pick_demo.py`).
+
+<p align="center"><img src="assets/gifs/conveyor_pick_place.gif" width="560"></p>
 
 ---
 
@@ -338,9 +345,9 @@ ros2 launch ur_gazebo dual_ur.gazebo.launch.py            # GUI
 ros2 launch ur_gazebo dual_ur.gazebo.launch.py use_gazebo_gui:=false gripper:=robotiq_2f_85
 ```
 
-Args: `gripper` (all 4 grippers — robotiq and onrobot — now have MoveIt groups, not just raw joint control), `table_height`, `left_y`/`right_y` (base offsets, 0.45m/-0.45m default — arms face each other 0.9m apart), `world_file`, `use_move_group`, `use_rviz`, `use_dual_cameras` (opt-in per-arm D435, default false).
+Args: `gripper` (all 4 grippers), `table_height`, `left_y`/`right_y` (base offsets, default ±0.45 m), `world_file`, `use_move_group`, `use_rviz`, `use_dual_cameras` (per-arm D435, off by default).
 
-MoveIt planning groups exist for each arm independently (`left_arm`/`right_arm`/`left_gripper`/`right_gripper`, plus `both_arms` for future bimanual planning) — `move_group` and RViz launch by default, same workflow as the single-arm demo. Live-verified: both arms' controllers activate and `move_group` comes up clean (see `project_dual_arm_bullet_featherstone_crash` memory for a physics-engine quirk that was hit and fixed along the way).
+MoveIt groups: `left_arm`, `right_arm`, `left_gripper`, `right_gripper` and `both_arms`; `move_group` and RViz start by default.
 
 **Independent per-arm pipelines** (namespaced `left`/`right`, fallback planning scene — no live perception dependency yet):
 
@@ -350,7 +357,7 @@ ros2 launch ur_bt_planner dual_mtc_retry.launch.py      # + BT auto-retry per ar
 ros2 launch ur_sorting_demo dual_sorting_demo.launch.py # workspace-split sorting
 ```
 
-**Whole-body coordination** (`ur_dual_coordination`): both hands holding one object, all 12 joints solved together in priority order: (1) keep the hands' relative pose frozen and the arms apart, (2) move the object to its target, (3) stay near a comfortable posture; joint limits are enforced by freezing the joints that would leave their range. Because the relative pose is the top priority, the object is neither squeezed nor pulled, and the motion is shared between the arms.
+**Whole-body coordination** (`ur_dual_coordination`): both hands hold one object and all 12 joints are solved together. Priorities: keep the hands' relative pose and the arms apart, move the object to its target, stay near a comfortable posture. Joints at their limits are frozen.
 
 ```bash
 ros2 launch ur_dual_coordination dual_coordination.launch.py               # with the dual-arm sim running
@@ -360,9 +367,9 @@ ros2 topic pub --once /dual/object_target geometry_msgs/msg/PoseStamped \
 ros2 service call /dual/release std_srvs/srv/Trigger {}
 ```
 
-Verified offline against the real dual-arm URDF (`testing/test_dual_coordination.py`): the object reaches its target within 3 mm, the hands stay within 1 mm of each other, the arms keep at least 10 cm apart, and joint limits are never exceeded. On the simulated controllers (`testing/dual_sim_test.py`): moving the object 6 cm up, forward and sideways it reaches each target within 0.6 mm and the hands stay within about 2 mm of each other; all four moves (up, forward, sideways and back to the start) land within 0.5 mm of their targets and the hands stay within about 5 mm of each other.
+<p align="center"><img src="assets/gifs/dual_arm_carry.gif" width="480"></p>
 
-Namespacing (services, node names, `/left`/`right` topics) is live-verified with no collisions. Note: the object/place/bin/handover poses these use are TODO placeholders extrapolated from the single-arm demo's numbers, not yet confirmed reachable — tune them against real workspace geometry before treating a run as a working demo rather than a wired-up pipeline.
+Note: the object/place/bin/handover poses in the per-arm pipelines are placeholders from the single-arm demo and are not yet confirmed reachable.
 
 ---
 
@@ -395,46 +402,45 @@ ros2 launch ur_web_dashboard view_logs.launch.py plotjuggler:=false # rqt_consol
 
 ## Gripper Benchmark (`testing/`)
 
-![OnRobot RG2 picking a 5 cm cube: approach, grasp, lift, carry, release, placed](assets/pick_and_place_onrobot_rg2.png)
+### Pick and place with each gripper
 
-*OnRobot RG2 picking a 5 cm cube (left to right, top to bottom: arm at home, approach, grasp, lift, carry, placed).*
+<table>
+  <tr>
+    <td align="center"><img src="assets/gifs/2f85_cylinder.gif" width="340"><br><sub><b>Robotiq 2F-85</b>, 5 cm cylinder</sub></td>
+    <td align="center"><img src="assets/gifs/2f140_cube.gif" width="340"><br><sub><b>Robotiq 2F-140</b>, 5 cm cube</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="assets/gifs/rg2_cube.gif" width="340"><br><sub><b>OnRobot RG2</b> (default), 5 cm cube</sub></td>
+    <td align="center"><img src="assets/gifs/rg6_cube.gif" width="340"><br><sub><b>OnRobot RG6</b>, 5 cm cube</sub></td>
+  </tr>
+</table>
 
-![OnRobot RG2 picking a 5 cm cube, filmed from the showcase camera](assets/gifs/rg2_cube.gif)
+### Different shapes (OnRobot RG2)
+
+<table>
+  <tr>
+    <td align="center"><img src="assets/gifs/rg2_tall_box.gif" width="340"><br><sub>tall box</sub></td>
+    <td align="center"><img src="assets/gifs/rg2_cylinder.gif" width="340"><br><sub>5 cm cylinder</sub></td>
+  </tr>
+</table>
 
 <details>
-<summary>More animated pick and places (other grippers and shapes)</summary>
+<summary>The same runs as still contact sheets (arm at home, approach, grasp, lift, carry, placed)</summary>
 
-| | |
-|---|---|
-| Robotiq 2F-85, 5 cm cylinder | Robotiq 2F-140, 5 cm cube |
-| ![2F-85 cylinder](assets/gifs/2f85_cylinder.gif) | ![2F-140 cube](assets/gifs/2f140_cube.gif) |
-| OnRobot RG6, 5 cm cube | OnRobot RG2, tall box |
-| ![RG6 cube](assets/gifs/rg6_cube.gif) | ![RG2 tall box](assets/gifs/rg2_tall_box.gif) |
-| OnRobot RG2, 5 cm cylinder | |
-| ![RG2 cylinder](assets/gifs/rg2_cylinder.gif) | |
+<table>
+  <tr>
+    <td align="center"><img src="assets/pick_and_place_robotiq_2f_85.png" width="400"><br><sub>Robotiq 2F-85, 5 cm cube</sub></td>
+    <td align="center"><img src="assets/pick_and_place_robotiq_2f_140.png" width="400"><br><sub>Robotiq 2F-140, 5 cm cube</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="assets/pick_and_place_onrobot_rg2.png" width="400"><br><sub>OnRobot RG2, 5 cm cube</sub></td>
+    <td align="center"><img src="assets/pick_and_place_onrobot_rg6.png" width="400"><br><sub>OnRobot RG6, 5 cm cube</sub></td>
+  </tr>
+</table>
 
 </details>
 
-![OnRobot RG2 picking four different shapes](assets/pick_and_place_shapes.png)
-
-*Four shapes, OnRobot RG2. Rows, top to bottom: 5 cm cube, tall box, 5 cm cylinder, 4 cm cylinder. Columns: approach, grasp, carry, placed.*
-
-<details>
-<summary>Other grippers (each picking the 5 cm cube)</summary>
-
-Robotiq 2F-85:
-
-![Robotiq 2F-85 picking a 5 cm cube](assets/pick_and_place_robotiq_2f_85.png)
-
-Robotiq 2F-140:
-
-![Robotiq 2F-140 picking a 5 cm cube](assets/pick_and_place_robotiq_2f_140.png)
-
-OnRobot RG6:
-
-![OnRobot RG6 picking a 5 cm cube](assets/pick_and_place_onrobot_rg6.png)
-
-</details>
+### Running it
 
 ```bash
 python3 testing/benchmark_grippers.py --trials 5 --domain 91 --output results.csv   # all grippers x objects

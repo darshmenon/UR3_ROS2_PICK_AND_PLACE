@@ -21,7 +21,7 @@ Services:
 
 Parameters:
     spawn_interval_s  (float, 6.0)  — seconds between spawns
-    belt_speed        (float, 0.06) — m/s movement speed
+    belt_speed        (float, 0.03) — m/s movement speed
     pick_zone_x       (float, 0.35) — X position of pick zone
     belt_y            (float, 0.0)  — Y centre of belt
     belt_z            (float, 0.07) — Z height of boxes on belt (belt top + half box)
@@ -39,12 +39,11 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
+# Only colours that have a bin in conveyor_sorting.world; a box nobody can sort would sit in the pick zone and be despawned.
 COLORS = {
     "red":    (0.9, 0.1, 0.1),
     "green":  (0.1, 0.8, 0.1),
     "blue":   (0.1, 0.1, 0.9),
-    "yellow": (0.9, 0.8, 0.0),
-    "orange": (0.9, 0.5, 0.0),
 }
 
 ENTRY_X = 0.88   # belt far end (entry)
@@ -92,7 +91,7 @@ class ConveyorNode(Node):
         super().__init__("conveyor_node")
 
         self.declare_parameter("spawn_interval_s", 6.0)
-        self.declare_parameter("belt_speed",       0.06)
+        self.declare_parameter("belt_speed",       0.03)
         self.declare_parameter("pick_zone_x",      0.35)
         self.declare_parameter("belt_y",           0.0)
         self.declare_parameter("belt_z",           0.075)

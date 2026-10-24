@@ -251,7 +251,7 @@
     <!-- Sorting bins on the side table -->
     <model name="bin_red">
       <static>true</static>
-      <pose>0.15 0.30 0.0 0 0 0</pose>
+      <pose>0.06 0.38 0.0 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><box><size>0.12 0.12 0.06</size></box></geometry></collision>
         <visual name="v">
@@ -263,7 +263,7 @@
 
     <model name="bin_green">
       <static>true</static>
-      <pose>0.35 0.30 0.0 0 0 0</pose>
+      <pose>0.20 0.28 0.0 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><box><size>0.12 0.12 0.06</size></box></geometry></collision>
         <visual name="v">
@@ -275,7 +275,7 @@
 
     <model name="bin_blue">
       <static>true</static>
-      <pose>0.50 0.30 0.0 0 0 0</pose>
+      <pose>0.34 0.28 0.0 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><box><size>0.12 0.12 0.06</size></box></geometry></collision>
         <visual name="v">
@@ -293,5 +293,23 @@
       <grid>false</grid>
     </scene>
 
-  </world>
+  
+    <!-- Showcase camera for README GIFs (off unless something subscribes to showcase_cam_conveyor/image) -->
+    <model name="showcase_cam_conveyor">
+      <static>true</static>
+      <pose>0.75 -1.05 0.85 0 0.5479 1.7813</pose>
+      <link name="link">
+        <sensor name="showcase_cam_conveyor" type="camera">
+          <always_on>0</always_on>
+          <update_rate>15</update_rate>
+          <topic>showcase_cam_conveyor/image</topic>
+          <camera>
+            <horizontal_fov>1.15</horizontal_fov>
+            <image><width>960</width><height>540</height><format>R8G8B8</format></image>
+            <clip><near>0.1</near><far>8</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+</world>
 </sdf>

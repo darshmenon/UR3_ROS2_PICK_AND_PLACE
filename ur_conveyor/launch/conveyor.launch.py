@@ -13,7 +13,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("spawn_interval_s", default_value="6.0"),
-        DeclareLaunchArgument("belt_speed",       default_value="0.06"),
+        DeclareLaunchArgument("belt_speed",       default_value="0.03"),
 
         # Launch Gazebo with the conveyor world. ur.gazebo.launch.py's
         # "world_file" argument is a bare filename joined internally against
@@ -24,7 +24,8 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(
                 os.path.join(ur_gazebo_share, "launch", "ur.gazebo.launch.py")
             ),
-            launch_arguments={"world_file": "conveyor_sorting.world"}.items(),
+            # No mount table in this world: the default table_height (1.015) would leave the arm floating above the belt.
+            launch_arguments={"world_file": "conveyor_sorting.world", "table_height": "0.0"}.items(),
         ),
 
         # Conveyor object spawner + mover
