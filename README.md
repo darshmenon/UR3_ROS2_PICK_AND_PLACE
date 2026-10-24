@@ -86,6 +86,15 @@ sudo systemctl enable --now mongod
 
 Verify with `mongosh`. Humble/Jazzy API differences: [`ur_mtc_pick_place_demo/README.md`](ur_mtc_pick_place_demo/README.md).
 
+Run MTC with one command (Gazebo + MoveIt first, MTC started after it is up), then trigger a pick and place:
+
+```bash
+ros2 launch ur_gazebo mtc_demo.launch.py gripper:=robotiq_2f_85        # default gripper is $UR_GRIPPER, else onrobot_rg2
+ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries on failure; progress on /mtc_bt/status
+```
+
+Status: works on the Robotiq 2F-85 and, less reliably, on the RG2. The RG6 and 2F-140 settings exist but are untested; the OnRobot grippers' arc-shaped finger travel makes MTC's closing width only approximate.
+
 ---
 
 ## Launch Instructions

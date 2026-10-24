@@ -247,6 +247,19 @@
     </group>
     <group name="gripper">
         <joint name="gripper_joint"/>
+        <!-- The mimic joints must be in the group too: MTC only lets the grasped object touch the links of
+             this group, so leaving the finger links out made every attached-object path "invalid" at execution. -->
+        <joint name="gripper_finger_1_truss_arm_joint"/>
+        <joint name="gripper_finger_1_finger_tip_joint"/>
+        <joint name="gripper_mirror_joint"/>
+        <joint name="gripper_finger_2_truss_arm_joint"/>
+        <joint name="gripper_finger_2_finger_tip_joint"/>
+        <!-- Fixed joints too: a link only belongs to the group if the joint above it is listed (the Robotiq
+             groups list their pad joints for the same reason). -->
+        <joint name="gripper_finger_1_origin_joint"/>
+        <joint name="gripper_finger_1_flex_finger_joint"/>
+        <joint name="gripper_finger_2_origin_joint"/>
+        <joint name="gripper_finger_2_flex_finger_joint"/>
     </group>
     <group name="arm_with_gripper">
         <group name="gripper"/>

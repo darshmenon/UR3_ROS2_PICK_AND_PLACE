@@ -27,6 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import benchmark_grippers as bench  # noqa: E402
 
+# moveit_config/config/initial_positions.yaml: pan, lift, elbow, wrist_1, wrist_2, wrist_3
+START_POSE = [-0.1, -1.6315, 0.0, 1.8251, 0.0, 1.2844]
 FIELDS = ["pipeline", "gripper", "object", "trial", "executed", "success", "error_xy_m", "error_z_m",
           "perception_error_xy_m", "cycle_time_s", "lifted_m", "err_dx_m", "err_dy_m", "notes"]
 
@@ -42,6 +44,49 @@ def launch_mtc(gripper, domain, attempts, startup):
     return proc
 
 
+def clear_scene(node, log):
+    """Remove every world and attached object from move_group's planning scene; return their names."""
+    from moveit_msgs.msg import AttachedCollisionObject, CollisionObject, PlanningScene
+    from moveit_msgs.srv import ApplyPlanningScene, GetPlanningScene
+    get = node.create_client(GetPlanningScene, "/get_planning_scene")
+    apply_ = node.create_client(ApplyPlanningScene, "/apply_planning_scene")
+    if not (get.wait_for_service(timeout_sec=10.0) and apply_.wait_for_service(timeout_sec=10.0)):
+        log("planning scene services not available")
+        return []
+    req = GetPlanningScene.Request()
+    req.components.components = 4 | 8      # WORLD_OBJECT_NAMES | WORLD_OBJECT_GEOMETRY
+    req.components.components |= 2 ** 5    # ROBOT_STATE_ATTACHED_OBJECTS
+    fut = get.call_async(req)
+    end = time.time() + 10
+    while not fut.done() and time.time() < end:
+        time.sleep(0.05)
+    if not fut.done():
+        return []
+    scene = fut.result().scene
+    diff = PlanningScene()
+    diff.is_diff = True
+    names = []
+    for co in scene.world.collision_objects:
+        rm = CollisionObject()
+        rm.id, rm.header.frame_id, rm.operation = co.id, co.header.frame_id, CollisionObject.REMOVE
+        diff.world.collision_objects.append(rm)
+        names.append(f"world:{co.id}")
+    for ac in scene.robot_state.attached_collision_objects:
+        rm = AttachedCollisionObject()
+        rm.link_name, rm.object.id, rm.object.operation = ac.link_name, ac.object.id, CollisionObject.REMOVE
+        diff.robot_state.attached_collision_objects.append(rm)
+        diff.robot_state.is_diff = True
+        names.append(f"attached:{ac.object.id}@{ac.link_name}")
+    if names:
+        areq = ApplyPlanningScene.Request()
+        areq.scene = diff
+        fut = apply_.call_async(areq)
+        end = time.time() + 10
+        while not fut.done() and time.time() < end:
+            time.sleep(0.05)
+    return names
+
+
 def run_cell(args, g, name):
     os.environ["ROS_DOMAIN_ID"] = str(args.domain)
     import rclpy
@@ -49,6 +94,7 @@ def run_cell(args, g, name):
     from rclpy.node import Node
     from std_msgs.msg import String
     from std_srvs.srv import Trigger
+    from ur_llm_planner.motion_executor import MotionExecutor
 
     obj = bench.OBJECTS[name]
     bench.OBJECT = obj["model"]
@@ -73,8 +119,28 @@ def run_cell(args, g, name):
                              lifted_m=float("nan"), err_dx_m=float("nan"), err_dy_m=float("nan"),
                              notes="mtc not ready"))
             return rows
+        # MTC leaves the arm over the place spot, and it plans badly from there and from the "home" pose
+        # (arm straight up, wrist camera next to the torso link). It works from the simulator's start pose,
+        # so return to that before every trial, gripper open.
+        mover = MotionExecutor(node)
+        mover.set_gripper(g)
         initial = bench.object_pose()
         for t in range(1, args.trials + 1):
+            if args.restart_mtc and t > 1:        # diagnostic: does state leak from one MTC run into the next?
+                for sig in (signal.SIGINT, signal.SIGKILL):
+                    try:
+                        os.killpg(os.getpgid(mtc.pid), sig)
+                        mtc.wait(timeout=20)
+                        break
+                    except (subprocess.TimeoutExpired, ProcessLookupError):
+                        continue
+                mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup)
+                client.wait_for_service(timeout_sec=60.0)
+            mover.open_gripper()
+            mover._move_to_joint_values("arm", START_POSE)
+            left = clear_scene(node, lambda m: print(f"[mtc] {m}", flush=True))
+            print(f"[mtc] trial {t}: planning scene held before clearing: {left}", flush=True)
+            bench.reset_object(initial)
             before = bench.object_pose()
             status["text"] = ""
             t0 = time.time()
@@ -146,6 +212,7 @@ def main():
     ap.add_argument("--domain", type=int, default=91)
     ap.add_argument("--settle", type=float, default=45.0, help="seconds after the sim launch")
     ap.add_argument("--mtc-startup", type=float, default=40.0, help="seconds after the MTC launch")
+    ap.add_argument("--restart-mtc", action="store_true", help="relaunch the MTC nodes before every trial after the first")
     ap.add_argument("--trial-timeout", type=float, default=420.0)
     ap.add_argument("--output", default=None)
     ap.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
@@ -167,7 +234,7 @@ def main():
             subprocess.run([sys.executable, str(Path(__file__).resolve()), "--child", "--grippers", g,
                             "--objects", name, "--trials", str(args.trials), "--attempts", str(args.attempts),
                             "--tol", str(args.tol), "--domain", str(args.domain), "--settle", str(args.settle),
-                            "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout),
+                            "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout), *(["--restart-mtc"] if args.restart_mtc else []),
                             "--output", str(tmp)], check=False)
             if tmp.exists():
                 all_rows += bench.load_rows_from(list(csv.DictReader(open(tmp))))
