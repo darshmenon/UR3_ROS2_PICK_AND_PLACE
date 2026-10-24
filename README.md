@@ -93,6 +93,12 @@ ros2 launch ur_gazebo mtc_demo.launch.py gripper:=robotiq_2f_85        # default
 ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries on failure; progress on /mtc_bt/status
 ```
 
+Pick and place through MTC (RG2 on the left, 2F-85 on the right; the long planning pause is cut from the GIFs):
+
+| RG2, 5 cm cylinder | 2F-85, 5 cm cube |
+|---|---|
+| ![MTC RG2](assets/gifs/mtc_rg2_cylinder.gif) | ![MTC 2F-85](assets/gifs/mtc_2f85_cube.gif) |
+
 Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. The RG6 and 2F-140 settings exist but are not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
 
 ---
@@ -392,6 +398,22 @@ ros2 launch ur_web_dashboard view_logs.launch.py plotjuggler:=false # rqt_consol
 ![OnRobot RG2 picking a 5 cm cube: approach, grasp, lift, carry, release, placed](assets/pick_and_place_onrobot_rg2.png)
 
 *OnRobot RG2 picking a 5 cm cube (left to right, top to bottom: arm at home, approach, grasp, lift, carry, placed).*
+
+![OnRobot RG2 picking a 5 cm cube, filmed from the showcase camera](assets/gifs/rg2_cube.gif)
+
+<details>
+<summary>More animated pick and places (other grippers and shapes)</summary>
+
+| | |
+|---|---|
+| Robotiq 2F-85, 5 cm cylinder | Robotiq 2F-140, 5 cm cube |
+| ![2F-85 cylinder](assets/gifs/2f85_cylinder.gif) | ![2F-140 cube](assets/gifs/2f140_cube.gif) |
+| OnRobot RG6, 5 cm cube | OnRobot RG2, tall box |
+| ![RG6 cube](assets/gifs/rg6_cube.gif) | ![RG2 tall box](assets/gifs/rg2_tall_box.gif) |
+| OnRobot RG2, 5 cm cylinder | |
+| ![RG2 cylinder](assets/gifs/rg2_cylinder.gif) | |
+
+</details>
 
 ![OnRobot RG2 picking four different shapes](assets/pick_and_place_shapes.png)
 
