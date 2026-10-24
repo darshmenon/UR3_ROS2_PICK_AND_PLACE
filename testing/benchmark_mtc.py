@@ -136,10 +136,18 @@ def run_cell(args, g, name):
                         continue
                 mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup)
                 client.wait_for_service(timeout_sec=60.0)
-            mover.open_gripper()
-            mover._move_to_joint_values("arm", START_POSE)
+            # Clear the old scene FIRST: leftover collision objects can block the move back, and an arm still
+            # hovering over the place spot shows up in the point cloud as extra "objects".
             left = clear_scene(node, lambda m: print(f"[mtc] {m}", flush=True))
             print(f"[mtc] trial {t}: planning scene held before clearing: {left}", flush=True)
+            mover.open_gripper()
+            homed = False
+            for _ in range(3):
+                homed = mover._move_to_joint_values("arm", START_POSE)
+                if homed:
+                    break
+                time.sleep(1.0)
+            print(f"[mtc] trial {t}: arm back at start pose: {homed}", flush=True)
             bench.reset_object(initial)
             before = bench.object_pose()
             status["text"] = ""

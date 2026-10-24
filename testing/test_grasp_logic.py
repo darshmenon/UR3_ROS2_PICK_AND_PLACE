@@ -198,6 +198,9 @@ def test_mtc_params_match_the_gripper(gripper):
     assert p["gripper_frame"] in links, f"gripper_frame {p['gripper_frame']!r} is not a link of {gripper}"
     assert p["gripper_open_pose"] in poses and p["gripper_close_pose"] in poses, (p["gripper_close_pose"], poses)
     assert p["force_fallback_scene"] is False, "must use the camera, not the made-up fallback scene"
+    arm_poses = {g.get("name") for g in ET.fromstring(srdf).findall("group_state") if g.get("group") == "arm"}
+    assert p.get("arm_final_pose") in arm_poses, "MTC must end at a named arm pose the camera can see past"
+    assert p["cartesian_max_velocity_scaling"] <= 0.5, "fast approaches fling the 0.1 kg test objects"
     assert p["place_pose"][:2] == [0.35, 0.20], "place target must match the benchmark"
     if "gripper_joint_name" in p:
         assert p["gripper_joint_name"] in joints

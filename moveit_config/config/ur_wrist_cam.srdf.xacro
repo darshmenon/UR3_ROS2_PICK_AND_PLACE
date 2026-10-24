@@ -71,6 +71,16 @@
         <joint name="wrist_2_joint" value="1.79"/>
         <joint name="wrist_3_joint" value="-0.04"/>
     </group_state>
+    <group_state name="view_clear" group="arm">
+        <!-- The simulator's start pose (initial_positions.yaml): the arm is out of the head camera's way, so the
+             point-cloud detector sees only the objects. MTC returns here after a place (arm_final_pose). -->
+        <joint name="shoulder_pan_joint" value="-0.1"/>
+        <joint name="shoulder_lift_joint" value="-1.6315"/>
+        <joint name="elbow_joint" value="0"/>
+        <joint name="wrist_1_joint" value="1.8251"/>
+        <joint name="wrist_2_joint" value="0"/>
+        <joint name="wrist_3_joint" value="1.2844"/>
+    </group_state>
     <group_state name="half_closed" group="gripper">
         <joint name="finger_joint" value="0.60"/>
     </group_state>
@@ -277,6 +287,16 @@
         <joint name="wrist_1_joint" value="-0.98"/>
         <joint name="wrist_2_joint" value="1.79"/>
         <joint name="wrist_3_joint" value="-0.04"/>
+    </group_state>
+    <group_state name="view_clear" group="arm">
+        <!-- The simulator's start pose (initial_positions.yaml): the arm is out of the head camera's way, so the
+             point-cloud detector sees only the objects. MTC returns here after a place (arm_final_pose). -->
+        <joint name="shoulder_pan_joint" value="-0.1"/>
+        <joint name="shoulder_lift_joint" value="-1.6315"/>
+        <joint name="elbow_joint" value="0"/>
+        <joint name="wrist_1_joint" value="1.8251"/>
+        <joint name="wrist_2_joint" value="0"/>
+        <joint name="wrist_3_joint" value="1.2844"/>
     </group_state>
     <group_state name="open" group="gripper">
         <joint name="gripper_joint" value="0.0"/>

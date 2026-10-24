@@ -350,6 +350,9 @@ MTCTaskNode::MTCTaskNode(const rclcpp::NodeOptions& options)
   declare_parameter("arm_home_pose", "home", "Name of the arm home pose");
   declare_parameter("arm_transit_clear_pose", "transit_clear",
                     "Named joint-space via that clears the pick-table corridor");
+  declare_parameter("arm_final_pose", "",
+                    "Named arm pose to move to after the place (empty: stay where the retreat ends). Use a pose the head "
+                    "camera sees the table from, or the next run's point cloud contains the arm and detects it as objects.");
   declare_parameter("use_transit_clear_via", true,
                     "Insert MoveTo(transit_clear) before pick/place Connect stages");
   declare_parameter("transit_planner_id", "RRTConnectkConfigDefault",
@@ -995,6 +998,7 @@ mtc::Task MTCTaskNode::createTask()
   auto arm_home_pose = this->get_parameter("arm_home_pose").as_string();
   auto arm_transit_clear_pose = this->get_parameter("arm_transit_clear_pose").as_string();
   const bool use_transit_clear_via = this->get_parameter("use_transit_clear_via").as_bool();
+  const std::string arm_final_pose = this->get_parameter("arm_final_pose").as_string();
   auto transit_planner_id = this->get_parameter("transit_planner_id").as_string();
 
   // Gripper poses
@@ -1682,6 +1686,34 @@ mtc::Task MTCTaskNode::createTask()
 
     // Add place container to task
     task.add(std::move(place));
+  }
+
+  // Leave the arm out of the camera's view. Without this the next run sees the arm in the point cloud, detects
+  // its links as objects, and every grasp plan fails (the run after a successful one failed within seconds).
+  if (!arm_final_pose.empty()) {
+    auto final_fallbacks = std::make_unique<mtc::Fallbacks>("move to final pose");
+    {
+      auto stage = std::make_unique<mtc::stages::MoveTo>("final pose (joint interp)", interpolation_planner);
+      stage->setGroup(arm_group_name);
+      stage->setGoal(arm_final_pose);
+      stage->setTimeout(10.0);
+      stage->properties().set(
+          "trajectory_execution_info",
+          mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+      final_fallbacks->add(std::move(stage));
+    }
+    {
+      auto stage = std::make_unique<mtc::stages::MoveTo>("final pose (ompl)", ompl_planner_transit);
+      stage->setGroup(arm_group_name);
+      stage->setGoal(arm_final_pose);
+      stage->setTimeout(move_to_pick_timeout);
+      stage->properties().set(
+          "trajectory_execution_info",
+          mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+      final_fallbacks->add(std::move(stage));
+    }
+    task.add(std::move(final_fallbacks));
+    RCLCPP_INFO(this->get_logger(), "Added final move to '%s' after the place", arm_final_pose.c_str());
   }
 
   return task;

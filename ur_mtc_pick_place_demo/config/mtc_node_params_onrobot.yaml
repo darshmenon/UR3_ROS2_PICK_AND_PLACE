@@ -147,6 +147,7 @@ mtc_node:
 
     # Narrow-passage transit fixes (joint via + APS + planning margin)
     arm_transit_clear_pose: "transit_clear"
+    arm_final_pose: "view_clear"   # after a place, leave the arm where the camera sees the table (no arm clusters next run)
     use_transit_clear_via: true
     transit_planner_id: "RRTConnectkConfigDefault"
     planning_robot_padding: 0.0
@@ -164,8 +165,8 @@ mtc_node:
     place_pose_max_ik_solutions: 15
 
     # Cartesian planning
-    cartesian_max_velocity_scaling: 0.8
-    cartesian_max_acceleration_scaling: 0.8
+    cartesian_max_velocity_scaling: 0.3   # was 0.8: a fast approach flung the 0.1 kg object off the table
+    cartesian_max_acceleration_scaling: 0.3
     cartesian_step_size: 0.001
 
     # Collision avoidance

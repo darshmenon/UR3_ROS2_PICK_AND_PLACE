@@ -93,7 +93,7 @@ ros2 launch ur_gazebo mtc_demo.launch.py gripper:=robotiq_2f_85        # default
 ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries on failure; progress on /mtc_bt/status
 ```
 
-Status: works on the Robotiq 2F-85 and, less reliably, on the RG2. The RG6 and 2F-140 settings exist but are untested; the OnRobot grippers' arc-shaped finger travel makes MTC's closing width only approximate.
+Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. The RG6 and 2F-140 settings exist but are not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
 
 ---
 
