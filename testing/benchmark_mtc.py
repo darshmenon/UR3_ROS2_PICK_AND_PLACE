@@ -145,6 +145,9 @@ def run_cell(args, g, name):
             mover.open_gripper()
             homed = False
             for _ in range(3):
+                # the perception node re-adds support_surface/objects between tries; an arm resting on the
+                # table then starts in collision (INVALID_MOTION_PLAN), so clear again before every attempt
+                clear_scene(node, lambda m: print(f"[mtc] {m}", flush=True))
                 homed = mover._move_to_joint_values("arm", START_POSE)
                 if homed:
                     break
