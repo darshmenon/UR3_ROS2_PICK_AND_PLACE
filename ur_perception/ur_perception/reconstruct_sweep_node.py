@@ -106,6 +106,9 @@ class ReconstructSweepNode(Node):
         self.declare_parameter("dwell_sec", 1.5)
         self.declare_parameter("seg_sec", 3.0)
         self.declare_parameter("auto_start", True)
+        # Wall-clock wait for each trajectory result; the sim can run well below real time (camera rendering), so
+        # the old fixed segment+10 s timed out and aborted the whole sweep.
+        self.declare_parameter("result_timeout_sec", 45.0)
         self.declare_parameter("max_views", 5)
         self.declare_parameter("roi_center", [0.35, 0.0, 0.06])
         self.declare_parameter("occlusion_aware", True)
@@ -250,7 +253,7 @@ class ReconstructSweepNode(Node):
             return False
 
         result_future = goal_handle.get_result_async()
-        deadline = time.monotonic() + self._seg + 10.0
+        deadline = time.monotonic() + max(self._seg + 10.0, float(self.get_parameter("result_timeout_sec").value))
         while time.monotonic() < deadline and not result_future.done():
             rclpy.spin_once(self, timeout_sec=0.1)
         result = result_future.result() if result_future.done() else None

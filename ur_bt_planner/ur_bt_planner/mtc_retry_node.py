@@ -77,7 +77,15 @@ class MTCRetryNode(Node):
             response.success = False
             response.message = "Already running"
             return response
-        threading.Thread(target=self._run_tree, daemon=True).start()
+        # Claim the run here, not in the worker thread: two quick calls could otherwise both start a tree.
+        self._running = True
+        try:
+            threading.Thread(target=self._run_tree, daemon=True).start()
+        except Exception as exc:  # noqa: BLE001 - e.g. thread creation failed: do not leave the node stuck in "running"
+            self._running = False
+            response.success = False
+            response.message = f"Could not start the retry tree: {exc}"
+            return response
         response.success = True
         response.message = "Retry tree started"
         return response
@@ -92,9 +100,16 @@ class MTCRetryNode(Node):
         self._status_pub.publish(String(data=text))
 
     def _run_tree(self):
-        self._running = True
         self._stop_flag = False
+        try:
+            self._run_tree_impl()
+        except Exception as exc:  # noqa: BLE001 - never leave the node stuck in "running"
+            self.get_logger().error(f"MTC retry tree crashed: {exc}")
+            self._publish_status(f"MTC retry: ERROR {exc}")
+        finally:
+            self._running = False
 
+    def _run_tree_impl(self):
         tree = build_mtc_retry_tree(
             self, max_attempts=self._max_attempts, service_name=self._service_name,
             call_timeout=self._call_timeout
@@ -123,8 +138,6 @@ class MTCRetryNode(Node):
 
         if self._stop_flag:
             self._publish_status("MTC retry: stopped by user")
-
-        self._running = False
 
 
 def main(args=None):
