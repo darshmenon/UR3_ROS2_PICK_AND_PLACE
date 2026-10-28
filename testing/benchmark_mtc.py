@@ -153,8 +153,28 @@ def run_cell(args, g, name):
                     break
                 time.sleep(1.0)
             print(f"[mtc] trial {t}: arm back at start pose: {homed}", flush=True)
-            bench.reset_object(initial)
-            before = bench.object_pose()
+            # A reset cylinder can wobble, tip and roll before the arm moves: wait until it is still and
+            # upright (z back at its standing height) and re-reset if not, rather than plan on a lying object.
+            before = None
+            for _ in range(4):
+                # no drop height: a cylinder released 5 mm above the table lands, rocks and tips over
+                bench.reset_object(initial, lift=0.0)
+                time.sleep(2.0)
+                # set_pose does not clear velocity, and a cylinder can sit upright for a second or two and then
+                # tip and roll off. Only call it settled once z AND xy stay at the start pose for 4 s straight.
+                good = 0
+                for _ in range(8):
+                    before = bench.object_pose()
+                    still = bool(before and initial and abs(before[2] - initial[2]) < 0.004
+                                 and math.hypot(before[0] - initial[0], before[1] - initial[1]) < 0.005)
+                    good = good + 1 if still else 0
+                    if good >= 8 or (before and initial and before[2] < initial[2] - 0.01):
+                        break
+                    time.sleep(0.5)
+                if good >= 8:
+                    break
+                print(f"[mtc] trial {t}: object not settled upright (z={before and before[2]}), re-resetting",
+                      flush=True)
             status["text"] = ""
             if recorder is not None:
                 recorder.start()
@@ -190,6 +210,11 @@ def run_cell(args, g, name):
                 ex_z = after[2] - before[2]
                 moved = math.hypot(after[0] - before[0], after[1] - before[1]) > 0.05
                 success = moved and ex_xy < args.tol
+                # a fail by a few mm vs. a toppled/rolled object: z back at standing height means still upright
+                upright = abs(ex_z) < 0.01
+                notes = (notes + "; " if notes else "") + \
+                    f"final xy={ex_xy * 1000:.0f}mm {'upright' if upright else 'TOPPLED'}" \
+                    + (" near(<30mm)" if moved and ex_xy < 0.03 else "")
                 if not moved:
                     notes = (notes + "; " if notes else "") + "object not moved"
             lifted = (watcher.max_z - before[2]) if (before is not None and watcher.max_z is not None) \
@@ -202,7 +227,7 @@ def run_cell(args, g, name):
                 recorder.save(f"mtc_{g}_{name}_t{t}", success)
             print(f"[mtc] {g}/{name} trial {t}: success={success} xy={ex_xy * 1000:.0f}mm "
                   f"status={status['text']!r} {cycle:.0f}s", flush=True)
-            bench.reset_object(initial)
+            bench.reset_object(initial, lift=0.0)
     finally:
         for p in (mtc,):
             try:

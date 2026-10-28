@@ -233,6 +233,8 @@ class GetPlanningSceneServer : public rclcpp::Node {
     declare_parameter("max_iterations_normals", 100, "Maximum iterations for MLESAC in normal estimation");
     declare_parameter("min_boundary_neighbors", 10, "Minimum number of neighbors for boundary points");
     declare_parameter("rsd_radius", 0.01, "Radius for RSD estimation");
+    declare_parameter("simple_max_object_height", 0.20,
+                      "Tallest cluster accepted as an object (m); taller clusters are robot links seen by the camera");
 
     // Declare new parameters for cluster extraction
     declare_parameter("nearest_neighbors", 30, "Number of neighbors to consider for region growing");
@@ -1030,6 +1032,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
         ymin = std::min<double>(ymin, p.y); ymax = std::max<double>(ymax, p.y);
         zsum += p.z;
       }
+    const double max_height = this->get_parameter("simple_max_object_height").as_double();
       const bool wide = (xmax - xmin) > 0.25 && (ymax - ymin) > 0.25;
       if (wide) {
         plane_found = true;
@@ -1126,7 +1129,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
       const double ox = mx + c * ucen - s * vcen;
       const double oy = my + s * ucen + c * vcen;
 
-      if (std::max(w, l) > max_size || height < min_height || ox < min_x) {
+      if (std::max(w, l) > max_size || height < min_height || height > max_height || ox < min_x) {
         RCLCPP_INFO(this->get_logger(),
                     "[simple] skip cluster (%zu pts) at (%.3f, %.3f): footprint %.3fx%.3f height %.3f",
                     ci.indices.size(), ox, oy, w, l, height);

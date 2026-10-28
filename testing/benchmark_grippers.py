@@ -196,11 +196,11 @@ def stop_sim(procs):
     time.sleep(3)
 
 
-def reset_object(initial, tries=4):
+def reset_object(initial, tries=4, lift=0.005):
     """Put the object back upright at its initial pose and confirm it got there."""
     if initial is None:
         return False
-    req = (f'name: "{OBJECT}", position: {{x: {initial[0]}, y: {initial[1]}, z: {initial[2] + 0.005}}}, '
+    req = (f'name: "{OBJECT}", position: {{x: {initial[0]}, y: {initial[1]}, z: {initial[2] + lift}}}, '
            'orientation: {x: 0, y: 0, z: ' + f'{math.sin(OBJECT_YAW / 2):.6f}, w: {math.cos(OBJECT_YAW / 2):.6f}' + '}')
     for _ in range(tries):
         r = subprocess.run(["gz", "service", "-s", f"/world/{WORLD}/set_pose",
