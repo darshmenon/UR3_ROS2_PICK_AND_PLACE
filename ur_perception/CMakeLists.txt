@@ -45,6 +45,7 @@ find_package(Eigen3 REQUIRED)
 ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   ur_perception/object_detector_node.py
+  ur_perception/vlm_grounding_node.py
   ur_perception/object_reconstructor_node.py
   ur_perception/reconstruct_sweep_node.py
   ur_perception/ply_viewer_node.py

@@ -42,6 +42,8 @@
 #include <ur_interfaces/srv/get_planning_scene.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <mutex>
 #include <moveit_msgs/msg/planning_scene_world.hpp>
 #include <shape_msgs/msg/solid_primitive.hpp>
 #include <tf2_ros/buffer.h>
@@ -157,6 +159,12 @@ class GetPlanningSceneServer : public rclcpp::Node {
   // Subscribers
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr point_cloud_sub;
   rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr rgb_image_sub;
+  // Optional VLM target (vlm_grounding_node): the detected object nearest to this pose is chosen as the target.
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vlm_target_sub;
+  std::mutex vlm_mutex;
+  geometry_msgs::msg::PoseStamped vlm_target_pose;
+  rclcpp::Time vlm_target_time{0, 0, RCL_ROS_TIME};
+  bool have_vlm_target = false;
 
   // Service
   rclcpp::Service<ur_interfaces::srv::GetPlanningScene>::SharedPtr service;
@@ -225,6 +233,8 @@ class GetPlanningSceneServer : public rclcpp::Node {
     declare_parameter("simple_cluster_tolerance", 0.015, "Euclidean cluster tolerance for the fallback detector (m)");
     declare_parameter("simple_min_cluster_points", 30, "Minimum points for a fallback-detector cluster");
     declare_parameter("simple_max_object_size", 0.15, "Largest footprint dimension accepted as a graspable object (m)");
+    declare_parameter("simple_max_object_height", 0.20,
+                      "Tallest cluster accepted as an object (m); taller clusters are robot links seen by the camera");
     declare_parameter("simple_min_object_height", 0.015, "Shortest object accepted by the fallback detector (m)");
 
     // Declare parameters for normal, curvature, and RSD estimation
@@ -233,8 +243,6 @@ class GetPlanningSceneServer : public rclcpp::Node {
     declare_parameter("max_iterations_normals", 100, "Maximum iterations for MLESAC in normal estimation");
     declare_parameter("min_boundary_neighbors", 10, "Minimum number of neighbors for boundary points");
     declare_parameter("rsd_radius", 0.01, "Radius for RSD estimation");
-    declare_parameter("simple_max_object_height", 0.20,
-                      "Tallest cluster accepted as an object (m); taller clusters are robot links seen by the camera");
 
     // Declare new parameters for cluster extraction
     declare_parameter("nearest_neighbors", 30, "Number of neighbors to consider for region growing");
@@ -377,6 +385,14 @@ class GetPlanningSceneServer : public rclcpp::Node {
       sensor_qos,
       std::bind(&GetPlanningSceneServer::rgbImageCallback, this, std::placeholders::_1)
     );
+
+    vlm_target_sub = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+      "/vlm/target_pose", 1, [this](geometry_msgs::msg::PoseStamped::ConstSharedPtr msg) {
+        std::lock_guard<std::mutex> lock(vlm_mutex);
+        vlm_target_pose = *msg;
+        vlm_target_time = this->now();
+        have_vlm_target = true;
+      });
 
     RCLCPP_INFO(this->get_logger(), "Subscribed to point cloud topic: %s", point_cloud_topic.c_str());
     RCLCPP_INFO(this->get_logger(), "Subscribed to RGB image topic: %s", rgb_image_topic.c_str());
@@ -783,6 +799,29 @@ class GetPlanningSceneServer : public rclcpp::Node {
     return collision_object;
   }
 
+  // The object closest to the latest /vlm/target_pose (fresh and within 6 cm), or "" when there is none.
+  std::string vlmTargetObject(const std::vector<moveit_msgs::msg::CollisionObject>& objects) {
+    geometry_msgs::msg::PoseStamped pose;
+    {
+      std::lock_guard<std::mutex> lock(vlm_mutex);
+      if (!have_vlm_target || (this->now() - vlm_target_time).seconds() > 60.0) return "";
+      pose = vlm_target_pose;
+    }
+    std::string best;
+    double best_d = 0.06;
+    for (const auto& o : objects) {
+      if (o.primitive_poses.empty() || o.id == support_surface_name) continue;
+      const auto& p = o.primitive_poses[0].position;
+      const double d = std::hypot(p.x - pose.pose.position.x, p.y - pose.pose.position.y);
+      if (d < best_d) { best_d = d; best = o.id; }
+    }
+    if (!best.empty()) {
+      RCLCPP_INFO(this->get_logger(), "[simple] VLM target -> %s (%.0f mm from the VLM pose)", best.c_str(),
+                  best_d * 1000.0);
+    }
+    return best;
+  }
+
   std::string identifyTargetObject(
       const std::vector<moveit_msgs::msg::CollisionObject>& objects,
       const std::string& target_shape,
@@ -993,6 +1032,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
     const int min_pts = this->get_parameter("simple_min_cluster_points").as_int();
     const double max_size = this->get_parameter("simple_max_object_size").as_double();
     const double min_height = this->get_parameter("simple_min_object_height").as_double();
+    const double max_height = this->get_parameter("simple_max_object_height").as_double();
 
     plane_z = ground_z;
     plane_found = false;
@@ -1032,7 +1072,6 @@ class GetPlanningSceneServer : public rclcpp::Node {
         ymin = std::min<double>(ymin, p.y); ymax = std::max<double>(ymax, p.y);
         zsum += p.z;
       }
-    const double max_height = this->get_parameter("simple_max_object_height").as_double();
       const bool wide = (xmax - xmin) > 0.25 && (ymax - ymin) > 0.25;
       if (wide) {
         plane_found = true;
@@ -1277,7 +1316,10 @@ class GetPlanningSceneServer : public rclcpp::Node {
 
     // Pick the target by shape/size; fall back to the closest-sized object of any shape so an
     // object-type mismatch in the request does not leave the arm without a target.
-    std::string target_id = identifyTargetObject(objects, request->target_shape, request->target_dimensions);
+    std::string target_id = vlmTargetObject(objects);
+    if (target_id.empty()) {
+      target_id = identifyTargetObject(objects, request->target_shape, request->target_dimensions);
+    }
     if (target_id.empty()) {
       target_id = objects.front().id;
       RCLCPP_WARN(this->get_logger(), "[simple] no object of shape '%s' — using %s instead",

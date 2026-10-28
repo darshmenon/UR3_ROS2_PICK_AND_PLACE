@@ -384,13 +384,6 @@ ros2 launch ur_gazebo ur.gazebo.launch.py \
   rviz_config:=$(ros2 pkg prefix moveit_config)/share/moveit_config/rviz/operator_view.rviz
 ```
 
-**Web dashboard (`ur_web_dashboard`).** Browser UI with a live camera feed, joint-state bars, detected-object list, LLM command box (with voice input), and a filterable `/rosout` log panel — searchable by node/message, filterable by severity, light/dark toggle (persisted).
-
-```bash
-ros2 launch ur_web_dashboard dashboard.launch.py   # rosbridge (9090) + web_video_server (8080)
-# then open ur_web_dashboard/web/index.html in a browser
-```
-
 **Native log/plot viewers.** `rqt_console` and PlotJuggler, wired up as a convenience launch:
 
 ```bash
@@ -448,20 +441,65 @@ python3 testing/benchmark_grippers.py --grippers onrobot_rg2 --objects cube_5cm 
 python3 testing/benchmark_grippers.py --summarise-csv results.csv                   # print the table again
 ```
 
-| Script | Purpose |
-|---|---|
-| `benchmark_grippers.py` | The benchmark (per-gripper profiles live in `MotionExecutor.GRIPPER_PROFILES`) |
-| `measure_tcp.py` | Where the finger pads really are vs where the code aimed (fingertip offset per gripper) |
-| `sweep_tcp.py` | Try several fingertip offsets in the sim and report passes per offset |
-| `collect_grasp_data.py`, `train_grasp_model.py`, `grasp_predictor.py` | Collect labelled grasps, train a "held?" / grasp-quality model, use it |
-| `capture_frames.py` | Save camera frames from the headless sim as PNGs |
-| `benchmark_mtc.py` | The same benchmark through MoveIt Task Constructor (`mtc_retry.launch.py`) |
-| `gripper_selftest.py` | Check a gripper mechanism in the sim: joints follow commands, fingers symmetric, no jams |
-| `test_grasp_logic.py` | Offline unit tests (no sim): `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest testing/test_grasp_logic.py` |
-
-Latest full run (4 objects x 5 trials each, pick & place): RG2 80%, 2F-85 60%, 2F-140 35%, RG6 30%.
-
 ---
+
+## VLM Target Selection and Grasp Comparison
+
+A local vision-language model picks *which* object to grab from a text query; the colour + depth detector
+supplies the precise 3D pose. No cloud, no API key.
+
+```bash
+ollama pull qwen2.5vl:3b                      # 3.2 GB, one time
+ros2 launch ur_perception perception.launch.py
+ros2 run ur_perception vlm_grounding_node.py   # publishes /vlm/target_pose and /vlm/target_object_id
+ros2 topic pub --once /vlm/query std_msgs/String "{data: 'the red cylinder'}"
+```
+
+The VLM returns a box, and the detected object inside it becomes the pose (the 3B model's boxes are loose, so the
+pose never comes from the box). No match publishes nothing. `get_planning_scene_server` picks the object nearest
+`/vlm/target_pose`.
+
+<p align="center"><img src="assets/vlm_target.png" width="640"><br><sub>Query "the red cylinder": VLM box (green) and the detected object it selects (cross)</sub></p>
+
+```bash
+ros2 topic echo /vlm/target_object_id          # which detected object the VLM chose
+ros2 topic echo /vlm/target_pose               # its pose in base_link
+ros2 topic pub --once /vlm/query std_msgs/String "{data: 'the red cylinder'}"
+```
+
+The node log prints each answer, for example
+`"the red cylinder": box=(245,145,267,172) -> red_0 at base_link (0.342, -0.014, 0.118)`.
+The first query takes 15-30 s while Ollama loads the model; later ones take a few seconds.
+
+Picked and placed from a text query, with four objects on the table (Robotiq 2F-85):
+
+<table>
+  <tr>
+    <td align="center"><img src="assets/gifs/vlm_pick_yellow_cylinder.gif" width="380"><br><sub><b>"the yellow cylinder"</b></sub></td>
+    <td align="center"><img src="assets/gifs/vlm_pick_red_cylinder.gif" width="380"><br><sub><b>"the red cylinder"</b></sub></td>
+  </tr>
+</table>
+
+The VLM chose the right object in every run. The pick-and-place itself succeeded in about half of the runs: MTC
+sometimes stops when the arm clips a neighbouring object (see `testing/vlm_pick_check.py`).
+
+Check it against Gazebo ground truth (cylinder at 0.35, 0.00):
+
+```bash
+python3 testing/vlm_check.py --object cylinder_5cm --domain 78
+```
+
+| Method | xy error vs truth | Notes |
+|---|---|---|
+| Colour + depth detector | 16 mm | red objects only |
+| VLM (qwen2.5vl:3b) + detector | 16 mm | picks the right object from "the red cylinder"; refuses absent objects |
+
+Contact-GraspNet (PyTorch port, no CUDA build) can be run on a captured view with
+`testing/graspnet_check.py capture|run`; results are not in the table yet.
+
+Point-cloud detector fix: clusters taller than `simple_max_object_height` (0.20 m) are dropped. They were the arm's
+own links, which made MTC stop mid-execution with "path became invalid". On the 2F-140 + 5 cm cylinder benchmark
+this took the pass rate from 3 of 10 to 5 of 9.
 
 ## Future Scope / Work in Progress
 
