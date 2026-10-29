@@ -60,6 +60,44 @@ def make_env(curriculum_mode="grasp_focus", seed=0):
     return _init
 
 
+def load_demos(model, venv, path, bc_epochs, n_envs):
+    """Use expert demonstrations (scripts/expert_demos.py) to give SAC a good start: pretrain the actor by behaviour
+    cloning and put the transitions in the replay buffer, so the critics learn from successful episodes from step 0."""
+    import numpy as np
+    import torch
+
+    d = np.load(os.path.expanduser(path))
+    obs, act, rew, nobs, done = (d[k] for k in ("obs", "act", "rew", "next_obs", "done"))
+    venv.obs_rms.update(obs)                        # the policy sees VecNormalize'd observations
+    n_obs, n_next = venv.normalize_obs(obs), venv.normalize_obs(nobs)
+    n_rew = venv.normalize_reward(rew)
+    print(f"Demos: {len(obs):,} transitions from {path}")
+
+    if bc_epochs > 0:
+        actor = model.policy.actor
+        opt = torch.optim.Adam(actor.parameters(), lr=1e-3)
+        x = torch.as_tensor(n_obs, dtype=torch.float32, device=model.device)
+        y = torch.as_tensor(act, dtype=torch.float32, device=model.device)
+        for epoch in range(bc_epochs):
+            perm = torch.randperm(len(x), device=model.device)
+            total = 0.0
+            for i in range(0, len(x), 512):
+                idx = perm[i:i + 512]
+                loss = torch.nn.functional.mse_loss(actor(x[idx], deterministic=True), y[idx])
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+                total += float(loss) * len(idx)
+            if epoch % max(1, bc_epochs // 5) == 0 or epoch == bc_epochs - 1:
+                print(f"  BC epoch {epoch + 1}/{bc_epochs}: action MSE {total / len(x):.4f}")
+
+    rb = model.replay_buffer                          # filled n_envs transitions at a time (one buffer row)
+    for i in range(0, len(n_obs) - n_envs + 1, n_envs):
+        sl = slice(i, i + n_envs)
+        rb.add(n_obs[sl], n_next[sl], act[sl], n_rew[sl], done[sl], [{} for _ in range(n_envs)])
+    print(f"  replay buffer now holds {rb.size() * n_envs:,} transitions")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--timesteps",   type=int,   default=1_000_000)
@@ -70,6 +108,10 @@ def main():
                    choices=["none", "grasp_focus"])
     p.add_argument("--resume",      default="",
                    help="Path to a .zip checkpoint to resume from")
+    p.add_argument("--demos",       default="",
+                   help="expert_demos.py .npz: pretrain the actor and pre-fill the replay buffer")
+    p.add_argument("--bc_epochs",   type=int,   default=20,
+                   help="behaviour-cloning epochs on the demos (0 = only fill the replay buffer)")
     p.add_argument("--device",      default="auto",
                    help="Stable-Baselines3 device: auto, cpu, cuda, cuda:0, ...")
     args = p.parse_args()
@@ -122,6 +164,9 @@ def main():
             tensorboard_log=LOG_ROOT,
             device=args.device,
         )
+
+    if args.demos and not args.resume:
+        load_demos(model, train_env, args.demos, args.bc_epochs, args.n_envs)
 
     # ── callbacks ──────────────────────────────────────────────────────────────
     checkpoint_cb = CheckpointCallback(
