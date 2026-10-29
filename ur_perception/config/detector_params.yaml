@@ -16,3 +16,4 @@ object_detector_node:
       - green
       - blue
       - yellow
+      - orange

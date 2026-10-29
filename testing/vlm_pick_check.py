@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """End to end: does MTC pick the object the VLM was asked for, among several?
 
-Launches the four-object world (red cylinder, green cube, blue cube, yellow cylinder), the colour/depth
+Launches the six-object world (red cylinder, green cube, blue cube, yellow cylinder, orange tall box, red ball), the colour/depth
 detector, vlm_grounding_node and the MTC retry node. Sends one text query, waits for the VLM's choice, runs ONE
 MTC pick-and-place and reports which object ended up at the place spot (0.35, 0.20) and how far each object moved.
 
@@ -21,13 +21,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import benchmark_grippers as bench  # noqa: E402
 import benchmark_mtc as bmtc  # noqa: E402
 
-MODELS = ["red_cylinder", "green_box", "blue_box", "yellow_cylinder"]
+MODELS = ["red_cylinder", "green_box", "blue_box", "yellow_cylinder", "orange_tall_box", "red_ball"]
 WORLD = "colored_two_objects.world"
+YCB_MODELS = ["ycb_005_tomato_soup_can", "ycb_013_apple", "ycb_011_banana", "ycb_025_mug", "ycb_010_potted_meat_can"]
 
 
-def poses():
+def poses(models=None):
     out = {}
-    for m in MODELS:
+    for m in (models or MODELS):
         bench.OBJECT = m
         out[m] = bench.object_pose()
     return out
@@ -43,7 +44,9 @@ def spawn(cmd, domain, log):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--query", required=True)
-    ap.add_argument("--expect", required=True, choices=MODELS)
+    ap.add_argument("--expect", required=True)
+    ap.add_argument("--world", default=WORLD)
+    ap.add_argument("--models", nargs="+", default=MODELS, help="model names to track (default: the coloured set)")
     ap.add_argument("--gripper", default="robotiq_2f_85")
     ap.add_argument("--domain", type=int, default=80)
     ap.add_argument("--settle", type=float, default=45.0)
@@ -59,7 +62,7 @@ def main():
     sim = mtc = perc = vlm = bridge = None
     verdict = "NO RESULT"
     try:
-        sim, _ = bench.launch_sim(args.gripper, WORLD, args.domain, args.settle)
+        sim, _ = bench.launch_sim(args.gripper, args.world, args.domain, args.settle)
         mtc = bmtc.launch_mtc(args.gripper, args.domain, 1, args.mtc_startup)
         perc = spawn("ros2 launch ur_perception perception.launch.py publish_planning_scene:=false",
                      args.domain, log)
@@ -104,7 +107,8 @@ def main():
         if not client.wait_for_service(timeout_sec=90.0):
             sys.exit("MTC /mtc_bt/run not available")
 
-        before = poses()
+        models = args.models
+        before = poses(models)
         print("before:", {k: tuple(round(x, 3) for x in v) if v else None for k, v in before.items()}, flush=True)
 
         t0 = time.time()
@@ -121,7 +125,7 @@ def main():
             print(verdict, flush=True)
             return
         p = got["pose"].pose.position
-        chosen = min((m for m in MODELS if before[m]),
+        chosen = min((m for m in models if before[m]),
                      key=lambda m: math.hypot(before[m][0] - p.x, before[m][1] - p.y))
         d = math.hypot(before[chosen][0] - p.x, before[chosen][1] - p.y) * 1000
         print(f'VLM "{args.query}" -> id={got.get("id")!r} pose=({p.x:.3f}, {p.y:.3f}) nearest object: {chosen} '
@@ -137,10 +141,10 @@ def main():
         print("MTC status:", status["text"] or "timeout", flush=True)
         time.sleep(3)
 
-        after = poses()
+        after = poses(models)
         place = (bench.PLACE_XY[0], bench.PLACE_XY[1])
-        at_place = [m for m in MODELS if after[m] and math.hypot(after[m][0] - place[0], after[m][1] - place[1]) < 0.05]
-        for m in MODELS:
+        at_place = [m for m in models if after[m] and math.hypot(after[m][0] - place[0], after[m][1] - place[1]) < 0.05]
+        for m in models:
             if before[m] and after[m]:
                 mv = math.hypot(after[m][0] - before[m][0], after[m][1] - before[m][1]) * 1000
                 print(f"  {m:16s} moved {mv:6.0f} mm  now ({after[m][0]:.3f}, {after[m][1]:.3f}, {after[m][2]:.3f})")

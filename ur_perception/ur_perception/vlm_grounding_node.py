@@ -15,6 +15,7 @@ No cloud and no API key: only a running `ollama serve` with the model pulled.
 """
 import base64
 import json
+import math
 import re
 import threading
 import time
@@ -36,6 +37,7 @@ from std_msgs.msg import String
 
 from ur_perception.depth_pose_estimator import DepthPoseEstimator
 from ur_perception.image_convert import NumpyBridge as CvBridge
+from ur_perception.pose6d import estimate_pose
 
 _PATCH = 28   # Qwen2.5-VL sees the image in 28 px tiles; send a multiple so box coordinates map 1:1
 
@@ -194,25 +196,74 @@ class VlmGroundingNode(Node):
             x1, y1, x2, y2 = (int(round(v)) for v in bbox)
             x1, x2 = max(0, x1), min(w - 1, x2)
             y1, y2 = max(0, y1), min(h - 1, y2)
-            # The 3B model's box is loose, so the depth at its centre often lands on the background. Take the
-            # pose from the detected object inside the box; with none inside, report nothing rather than guess.
+            # With the upscaled input the box is tight on the object, so take the pose from the depth inside it. Unlike
+            # the colour detector this keeps same-coloured neighbours apart (a red ball touching a red cylinder is
+            # one red blob there). The detected object inside the box, if any, only supplies an id.
+            cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+            pose = None
+            pose_cam = self._estimator.estimate_object_pose(
+                (cx, cy), (x1, y1, x2, y2), depth, query, frame_id=frame_id, stamp=stamp,
+                min_depth_m=self._min_d, max_depth_m=self._max_d)
+            if pose_cam is not None:
+                try:
+                    tf = self._tf_buffer.lookup_transform('base_link', pose_cam.header.frame_id, rclpy.time.Time(),
+                                                          timeout=rclpy.duration.Duration(seconds=0.5))
+                    pose = tf2_geometry_msgs.do_transform_pose_stamped(pose_cam, tf)
+                except Exception as e:  # noqa: BLE001
+                    self.get_logger().warn(f"TF to base_link failed: {e}")
             obj = self._object_in_box(bbox, frame_id)
-            if obj is None:
-                self.get_logger().warn(f'VLM box ({x1},{y1},{x2},{y2}) for "{query}" contains no detected object; '
-                                       'no target published')
+            if pose is None and obj is None:
+                self.get_logger().warn(f'VLM box ({x1},{y1},{x2},{y2}) for "{query}": no depth and no detected '
+                                       'object inside; no target published')
                 return
-            pose = PoseStamped()
-            pose.header.frame_id = 'base_link'
+            if pose is None:                      # no usable depth: fall back to the detected object's pose
+                pose = PoseStamped()
+                pose.header.frame_id = 'base_link'
+                pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = (
+                    obj.position.x, obj.position.y, obj.position.z)
+                pose.pose.orientation.w = 1.0
+            self._add_orientation(pose, depth, (x1, y1, x2, y2), frame_id, query)
             pose.header.stamp = self.get_clock().now().to_msg()
-            pose.pose.position.x, pose.pose.position.y, pose.pose.position.z = (
-                obj.position.x, obj.position.y, obj.position.z)
-            pose.pose.orientation.w = 1.0
             self._pose_pub.publish(pose)
-            self._id_pub.publish(String(data=obj.id))
-            self.get_logger().info(f'"{query}": box=({x1},{y1},{x2},{y2}) -> {obj.id} at base_link '
-                                   f'({obj.position.x:.3f}, {obj.position.y:.3f}, {obj.position.z:.3f})')
+            self._id_pub.publish(String(data=obj.id if obj is not None else ''))
+            p = pose.pose.position
+            self.get_logger().info(f'"{query}": box=({x1},{y1},{x2},{y2}) -> base_link ({p.x:.3f}, {p.y:.3f}, '
+                                   f'{p.z:.3f}), detected id={obj.id if obj is not None else "none"}')
         finally:
             self._busy = False
+
+    def _add_orientation(self, pose: PoseStamped, depth: np.ndarray, box, cam_frame: str, query: str) -> None:
+        """Fill pose.orientation (and log shape/size) from the point cloud inside the VLM box. Best effort: a failure
+        leaves the identity orientation."""
+        try:
+            x1, y1, x2, y2 = box
+            k = self._estimator.intrinsics
+            v, u = np.mgrid[y1:y2 + 1, x1:x2 + 1]
+            z = depth[y1:y2 + 1, x1:x2 + 1].astype(float) * self._depth_scale
+            ok = np.isfinite(z) & (z > self._min_d) & (z < self._max_d)
+            if ok.sum() < 60:
+                return
+            z0 = np.median(z[ok])
+            ok &= np.abs(z - z0) < 0.12                 # drop background seen through the loose parts of the box
+            cam = np.c_[(u[ok] - k['cx']) * z[ok] / k['fx'], (v[ok] - k['cy']) * z[ok] / k['fy'], z[ok]]
+            tf = self._tf_buffer.lookup_transform('base_link', cam_frame, rclpy.time.Time(),
+                                                  timeout=rclpy.duration.Duration(seconds=0.5))
+            q, t = tf.transform.rotation, tf.transform.translation
+            x, y, zq, w = q.x, q.y, q.z, q.w
+            R = np.array([[1 - 2 * (y * y + zq * zq), 2 * (x * y - zq * w), 2 * (x * zq + y * w)],
+                          [2 * (x * y + zq * w), 1 - 2 * (x * x + zq * zq), 2 * (y * zq - x * w)],
+                          [2 * (x * zq - y * w), 2 * (y * zq + x * w), 1 - 2 * (x * x + y * y)]])
+            pts = cam @ R.T + np.array([t.x, t.y, t.z])
+            pts = pts[pts[:, 2] > pts[:, 2].min() + 0.012]      # the table seen inside the box
+            est = estimate_pose(pts)
+            qx, qy, qz, qw = est['quaternion']
+            pose.pose.orientation.x, pose.pose.orientation.y = float(qx), float(qy)
+            pose.pose.orientation.z, pose.pose.orientation.w = float(qz), float(qw)
+            self.get_logger().info(f'  6D: {est["shape"]} yaw={math.degrees(est["yaw"]):.0f} deg '
+                                   f'dims={[round(d * 100, 1) for d in est["dims"]]} cm '
+                                   f'{"standing" if est["standing"] else "lying"} for "{query}"')
+        except Exception as e:  # noqa: BLE001
+            self.get_logger().warn(f'6D orientation skipped: {e}')
 
     def _object_in_box(self, bbox, cam_frame: str):
         """Detected object whose centre projects inside the VLM box (closest to the box centre), or None."""

@@ -471,12 +471,15 @@ The node log prints each answer, for example
 `"the red cylinder": box=(245,145,267,172) -> red_0 at base_link (0.342, -0.014, 0.118)`.
 The first query takes 15-30 s while Ollama loads the model; later ones take a few seconds.
 
-Picked and placed from a text query, with four objects on the table (Robotiq 2F-85):
+Picked and placed from a text query, with several objects on the table (Robotiq 2F-85):
 
 <table>
   <tr>
     <td align="center"><img src="assets/gifs/vlm_pick_yellow_cylinder.gif" width="380"><br><sub><b>"the yellow cylinder"</b></sub></td>
     <td align="center"><img src="assets/gifs/vlm_pick_red_cylinder.gif" width="380"><br><sub><b>"the red cylinder"</b></sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="assets/gifs/ycb_soup_can_pick.gif" width="380"><br><sub><b>"the soup can"</b> (YCB objects)</sub></td>
   </tr>
 </table>
 
@@ -493,9 +496,10 @@ python3 testing/vlm_check.py --object cylinder_5cm --domain 78
 |---|---|---|
 | Colour + depth detector | 16 mm | red objects only |
 | VLM (qwen2.5vl:3b) + detector | 16 mm | picks the right object from "the red cylinder"; refuses absent objects |
+| Contact-GraspNet (PyTorch port) | 16-23 mm (contact point) | 58 grasps on the cylinder, all within its 25 mm radius; side grasps, ~6 s per pass |
 
-Contact-GraspNet (PyTorch port, no CUDA build) can be run on a captured view with
-`testing/graspnet_check.py capture|run`; results are not in the table yet.
+Contact-GraspNet runs on a captured view with `testing/graspnet_check.py capture|run` (no CUDA build; model
+weights come with the repo). It needs the GPU free, so unload the VLM first.
 
 Point-cloud detector fix: clusters taller than `simple_max_object_height` (0.20 m) are dropped. They were the arm's
 own links, which made MTC stop mid-execution with "path became invalid". On the 2F-140 + 5 cm cylinder benchmark
