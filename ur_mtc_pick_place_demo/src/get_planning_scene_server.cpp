@@ -232,7 +232,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
     declare_parameter("simple_ground_z", 0.0, "Plane height assumed when no table/ground plane is visible");
     declare_parameter("simple_cluster_tolerance", 0.015, "Euclidean cluster tolerance for the fallback detector (m)");
     declare_parameter("simple_min_cluster_points", 30, "Minimum points for a fallback-detector cluster");
-    declare_parameter("simple_max_object_size", 0.15, "Largest footprint dimension accepted as a graspable object (m)");
+    declare_parameter("simple_max_object_size", 0.20, "Largest footprint dimension accepted as a graspable object (m)");
     declare_parameter("simple_max_object_height", 0.20,
                       "Tallest cluster accepted as an object (m); taller clusters are robot links seen by the camera");
     declare_parameter("simple_min_object_height", 0.015, "Shortest object accepted by the fallback detector (m)");
@@ -807,17 +807,32 @@ class GetPlanningSceneServer : public rclcpp::Node {
       if (!have_vlm_target || (this->now() - vlm_target_time).seconds() > 60.0) return "";
       pose = vlm_target_pose;
     }
-    std::string best;
-    double best_d = 0.06;
+    // Distance from the VLM pose to the object's footprint edge, not its centre: a long object (a banana, 18 cm) has its
+    // box-centre pose well away from the cluster centre. Accept a gap of up to 3 cm.
+    std::string best, closest;
+    double best_d = 0.03, closest_d = 1e9;
     for (const auto& o : objects) {
-      if (o.primitive_poses.empty() || o.id == support_surface_name) continue;
+      if (o.primitives.empty() || o.primitive_poses.empty() || o.id == support_surface_name) continue;
       const auto& p = o.primitive_poses[0].position;
-      const double d = std::hypot(p.x - pose.pose.position.x, p.y - pose.pose.position.y);
-      if (d < best_d) { best_d = d; best = o.id; }
+      const auto& dims = o.primitives[0].dimensions;
+      double half = 0.04;
+      if (o.primitives[0].type == shape_msgs::msg::SolidPrimitive::BOX && dims.size() >= 2) {
+        half = 0.5 * std::max(dims[0], dims[1]);
+      } else if (o.primitives[0].type == shape_msgs::msg::SolidPrimitive::CYLINDER && dims.size() >= 2) {
+        half = dims[1];
+      }
+      const double centre = std::hypot(p.x - pose.pose.position.x, p.y - pose.pose.position.y);
+      const double gap = std::max(0.0, centre - half);
+      if (gap < closest_d) { closest_d = gap; closest = o.id; }
+      if (gap < best_d) { best_d = gap; best = o.id; }
     }
     if (!best.empty()) {
       RCLCPP_INFO(this->get_logger(), "[simple] VLM target -> %s (%.0f mm from the VLM pose)", best.c_str(),
                   best_d * 1000.0);
+    } else {
+      RCLCPP_WARN(this->get_logger(),
+                  "[simple] VLM target (%.3f, %.3f) matched no object (closest %s, %.0f mm gap); using the shape heuristic",
+                  pose.pose.position.x, pose.pose.position.y, closest.c_str(), closest_d * 1000.0);
     }
     return best;
   }
