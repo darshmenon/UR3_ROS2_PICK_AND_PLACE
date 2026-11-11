@@ -26,6 +26,9 @@
     <xacro:if value="${selected_gripper == 'onrobot_rg2' or selected_gripper == 'onrobot_rg6'}">
       <xacro:property name="controllers_file" value="$(find moveit_config)/config/ros2_controllers_onrobot.yaml"/>
     </xacro:if>
+    <xacro:if value="${selected_gripper == 'peg'}">
+      <xacro:property name="controllers_file" value="$(find moveit_config)/config/ros2_controllers_peg.yaml"/>
+    </xacro:if>
 
     <link name="world" />
 

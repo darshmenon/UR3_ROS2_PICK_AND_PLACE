@@ -103,7 +103,7 @@ def generate_launch_description():
             "gripper",
             default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
             description="Gripper to attach to the robot",
-            choices=["robotiq_2f_85", "robotiq_2f_140", "onrobot_rg2", "onrobot_rg6"],
+            choices=["robotiq_2f_85", "robotiq_2f_140", "onrobot_rg2", "onrobot_rg6", "peg"],
         ),
         DeclareLaunchArgument("safety_limits", default_value="true", description="Enable safety limits controller"),
         DeclareLaunchArgument("safety_pos_margin", default_value="0.15", description="Safety controller position margin"),
@@ -301,6 +301,8 @@ def generate_launch_description():
             return [_make_spawner("forward_command_controller_effort", inactive=True)]
 
         controller = _CONTROLLER_CHAIN[index]
+        if controller == "gripper_controller" and gripper.perform(context) == "peg":
+            return _spawn_step(context, index + 1, _SPAWNER_MAX_RETRIES)   # rigid peg tool: no gripper to control
         spawner = _make_spawner(controller)
 
         def _on_exit(event, ctx):
@@ -333,7 +335,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments=[('gz_args', ['-s -r -v 4 --physics-engine ', LaunchConfiguration("physics_engine"), ' ', world_path]), ('use_sim_time', 'true'), ('gz_version', '8')],
+        launch_arguments=[('gz_args', ['-s -r -v 4 --headless-rendering --physics-engine ', LaunchConfiguration("physics_engine"), ' ', world_path]), ('use_sim_time', 'true'), ('gz_version', '8')],
         condition=UnlessCondition(LaunchConfiguration("use_gazebo_gui")),
     )
 

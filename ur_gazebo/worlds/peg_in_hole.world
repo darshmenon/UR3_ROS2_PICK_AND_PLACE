@@ -1,0 +1,105 @@
+<?xml version="1.0" ?>
+<!-- Peg-in-hole scene: square hole (0.5 mm clearance per side for a 10 mm radius peg), 30 mm deep, on a pedestal on the mount table.
+     Hole top-face centre is at x=0.28 y=0.14 z=1.135 (0.28, 0.14, 0.12 relative to the arm base_link at table height).
+     Cameras are off unless subscribed to: /peg_cam/image (wide) and /peg_close/image (close-up on the hole). -->
+<sdf version="1.8">
+  <world name="default">
+    <physics name="default_physics" type="bullet">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>-0.5 0.2 -0.9</direction>
+    </light>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision"><geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry></collision>
+        <visual name="visual"><geometry><plane><normal>0 0 1</normal><size>20 20</size></plane></geometry>
+          <material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <include>
+      <name>mount_table</name>
+      <uri>model://mount_table</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+    <model name="peg_fixture">
+      <static>true</static>
+      <pose>0.28 0.14 1.135 0 0 0</pose>
+      <link name="link">
+        <collision name="wall_px_c"><pose>0.0205 0 -0.015 0 0 0</pose><geometry><box><size>0.02 0.061 0.03</size></box></geometry>
+          <surface><friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction></surface></collision>
+        <visual name="wall_px_v"><pose>0.0205 0 -0.015 0 0 0</pose><geometry><box><size>0.02 0.061 0.03</size></box></geometry>
+          <material><ambient>0.3 0.4 0.8 1</ambient><diffuse>0.3 0.4 0.8 1</diffuse></material></visual>
+        <collision name="wall_nx_c"><pose>-0.0205 0 -0.015 0 0 0</pose><geometry><box><size>0.02 0.061 0.03</size></box></geometry>
+          <surface><friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction></surface></collision>
+        <visual name="wall_nx_v"><pose>-0.0205 0 -0.015 0 0 0</pose><geometry><box><size>0.02 0.061 0.03</size></box></geometry>
+          <material><ambient>0.3 0.4 0.8 1</ambient><diffuse>0.3 0.4 0.8 1</diffuse></material></visual>
+        <collision name="wall_py_c"><pose>0 0.0205 -0.015 0 0 0</pose><geometry><box><size>0.021 0.02 0.03</size></box></geometry>
+          <surface><friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction></surface></collision>
+        <visual name="wall_py_v"><pose>0 0.0205 -0.015 0 0 0</pose><geometry><box><size>0.021 0.02 0.03</size></box></geometry>
+          <material><ambient>0.3 0.4 0.8 1</ambient><diffuse>0.3 0.4 0.8 1</diffuse></material></visual>
+        <collision name="wall_ny_c"><pose>0 -0.0205 -0.015 0 0 0</pose><geometry><box><size>0.021 0.02 0.03</size></box></geometry>
+          <surface><friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction></surface></collision>
+        <visual name="wall_ny_v"><pose>0 -0.0205 -0.015 0 0 0</pose><geometry><box><size>0.021 0.02 0.03</size></box></geometry>
+          <material><ambient>0.3 0.4 0.8 1</ambient><diffuse>0.3 0.4 0.8 1</diffuse></material></visual>
+        <collision name="hole_floor_c"><pose>0 0 -0.034999999999999996 0 0 0</pose><geometry><box><size>0.061 0.061 0.01</size></box></geometry>
+          <surface><friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction></surface></collision>
+        <visual name="hole_floor_v"><pose>0 0 -0.034999999999999996 0 0 0</pose><geometry><box><size>0.061 0.061 0.01</size></box></geometry>
+          <material><ambient>0.3 0.4 0.8 1</ambient><diffuse>0.3 0.4 0.8 1</diffuse></material></visual>
+        <collision name="pedestal_c"><pose>0 0 -0.08 0 0 0</pose><geometry><box><size>0.07 0.07 0.08</size></box></geometry>
+          <surface><friction><ode><mu>0.5</mu><mu2>0.5</mu2></ode></friction></surface></collision>
+        <visual name="pedestal_v"><pose>0 0 -0.08 0 0 0</pose><geometry><box><size>0.07 0.07 0.08</size></box></geometry>
+          <material><ambient>0.5 0.5 0.5 1</ambient><diffuse>0.5 0.5 0.5 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="peg_cam">
+      <static>true</static>
+      <pose>0.65 -0.25 1.465 0 0.531 2.33</pose>
+      <link name="link">
+        <sensor name="peg_cam" type="camera">
+          <always_on>0</always_on>
+          <update_rate>15</update_rate>
+          <topic>peg_cam/image</topic>
+          <camera>
+            <horizontal_fov>0.9</horizontal_fov>
+            <image><width>960</width><height>540</height><format>R8G8B8</format></image>
+            <clip><near>0.05</near><far>8</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+    <model name="peg_close">
+      <static>true</static>
+      <pose>0.40 0.02 1.215 0 0.44 2.356</pose>
+      <link name="link">
+        <sensor name="peg_close" type="camera">
+          <always_on>0</always_on>
+          <update_rate>15</update_rate>
+          <topic>peg_close/image</topic>
+          <camera>
+            <horizontal_fov>0.8</horizontal_fov>
+            <image><width>960</width><height>540</height><format>R8G8B8</format></image>
+            <clip><near>0.05</near><far>8</far></clip>
+          </camera>
+        </sensor>
+      </link>
+    </model>
+  </world>
+</sdf>
