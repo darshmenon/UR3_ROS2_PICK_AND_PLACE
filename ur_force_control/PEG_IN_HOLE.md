@@ -35,7 +35,7 @@ Controller topics: `~/target_pose`, `~/stiffness` (6 values, change impedance on
 - **Switch controllers once per sim session.** After `arm_controller` -> `forward_command_controller_effort` the Gazebo joints stay in force mode, so switching back does not move the arm. Restart the sim to retest.
 - **The controller loop must be fast.** The UR3 wrists have about 1e-3 kg m^2 of joint inertia and no armature. At the default 100 Hz the controller is unstable; the `peg` config runs at 500 Hz and the damping defaults are low on purpose.
 - **Poses are in the URDF root frame**, which includes the table height: the hole top face is at z = 1.135.
-- **Measured force.** The `peg_ft` sensor (gz `force_torque`, 500 Hz, on `peg_joint`) is bridged to `/peg_ft` (`geometry_msgs/WrenchStamped`) by the recorder. `peg_in_hole_task.py` averages the free-space reading during the first part of the settle phase (the peg weight, about 1 N) and subtracts it, then logs `f_meas_lateral` / `f_meas_axial` next to the commanded impedance force `K (x_des - x)` (`f_lateral` / `f_axial`). The plots show both. In the 4 mm jam (`peg_in_hole_ur3_jam_measured`) they agree: 23.4 N measured against 22.4 N commanded at the plateau. Only the peg joint is measured, so a collision of another arm link is invisible to it.
+- **Measured force.** The `peg_ft` sensor (gz `force_torque`, 500 Hz, on `peg_joint`) is bridged to `/peg_ft` (`geometry_msgs/WrenchStamped`) by the recorder. `peg_in_hole_task.py` averages the free-space reading during the first part of the settle phase (the peg weight, about 1 N) and subtracts it, then logs `f_meas_lateral` / `f_meas_axial` next to the commanded impedance force `K (x_des - x)` (`f_lateral` / `f_axial`). The plots show both. In the 4 mm jam (`peg_in_hole_ur3_rim_stick_measured`) they agree: 23.4 N measured against 22.4 N commanded at the plateau. Only the peg joint is measured, so a collision of another arm link is invisible to it.
 - **Gazebo contact is more forgiving than the model, and I could not tighten it.** The hole has 0.5 mm clearance per side, but a peg offset 1.5 mm often still goes in. What I tried:
   - Bullet-featherstone ignored `kp` / `kd` / `minDepth` on the peg (no change; I could not find documentation that it reads them), so they are not in the repo.
   - A zero-clearance hole (inner faces at the peg radius) still let a +1.5 mm offset in.
@@ -52,6 +52,21 @@ Results from the three recorded runs (K = 800 N/m, 10 mm/s):
 | plain descent | 0.4 mm | inserts | 0.7 N / 0.3 N |
 | plain descent | 4 mm | jams on the rim | 21.6 N / 3.2 N |
 | spiral search | 4 mm | inserts after about 5 s of search | 3.6 N / 12.9 N |
-| plain descent, measured force (`peg_in_hole_ur3_jam_measured`) | 4 mm | sticks on the rim for about 12 s (23.4 N measured), then creeps in | 23.4 N plateau, 36 N peak axial / 15.8 N peak lateral (at the slip-in), measured |
+| plain descent, measured force (`peg_in_hole_ur3_rim_stick_measured`) | 4 mm | sticks on the rim for about 12 s (23.4 N measured), then creeps in | 23.4 N plateau, 36 N peak axial / 15.8 N peak lateral (at the slip-in), measured |
 
-The jam and spiral rows are commanded force only (recorded before the sensor existed); `peg_in_hole_ur3` and `peg_in_hole_ur3_jam_measured` include the measured columns.
+The jam and spiral rows are commanded force only (recorded before the sensor existed); `peg_in_hole_ur3` and `peg_in_hole_ur3_rim_stick_measured` include the measured columns.
+
+Reading the GIFs:
+- `peg_in_hole_ur3_rim_stick_measured` is not a jam: the peg sticks on the rim and then slips into the hole (final depth 27.9 mm). The only run that stays jammed is `peg_in_hole_ur3_jam`, which has commanded force only.
+- The spiral and rim-stick runs end inserted but about 1.7 mm from the hole centre, although the hole has 0.5 mm clearance per side. That is the soft Gazebo contact described above, so do not read those insertions as precise.
+- Force plots for `peg_in_hole_ur3_jam` and `peg_in_hole_ur3_spiral` show the commanded spring force `K (x_des - x)`; only `peg_in_hole_ur3` and `peg_in_hole_ur3_rim_stick_measured` show the sensor.
+
+## Analysis tools
+
+Separate repos that work on this package's data and sim (each tested on the UR3):
+
+| Tool | Use here |
+|---|---|
+| [armdoc](https://github.com/darshmenon/armdoc) | `armdoc --ready` against the running Gazebo sim before a run; `armdoc --record run.jsonl` then `armdoc report run.jsonl --html report.html` for a timeline of controller and joint faults |
+| [forcetrace](https://github.com/darshmenon/forcetrace) | `forcetrace analyze assets/gifs/peg_in_hole_ur3_spiral.csv` for peak force, impulse, jam and insertion time; `forcetrace animate` and `dashboard` for GIF and HTML views |
+| [reachlens](https://github.com/darshmenon/reachlens) | `reachlens check --arm ur3 --tool-length 0.06 --pose 0.28 0.14 0.12` confirms the hole is reachable (it uses the MuJoCo frame: subtract the 1.015 m table height from the Gazebo z) |
