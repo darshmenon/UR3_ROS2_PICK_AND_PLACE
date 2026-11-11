@@ -87,6 +87,44 @@ def clear_scene(node, log):
     return names
 
 
+class DemoRecorder:
+    """Log joint states (and the object's true pose, 2 Hz) during one MTC run; saved as an .npz only for successes,
+    so the files are demonstrations for imitation learning (obs = q, qd, object pose; action = next q)."""
+
+    def __init__(self, node, out_dir):
+        from sensor_msgs.msg import JointState
+        self.out = Path(out_dir)
+        self.out.mkdir(parents=True, exist_ok=True)
+        self.q, self.obj, self.on = [], [], False
+        node.create_subscription(JointState, "/joint_states", self._js, 50)
+
+    def _js(self, m):
+        if self.on:
+            self.q.append((time.time(), dict(zip(m.name, m.position))))
+
+    def start(self):
+        self.q, self.obj, self.on = [], [], True
+        threading.Thread(target=self._poll, daemon=True).start()
+
+    def _poll(self):
+        while self.on:
+            p = bench.object_pose()
+            if p:
+                self.obj.append((time.time(), *p[:3]))
+            time.sleep(0.5)
+
+    def save(self, name, success):
+        self.on = False
+        if not success or len(self.q) < 20:
+            return
+        import numpy as np
+        names = sorted(self.q[0][1])
+        np.savez_compressed(self.out / f"{name}.npz", t=np.array([t for t, _ in self.q]), joints=np.array(names),
+                            q=np.array([[d.get(n, np.nan) for n in names] for _, d in self.q]),
+                            obj=np.array(self.obj))
+        print(f"[mtc] saved demo {name}: {len(self.q)} joint samples", flush=True)
+
+
 def run_cell(args, g, name):
     os.environ["ROS_DOMAIN_ID"] = str(args.domain)
     import rclpy
@@ -126,7 +164,17 @@ def run_cell(args, g, name):
         mover.set_gripper(g)
         recorder = bench.Recorder(node, args.record_topic, args.record_dir, args.record_period,
                                   args.record_frames) if args.record_dir else None
-        initial = bench.object_pose()
+        demo = DemoRecorder(node, args.demo_dir) if args.demo_dir else None
+        # The object is spawned slightly above the table and drops on start-up: take the reference pose only once
+        # z has stopped changing, otherwise it is the pre-drop height (never reached again after a reset).
+        initial, last = bench.object_pose(), None
+        for _ in range(30):
+            time.sleep(1.0)
+            initial = bench.object_pose()
+            if initial and last and max(abs(a - b) for a, b in zip(initial[:3], last[:3])) < 0.0005:
+                break
+            last = initial
+        print(f"[mtc] resting reference pose: {initial}", flush=True)
         for t in range(1, args.trials + 1):
             if args.restart_mtc and t > 1:        # diagnostic: does state leak from one MTC run into the next?
                 for sig in (signal.SIGINT, signal.SIGKILL):
@@ -173,11 +221,25 @@ def run_cell(args, g, name):
                     time.sleep(0.5)
                 if good >= 8:
                     break
+                if before and abs(before[2] - initial[2]) < 0.008 and \
+                        math.hypot(before[0] - initial[0], before[1] - initial[1]) < 0.01:
+                    good = 8          # resting a few mm high (rocking on the table edge of its base) but in place
+                    break
                 print(f"[mtc] trial {t}: object not settled upright (z={before and before[2]}), re-resetting",
                       flush=True)
+            if good < 8:
+                # a toppled/rolling start is a harness problem, not an MTC failure: do not score it
+                print(f"[mtc] {g}/{name} trial {t}: SKIPPED, object would not settle (pose {before})", flush=True)
+                rows.append(dict(pipeline="mtc", gripper=g, object=name, trial=t, executed=False, success=False,
+                                 error_xy_m=float("nan"), error_z_m=float("nan"),
+                                 perception_error_xy_m=float("nan"), cycle_time_s=0.0, lifted_m=float("nan"),
+                                 err_dx_m=float("nan"), err_dy_m=float("nan"), notes="skipped: start not settled"))
+                continue
             status["text"] = ""
             if recorder is not None:
                 recorder.start()
+            if demo is not None:
+                demo.start()
             t0 = time.time()
             with bench.LiftWatcher() as watcher:
                 resp = None
@@ -225,6 +287,8 @@ def run_cell(args, g, name):
                              lifted_m=lifted, err_dx_m=err_dx, err_dy_m=err_dy, notes=(notes + " | " if notes else "") + status["text"]))
             if recorder is not None:
                 recorder.save(f"mtc_{g}_{name}_t{t}", success)
+            if demo is not None:
+                demo.save(f"mtc_{g}_{name}_t{t}_{int(time.time())}", success)
             print(f"[mtc] {g}/{name} trial {t}: success={success} xy={ex_xy * 1000:.0f}mm "
                   f"status={status['text']!r} {cycle:.0f}s", flush=True)
             bench.reset_object(initial, lift=0.0)
@@ -258,6 +322,7 @@ def main():
     ap.add_argument("--record-topic", default="/camera_head/color/image_raw")
     ap.add_argument("--record-period", type=float, default=0.5)
     ap.add_argument("--record-frames", type=int, default=24)
+    ap.add_argument("--demo-dir", default=None, help="save joint-state demos of successful trials here (.npz)")
     ap.add_argument("--restart-mtc", action="store_true", help="relaunch the MTC nodes before every trial after the first")
     ap.add_argument("--trial-timeout", type=float, default=420.0)
     ap.add_argument("--output", default=None)
@@ -284,6 +349,7 @@ def main():
                             *(["--record-dir", args.record_dir, "--record-topic", args.record_topic,
                                "--record-period", str(args.record_period), "--record-frames", str(args.record_frames)]
                               if args.record_dir else []),
+                            *(["--demo-dir", args.demo_dir] if args.demo_dir else []),
                             "--output", str(tmp)], check=False)
             if tmp.exists():
                 all_rows += bench.load_rows_from(list(csv.DictReader(open(tmp))))

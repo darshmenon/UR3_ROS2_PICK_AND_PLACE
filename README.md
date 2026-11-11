@@ -102,7 +102,7 @@ ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries
 
 <sub>MTC plans the whole pick and place before moving; the long planning pause is cut from these GIFs.</sub>
 
-Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. The RG6 and 2F-140 settings exist but are not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
+Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. The 2F-140 picks a 5 cm cylinder 9 of 10 times within 30 mm (6 of 10 within 20 mm), after lowering the release to 0.5-2 cm so the cylinder no longer topples; the 10-25 mm placement scatter has no consistent direction. Reproduce with `python3 testing/benchmark_mtc.py --grippers robotiq_2f_140 --objects cylinder_5cm --trials 10 --attempts 2 --record-dir <dir>` (headless, one frame strip per trial). The RG6 setting is not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
 
 ---
 
@@ -261,6 +261,28 @@ python3 testing/plot_rl_run_comparison.py
 # -> testing/rl_learning_curves.png, testing/rl_best_reward_bar.png
 ```
 
+### Imitation from a scripted expert (CPU only)
+
+A scripted Jacobian-IK expert gives demonstrations, then a policy is cloned and improved with DAgger (the expert relabels the states the policy visits). A flow-matching policy predicts 16-action chunks. All three below are scored on the same 50 start positions (the expert scored 49% over 150 other starts, so the gap between them is within noise):
+
+| Policy | Success |
+|---|---|
+| Scripted expert | 34% (17/50) |
+| DAgger (`scripts/dagger.py`) | 46% (23/50) |
+| Flow matching (`scripts/flow_policy.py`) | 44% (22/50) |
+
+![DAgger policy placing the cube](assets/gifs/rl_dagger.gif)
+
+![Success rate by method](assets/rl_methods_comparison.png)
+
+```bash
+cd ur_rl_training
+python3 scripts/expert_demos.py --episodes 150
+python3 scripts/dagger.py && python3 scripts/flow_policy.py
+python3 scripts/eval_policy.py --policy ~/ur3_rl_demos/flow.pt --episodes 50
+MUJOCO_GL=osmesa python3 scripts/render_policy.py --policy ~/ur3_rl_demos/dagger.pt
+```
+
 ---
 
 ## Force Control / Compliant Grasping (`ur_force_control`)
@@ -290,6 +312,29 @@ ros2 topic pub --once /joint_impedance_controller/target_positions std_msgs/msg/
 ros2 control switch_controllers --deactivate forward_command_controller_effort --activate arm_controller   # hand back
 ```
 Use `arm_controller` for MoveIt; switch to `forward_command_controller_effort` only for compliant hold/contact. Service: `/joint_impedance_controller/hold_current_pose`.
+
+**Peg in hole (Cartesian impedance + spiral search)** — the UR3 holds a peg above a hole in headless Gazebo and pushes it in with compliant control. When the peg lands on the top face (axial force up, depth ~0), the task node runs a spiral search around the nominal hole until the peg drops in (`hole_found`: axial force low and depth > 3 mm). Control law and spiral are in `ur_force_control/admittance.py`.
+
+<table>
+  <tr>
+    <td align="center"><img src="assets/gifs/peg_in_hole_ur3.gif" width="260"><br><sub>0.4 mm off: goes straight in</sub></td>
+    <td align="center"><img src="assets/gifs/peg_in_hole_ur3_jam.gif" width="260"><br><sub>4 mm off, no search: jams</sub></td>
+    <td align="center"><img src="assets/gifs/peg_in_hole_ur3_spiral.gif" width="260"><br><sub>4 mm off, spiral search: finds the hole</sub></td>
+  </tr>
+</table>
+
+| Case | Start offset | Result | Peak axial force |
+|---|---|---|---|
+| Aligned | 0.4 mm | inserted 27 mm | 0.7 N |
+| Jammed (no search) | 4 mm | stuck at 1 mm depth | 21.6 N |
+| Spiral search | 4 mm | inserted 27 mm in ~14 s | 3.6 N while searching |
+
+Force plots: `assets/gifs/peg_in_hole_ur3*_forces.png`, raw data in the matching `.csv` (position, depth, lateral/axial force, mode, rotation error).
+
+```bash
+python3 ur_force_control/scripts/record_peg_in_hole.py --out assets/gifs/peg_in_hole_ur3_spiral.gif --offset-x 0.004 --search
+```
+Starts the sim headless, films the close-up camera, and writes the GIF, CSV and force plot. The wrench is estimated from joint effort, so forces are relative, not calibrated.
 
 ---
 

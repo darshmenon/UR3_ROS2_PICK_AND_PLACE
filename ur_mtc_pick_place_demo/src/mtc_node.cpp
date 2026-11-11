@@ -357,6 +357,9 @@ MTCTaskNode::MTCTaskNode(const rclcpp::NodeOptions& options)
                     "Insert MoveTo(transit_clear) before pick/place Connect stages");
   declare_parameter("transit_planner_id", "RRTConnectkConfigDefault",
                     "OMPL planner_id for narrow-passage transit (Connect + via MoveTo)");
+  declare_parameter("neighbor_object_margin", 0.0,
+                    "Clearance (m) added around every detected object that is not the target, so plans pass a "
+                    "neighbour with room to spare instead of grazing it (0 disables)");
   declare_parameter("planning_robot_padding", 0.004,
                     "Extra robot link padding (m) applied to the planning scene");
   declare_parameter("planning_support_inflation", 0.005,
@@ -728,6 +731,26 @@ void MTCTaskNode::setupPlanningScene()
     RCLCPP_INFO(this->get_logger(),
                 "Adding %zu collision objects from service response to the planning scene...",
                 scene_world_.collision_objects.size());
+    {
+      // Plans that graze a neighbouring object pass planning but are stopped at execution ("path became invalid"):
+      // inflate every non-target object so the planner keeps clear of it. The target stays exact for the grasp.
+      const double margin = this->get_parameter("neighbor_object_margin").as_double();
+      if (margin > 0.0) {
+        for (auto& o : scene_world_.collision_objects) {
+          if (o.id == target_object_id_ || o.id == support_surface_id_) continue;
+          for (auto& prim : o.primitives) {
+            if (prim.type == shape_msgs::msg::SolidPrimitive::CYLINDER && prim.dimensions.size() >= 2) {
+              prim.dimensions[0] += margin;          // height (one-sided: the base sits on the table)
+              prim.dimensions[1] += margin;          // radius
+            } else if (prim.type == shape_msgs::msg::SolidPrimitive::BOX && prim.dimensions.size() >= 3) {
+              prim.dimensions[0] += 2.0 * margin;
+              prim.dimensions[1] += 2.0 * margin;
+              prim.dimensions[2] += margin;
+            }
+          }
+        }
+      }
+    }
     if (!scene_world_.collision_objects.empty()) {
       psi.addCollisionObjects(scene_world_.collision_objects);
       rclcpp::sleep_for(std::chrono::milliseconds(3000));
@@ -1445,6 +1468,15 @@ mtc::Task MTCTaskNode::createTask()
         true);
       grasp->insert(std::move(stage));
     }
+    {
+      auto stage = std::make_unique<mtc::stages::ModifyPlanningScene>("allow collision (gripper,support_surface)");
+      stage->allowCollisions({ support_surface_id_ },
+                             task.getRobotModel()
+                                 ->getJointModelGroup(gripper_group_name)
+                                 ->getLinkModelNamesWithCollisionGeometry(),
+                             true);
+      grasp->insert(std::move(stage));
+    }
 
     /****************************************************
 ---- *               Close Gripper                     *
@@ -1527,6 +1559,16 @@ mtc::Task MTCTaskNode::createTask()
       stage->allowCollisions({ object_name }, {support_surface_id_}, false);
       grasp->insert(std::move(stage));
     }
+    {
+      // Pads graze the (noisy) perceived support_surface while closing and lifting; re-forbid now.
+      auto stage = std::make_unique<mtc::stages::ModifyPlanningScene>("forbid collision (gripper,support_surface)");
+      stage->allowCollisions({ support_surface_id_ },
+                             task.getRobotModel()
+                                 ->getJointModelGroup(gripper_group_name)
+                                 ->getLinkModelNamesWithCollisionGeometry(),
+                             false);
+      grasp->insert(std::move(stage));
+    }
 
       // Add the serial container to the robot's to-do list
       // This serial container contains all the sequential steps we've created for grasping
@@ -1600,7 +1642,9 @@ mtc::Task MTCTaskNode::createTask()
       size_t idx = 0;
       // Same pad-centred geometry as the grasp: the held object's centre is at pz when the gripper frame is
       // grasp_pad_offset above pz. `clearance` is the release height above the surface.
-      for (double clearance : { 0.02, 0.03, 0.05, 0.08 }) {
+      // Keep the release low: the alternatives are ranked by path cost, which favours the highest one, and an
+      // 8 cm drop made a standing cylinder bounce, tip and roll off the table.
+      for (double clearance : { 0.005, 0.01, 0.02 }) {
         const double vertical = grasp_pad_offset + clearance;
         geometry_msgs::msg::PoseStamped grasp_pose;
         grasp_pose.header.frame_id = world_frame;
