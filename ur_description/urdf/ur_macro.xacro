@@ -361,6 +361,16 @@
       <parent link="${tf_prefix}tool0"/><child link="${tf_prefix}peg"/><origin xyz="0 0 0" rpy="0 0 0"/>
       <gazebo><disableFixedJointLumping>true</disableFixedJointLumping></gazebo>
     </joint>
+    <gazebo reference="${tf_prefix}peg_joint">
+        <preserveFixedJoint>true</preserveFixedJoint>
+        <!-- measured contact wrench on the peg: force/torque the tool flange carries, in the peg frame -->
+        <sensor name="peg_ft" type="force_torque">
+          <always_on>1</always_on>
+          <update_rate>500</update_rate>
+          <topic>peg_ft</topic>
+          <force_torque><frame>child</frame><measure_direction>child_to_parent</measure_direction></force_torque>
+        </sensor>
+    </gazebo>
     <link name="${tf_prefix}peg_tip"/>
     <joint name="${tf_prefix}peg_tip_joint" type="fixed">
       <parent link="${tf_prefix}peg"/><child link="${tf_prefix}peg_tip"/><origin xyz="0 0 0.06" rpy="0 0 0"/>

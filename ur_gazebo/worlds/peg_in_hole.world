@@ -15,6 +15,7 @@
       <render_engine>ogre2</render_engine>
     </plugin>
     <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <plugin filename="gz-sim-forcetorque-system" name="gz::sim::systems::ForceTorque"/>
 
     <light type="directional" name="sun">
       <cast_shadows>true</cast_shadows>

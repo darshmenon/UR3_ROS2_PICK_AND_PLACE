@@ -43,10 +43,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", required=True, help="output GIF path (CSV and force plot are written next to it)")
     ap.add_argument("--domain", type=int, default=78)
+    ap.add_argument("--gz-partition", default="", help="GZ_PARTITION for the sim and gz tools (isolates it from other sims)")
     ap.add_argument("--camera", default="peg_close", choices=["peg_close", "peg_cam"])
     ap.add_argument("--offset-x", type=float, default=0.0004)
     ap.add_argument("--offset-y", type=float, default=0.0)
     ap.add_argument("--stiffness", type=float, default=800.0)
+    ap.add_argument("--t-end", type=float, default=25.0, help="task time limit in s (shorten it to end a jam run while still jammed)")
     ap.add_argument("--search", action="store_true", help="spiral search when the peg lands on the top face")
     ap.add_argument("--period", type=float, default=0.25, help="seconds between saved frames (wall clock)")
     ap.add_argument("--width", type=int, default=520)
@@ -55,6 +57,9 @@ def main():
 
     os.environ["ROS_DOMAIN_ID"] = str(args.domain)       # this process subscribes to the camera too
     env = dict(os.environ, ROS_DOMAIN_ID=str(args.domain), GZ_VERSION="harmonic")
+    if args.gz_partition:
+        env["GZ_PARTITION"] = args.gz_partition
+        os.environ["GZ_PARTITION"] = args.gz_partition
     out = Path(args.out).resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     frames = Path(f"/tmp/peg_frames_{out.stem}")
@@ -79,6 +84,9 @@ def main():
         bridge = sh(f"exec ros2 run ros_gz_image image_bridge /{args.camera}/image", env,
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         procs.append(bridge)
+        ftb = sh("exec ros2 run ros_gz_bridge parameter_bridge '/peg_ft@geometry_msgs/msg/WrenchStamped[gz.msgs.Wrench'", env,
+                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)      # measured wrench of the peg joint force/torque sensor
+        procs.append(ftb)
         cic = sh(f"exec ros2 run ur_force_control cartesian_impedance_controller --ros-args -p use_sim_time:=true "
                  f"-p stiffness:=\"[{args.stiffness},{args.stiffness},{args.stiffness},30.0,30.0,30.0]\"", env,
                  stdout=open("/tmp/peg_cic.log", "w"), stderr=subprocess.STDOUT)
@@ -122,7 +130,7 @@ def main():
         node.create_subscription(Image, f"/{args.camera}/image", on_image, qos_profile_sensor_data)   # the bridge is best-effort
         task = sh(f"exec ros2 run ur_force_control peg_in_hole_task.py --ros-args -p use_sim_time:=true -p offset_x:={args.offset_x} "
                   f"-p offset_y:={args.offset_y} -p stiffness:={args.stiffness} -p search:={'true' if args.search else 'false'} "
-                  f"-p log_csv:={csv}", env, stdout=open("/tmp/peg_task.log", "w"), stderr=subprocess.STDOUT)
+                  f"-p t_end:={args.t_end} -p log_csv:={csv}", env, stdout=open("/tmp/peg_task.log", "w"), stderr=subprocess.STDOUT)
         procs.append(task)
         while task.poll() is None:
             rclpy.spin_once(node, timeout_sec=0.1)
@@ -149,12 +157,19 @@ def plot(csv, png, args):
     import matplotlib.pyplot as plt
     import numpy as np
     d = np.genfromtxt(csv, delimiter=",", names=True)
-    fig, ax = plt.subplots(3, 1, figsize=(8, 8), sharex=True)
+    has_ft = "f_meas_axial" in (d.dtype.names or ())
+    fig, ax = plt.subplots(4, 1, figsize=(8, 10), sharex=True)
     ax[0].plot(d["t"], d["depth"] * 1e3); ax[0].set_ylabel("insertion depth (mm)")
-    ax[1].plot(d["t"], d["f_axial"], label="axial"); ax[1].plot(d["t"], d["f_lateral"], label="lateral")
-    ax[1].set_ylabel("impedance force (N)"); ax[1].legend()
-    ax[2].plot(d["t"], d["mode"], drawstyle="steps-post"); ax[2].set_ylabel("mode (0/1/2)")
-    ax[2].set_xlabel("time (s)  (mode: 0 descend, 1 spiral search, 2 insert)")
+    ax[1].plot(d["t"], d["f_axial"], color="C1", alpha=.6, label="commanded K(x_des - x)")
+    if has_ft:
+        ax[1].plot(d["t"], d["f_meas_axial"], color="C0", label="measured (F/T sensor)")
+    ax[1].set_ylabel("axial force (N)"); ax[1].legend(loc="upper left")
+    ax[2].plot(d["t"], d["f_lateral"], color="C1", alpha=.6, label="commanded K(x_des - x)")
+    if has_ft:
+        ax[2].plot(d["t"], d["f_meas_lateral"], color="C0", label="measured (F/T sensor)")
+    ax[2].set_ylabel("lateral force (N)"); ax[2].legend(loc="upper left")
+    ax[3].plot(d["t"], d["mode"], drawstyle="steps-post"); ax[3].set_ylabel("mode (0/1/2)")
+    ax[3].set_xlabel("time (s)  (mode: 0 descend, 1 spiral search, 2 insert)")
     for a in ax:
         a.grid(alpha=.3)
     fig.suptitle(f"UR3 peg-in-hole in Gazebo, K={args.stiffness:.0f} N/m, offset={args.offset_x*1e3:.1f} mm, "

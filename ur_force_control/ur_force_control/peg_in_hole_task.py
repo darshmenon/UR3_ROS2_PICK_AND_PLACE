@@ -3,8 +3,10 @@
 
 Drives ~/target_pose of cartesian_impedance_controller: hover over the hole, descend at --speed, and (with
 search:=true) spiral the commanded xy outward under a light press when the peg lands on the top face.
-Contact force is the impedance spring force K (x_des - x), i.e. what the controller is commanding against the contact;
-it is logged to a CSV together with tip pose, depth and task mode. Positions are in the URDF root frame, which includes the table height (hole top face z = 1.135).
+Two forces are logged: the impedance spring force K (x_des - x) (what the controller commands against the contact, f_lateral /
+f_axial) and the MEASURED wrench from the Gazebo force/torque sensor on the peg joint (f_meas_lateral / f_meas_axial, bridged on
+/peg_ft; the free-space reading, i.e. the peg weight, is averaged during the first part of the settle phase and subtracted).
+Both are logged to a CSV together with tip pose, depth and task mode. Positions are in the URDF root frame, which includes the table height (hole top face z = 1.135).
 
   ros2 run ur_force_control peg_in_hole_task --ros-args -p use_sim_time:=true -p offset_x:=0.0015 -p search:=true
 """
@@ -12,7 +14,7 @@ import csv
 import math
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, WrenchStamped
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 from std_srvs.srv import Trigger
@@ -24,7 +26,7 @@ class PegInHoleTask(Node):
     def __init__(self):
         super().__init__("peg_in_hole_task")
         p = self.declare_parameter
-        self.hole = [p("hole_x", 0.28).value, p("hole_y", 0.14).value, p("hole_z", 1.135).value]   # world/root frame (table top 1.015 + 0.12)
+        self.hole = [p("hole_x", 0.28).value, p("hole_y", 0.14).value, p("hole_z", 1.135).value]   # root frame (table top 1.015 + 0.12)
         self.off = [p("offset_x", 0.0004).value, p("offset_y", 0.0).value]
         self.hover = p("hover", 0.03).value
         self.speed = p("speed", 0.01).value
@@ -40,6 +42,9 @@ class PegInHoleTask(Node):
         self.t_end = p("t_end", 25.0).value
         self.settle = p("settle", 3.0).value
         self.csv_path = p("log_csv", "/tmp/peg_in_hole_gazebo.csv").value
+        self.ft = []              # wrench samples (fx, fy, fz) since the last tick
+        self.ft_bias = None
+        self.bias_samples = []
 
         self.goal = [self.hole[0] + self.off[0], self.hole[1] + self.off[1]]
         self.z0 = self.hole[2] + self.hover
@@ -57,12 +62,34 @@ class PegInHoleTask(Node):
         self.pub = self.create_publisher(PoseStamped, "/cartesian_impedance_controller/target_pose", 10)
         self.k_pub = self.create_publisher(Float64MultiArray, "/cartesian_impedance_controller/stiffness", 10)
         self.create_subscription(PoseStamped, "/cartesian_impedance_controller/tip_pose", self.on_tip, 10)
+        self.create_subscription(WrenchStamped, p("ft_topic", "/peg_ft").value, self.on_ft, 200)
         self.hold = self.create_client(Trigger, "/cartesian_impedance_controller/hold_current_pose")
         self.create_timer(0.01, self.tick)
 
     def on_tip(self, m):
         self.tip = [m.pose.position.x, m.pose.position.y, m.pose.position.z]
         self.qx = m.pose.orientation.x          # target quaternion is (x=1): angle error = 2 acos(|qx|)
+
+    def on_ft(self, m):
+        f = m.wrench.force
+        self.ft.append((f.x, f.y, f.z))
+
+    def measured(self, t):
+        """Mean measured force since the last tick, minus the free-space bias (peg weight), as (lateral, axial) in N."""
+        if not self.ft:
+            return float("nan"), float("nan")
+        n = len(self.ft)
+        f = [sum(c) / n for c in zip(*self.ft)]
+        self.ft = []
+        if t < 0.8 * self.settle:
+            self.bias_samples.append(f)
+            return 0.0, 0.0
+        if self.ft_bias is None and self.bias_samples:
+            tail = self.bias_samples[len(self.bias_samples) // 2:]      # second half of the free-space window
+            self.ft_bias = [sum(c) / len(tail) for c in zip(*tail)]
+        b = self.ft_bias or [0.0, 0.0, 0.0]
+        d = [f[i] - b[i] for i in range(3)]
+        return math.hypot(d[0], d[1]), abs(d[2])
 
     def send(self, x, y, z):
         m = PoseStamped()
@@ -118,15 +145,16 @@ class PegInHoleTask(Node):
         fx = self.kxy * (xy[0] - self.tip[0])
         fy = self.kxy * (xy[1] - self.tip[1])
         fz = self.k * (z - self.tip[2])
+        ml, ma = self.measured(t)
         self.rows.append([f"{t:.3f}", *[f"{v:.5f}" for v in self.tip], f"{xy[0]:.5f}", f"{xy[1]:.5f}", f"{z:.5f}",
                           f"{depth:.5f}", f"{math.hypot(fx, fy):.3f}", f"{abs(fz):.3f}", self.mode,
-                          f"{math.degrees(2 * math.acos(min(1.0, abs(self.qx)))):.2f}"])
+                          f"{math.degrees(2 * math.acos(min(1.0, abs(self.qx)))):.2f}", f"{ml:.3f}", f"{ma:.3f}"])
 
     def finish(self, depth):
         self.done = True
         with open(self.csv_path, "w", newline="") as f:
             w = csv.writer(f)
-            w.writerow(["t", "x", "y", "z", "xd", "yd", "zd", "depth", "f_lateral", "f_axial", "mode", "rot_err_deg"])
+            w.writerow(["t", "x", "y", "z", "xd", "yd", "zd", "depth", "f_lateral", "f_axial", "mode", "rot_err_deg", "f_meas_lateral", "f_meas_axial"])
             w.writerows(self.rows)
         ok = depth > 0.9 * HOLE_DEPTH
         self.get_logger().info(f"{'INSERTED' if ok else 'NOT inserted'}: depth={depth*1e3:.1f} mm, log -> {self.csv_path}")
