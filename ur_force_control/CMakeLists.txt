@@ -20,6 +20,7 @@ ament_python_install_package(${PROJECT_NAME})
 
 install(PROGRAMS
   ur_force_control/ft_monitor_node.py
+  ur_force_control/peg_in_hole_task.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -54,7 +55,21 @@ target_link_libraries(joint_impedance_controller
   pinocchio::pinocchio_parsers
 )
 
-install(TARGETS external_wrench_estimator joint_impedance_controller
+add_executable(cartesian_impedance_controller src/cartesian_impedance_controller.cpp)
+target_compile_features(cartesian_impedance_controller PUBLIC cxx_std_17)
+ament_target_dependencies(cartesian_impedance_controller
+  rclcpp
+  geometry_msgs
+  sensor_msgs
+  std_msgs
+  std_srvs
+)
+target_link_libraries(cartesian_impedance_controller
+  pinocchio::pinocchio_default
+  pinocchio::pinocchio_parsers
+)
+
+install(TARGETS external_wrench_estimator joint_impedance_controller cartesian_impedance_controller
   DESTINATION lib/${PROJECT_NAME}
 )
 
