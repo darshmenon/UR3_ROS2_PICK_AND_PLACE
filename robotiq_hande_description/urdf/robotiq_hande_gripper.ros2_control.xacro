@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro
+    name="robotiq_hande_ros2_control"
+    params="name prefix grip_pos_min grip_pos_max tty_port baudrate parity data_bits stop_bit slave_id frequency_hz create_socat_tty socat_ip_address socat_port use_fake_hardware"
+  >
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <xacro:if value="${use_fake_hardware}">
+          <plugin>mock_components/GenericSystem</plugin>
+        </xacro:if>
+
+        <xacro:unless value="${use_fake_hardware}">
+          <plugin>robotiq_hande_driver/RobotiqHandeHardwareInterface</plugin>
+          <param name="grip_pos_min">${grip_pos_min}</param>
+          <param name="grip_pos_max">${grip_pos_max}</param>
+
+          <param name="tty_port">${tty_port}</param>
+          <param name="baudrate">${baudrate}</param>
+          <param name="parity">${parity}</param>
+          <param name="data_bits">${data_bits}</param>
+          <param name="stop_bit">${stop_bit}</param>
+          <param name="slave_id">${slave_id}</param>
+          <param name="frequency_hz">${frequency_hz}</param>
+
+          <param name="create_socat_tty">${create_socat_tty}</param>
+          <param name="socat_ip_address">${socat_ip_address}</param>
+          <param name="socat_port">${socat_port}</param>
+        </xacro:unless>
+      </hardware>
+
+      <!-- The right finger joint uses the mimic feature -->
+      <joint name="${prefix}robotiq_hande_left_finger_joint">
+        <command_interface name="position">
+          <param name="min">0</param>
+          <param name="max">0.025</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">0.025</param>
+        </state_interface>
+        <state_interface name="velocity">
+          <param name="initial_value">0</param>
+        </state_interface>
+      </joint>
+    </ros2_control>
+  </xacro:macro>
+</robot>

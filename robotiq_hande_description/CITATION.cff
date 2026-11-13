@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Aleksandrowicz
+    given-names: Maciej
+    orcid: https://orcid.org/0000-0003-3388-5653
+  - family-names: Klimek
+    given-names: Krzysztof
+    orcid: https://orcid.org/0009-0004-6749-1833
+  - family-names: Płachno
+    given-names: Jakub
+title: "Robotiq Hand-E ROS 2 Description Package"
+version: 0.1.1
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.15047935
+date-released: 2025-03-18

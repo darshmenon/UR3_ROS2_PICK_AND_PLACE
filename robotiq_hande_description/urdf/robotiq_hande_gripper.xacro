@@ -1,0 +1,183 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <!--
+    Original URDF file by Cristian C Beltran-Hernandez
+  -->
+
+  <xacro:include filename="$(find robotiq_hande_description)/urdf/robotiq_hande_gripper.ros2_control.xacro"/>
+  <xacro:include filename="$(find robotiq_hande_description)/urdf/cylinder_inertial.xacro"/>
+
+  <xacro:macro
+    name="robotiq_hande_gripper"
+    params="name
+            prefix
+            parent
+            grip_pos_min
+            grip_pos_max
+            tty_port
+            baudrate
+            parity
+            data_bits
+            stop_bit
+            slave_id
+            use_fake_hardware
+            frequency_hz:=10
+            create_socat_tty:=false
+            socat_ip_address:=192.168.100.10
+            socat_port:=54321
+            coupler_mass:=0.119
+            xyz:='0 0 0'
+            rpy:='0 0 0'"
+  >
+    <!-- ros2_control parameters  -->
+    <xacro:robotiq_hande_ros2_control
+      name="${name}"
+      prefix="${prefix}"
+      grip_pos_min="${grip_pos_min}"
+      grip_pos_max="${grip_pos_max}"
+      tty_port="${tty_port}"
+      baudrate="${baudrate}"
+      parity="${parity}"
+      data_bits="${data_bits}"
+      stop_bit="${stop_bit}"
+      slave_id="${slave_id}"
+      frequency_hz="${frequency_hz}"
+      create_socat_tty="${create_socat_tty}"
+      socat_ip_address="${socat_ip_address}"
+      socat_port="${socat_port}"
+      use_fake_hardware="${use_fake_hardware}"
+    />
+
+    <!-- Robotiq Hand-E specs -->
+    <!--  + Height added by the IO coupler: 11.0mm -->
+    <!--  + Height added by the Hand-E: 99.0mm -->
+    <!--  + Coupler mass includes the bolts -->
+
+    <xacro:arg name="coupler_height" default="0.011"/>
+    <xacro:arg name="coupler_shell_height" default="0.0169"/>
+    <xacro:arg name="coupler_parent_cutoff" default="0.003"/>
+    <xacro:arg name="coupler_hande_cutoff" default="0.0029"/>
+    <xacro:arg name="hande_height" default="0.099"/>
+    <xacro:arg name="hande_radius" default="0.0375"/>
+
+    <joint name="${prefix}robotiq_hande_coupler_joint" type="fixed">
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+      <parent link="${parent}"/>
+      <child link="${prefix}robotiq_hande_coupler"/>
+    </joint>
+
+    <link name="${prefix}robotiq_hande_coupler">
+      <visual>
+        <geometry>
+          <mesh filename="package://robotiq_hande_description/meshes/io_coupler.dae"/>
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 ${$(arg coupler_shell_height)/2 - $(arg coupler_parent_cutoff)}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder length="$(arg coupler_shell_height)" radius="${$(arg hande_radius) + 0.001}"/>
+        </geometry>
+      </collision>
+
+      <xacro:__robotiq_hande_cylinder_inertial radius="$(arg hande_radius)" height="$(arg coupler_shell_height)" mass="${coupler_mass}">
+        <origin xyz="0 0 ${$(arg coupler_shell_height) / 2 - $(arg coupler_parent_cutoff)}" rpy="0 0 0"/>
+      </xacro:__robotiq_hande_cylinder_inertial>
+    </link>
+
+    <joint name="${prefix}robotiq_hande_base_joint" type="fixed">
+      <origin xyz="0 0 $(arg coupler_height)" rpy="0 0 0"/>
+      <parent link="${prefix}robotiq_hande_coupler"/>
+      <child link="${prefix}robotiq_hande_link"/>
+    </joint>
+
+    <link name="${prefix}robotiq_hande_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robotiq_hande_description/meshes/hande.dae" scale="1.0 1.0 1.0"/>
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 ${($(arg hande_height) + $(arg coupler_hande_cutoff) + 0.005) / 2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder length="${$(arg hande_height) + $(arg coupler_hande_cutoff) + 0.005}" radius="${$(arg hande_radius) + 0.001}"/>
+        </geometry>
+      </collision>
+
+      <xacro:__robotiq_hande_cylinder_inertial radius="$(arg hande_radius)" height="$(arg hande_height)" mass="0.86387">
+        <origin xyz="0 0 ${$(arg hande_height) / 2}" rpy="0 0 0"/>
+      </xacro:__robotiq_hande_cylinder_inertial>
+    </link>
+
+    <joint name="${prefix}robotiq_hande_left_finger_joint" type="prismatic">
+      <origin xyz="0 0 $(arg hande_height)" rpy="0 0 0"/>
+      <parent link="${prefix}robotiq_hande_link"/>
+      <child link="${prefix}robotiq_hande_left_finger"/>
+      <axis xyz="1 0 0"/>
+      <limit effort="130" lower="${grip_pos_min}" upper="${grip_pos_max}" velocity="0.15"/>
+    </joint>
+
+    <link name="${prefix}robotiq_hande_left_finger">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robotiq_hande_description/meshes/finger.dae" scale="1.0 1.0 1.0"/>
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://robotiq_hande_description/meshes/finger_collision.dae" scale="1.0 1.0 1.0"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.03804"/>
+        <inertia ixx="1E-9" ixy="0.0" ixz="0.0" iyy="1E-9" iyz="0.0" izz="1E-9"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}robotiq_hande_right_finger_joint" type="prismatic">
+      <origin xyz="0 0 $(arg hande_height)" rpy="0 0 0"/>
+      <parent link="${prefix}robotiq_hande_link"/>
+      <child link="${prefix}robotiq_hande_right_finger"/>
+      <axis xyz="-1 0 0"/>
+      <limit effort="130" lower="${grip_pos_min}" upper="${grip_pos_max}" velocity="0.15"/>
+      <mimic joint="${prefix}robotiq_hande_left_finger_joint" multiplier="1" offset="0"/>
+    </joint>
+
+    <link name="${prefix}robotiq_hande_right_finger">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+        <geometry>
+          <mesh filename="package://robotiq_hande_description/meshes/finger.dae" scale="1.0 1.0 1.0"/>
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+        <geometry>
+          <mesh filename="package://robotiq_hande_description/meshes/finger_collision.dae" scale="1.0 1.0 1.0"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.03804"/>
+        <inertia ixx="1E-9" ixy="0.0" ixz="0.0" iyy="1E-9" iyz="0.0" izz="1E-9"/>
+      </inertial>
+    </link>
+
+    <joint name="${prefix}robotiq_hande_end_joint" type="fixed">
+      <origin xyz="0 0 ${$(arg hande_height) + 0.0465}" rpy="0 0 0"/>
+      <parent link="${prefix}robotiq_hande_link"/>
+      <child link="${prefix}robotiq_hande_end"/>
+    </joint>
+
+    <link name="${prefix}robotiq_hande_end"/>
+  </xacro:macro>
+</robot>

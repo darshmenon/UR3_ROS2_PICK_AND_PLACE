@@ -25,7 +25,7 @@ Modes:
                      the detector's XY error vs Gazebo ground truth is recorded too.
                      If nothing is detected the trial falls back to the known XY and says
                      so in notes (counted as a perception miss).
-    --objects ...    subset of: cube_5cm tall_box cylinder_5cm cylinder_4cm (default: all)
+    --objects ...    subset of: cube_5cm tall_box cylinder_5cm cylinder_4cm ball_6cm (default: all but the ball)
 
 Grippers supported by ur.gazebo.launch.py: robotiq_2f_85, robotiq_2f_140,
 onrobot_rg2, onrobot_rg6. dh_ag95 / robotiq_hande are not wired into the launch
@@ -64,6 +64,8 @@ OBJECTS = {
     "tall_box":       dict(world="colored_tall_box.world",       model="red_box",      top_z=0.145, height=0.09),
     "cylinder_5cm":   dict(world="colored_cylinder.world",       model="red_cylinder", top_z=0.135, height=0.08),
     "cylinder_4cm":   dict(world="colored_small_cylinder.world", model="red_cylinder", top_z=0.115, height=0.06),
+    # 6 cm sphere resting on the table; grasp at its equator (depth = radius) so the pads do not squeeze it upward
+    "ball_6cm":       dict(world="colored_ball.world",           model="red_ball",     top_z=0.115, height=0.06, grasp_depth=0.03),
 }
 PICK_XY = (0.35, 0.0)
 PLACE_XY = (0.35, 0.20)  # drop_zone
@@ -515,7 +517,7 @@ def orchestrate(args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--grippers", nargs="+", default=DEFAULT_GRIPPERS)
-    ap.add_argument("--objects", nargs="+", default=list(OBJECTS), choices=list(OBJECTS))
+    ap.add_argument("--objects", nargs="+", default=[o for o in OBJECTS if o != "ball_6cm"], choices=list(OBJECTS))
     ap.add_argument("--perception", action="store_true",
                     help="pick at wrist-camera detections instead of known coordinates")
     ap.add_argument("--grasp-depth", type=float, default=None,
@@ -610,7 +612,8 @@ def main():
                                                     else "/camera_head/color/image_raw"),
                         args.record_dir, args.record_period, args.record_frames) if args.record_dir else None
                     rows_for_cell = run_trials(g, name, obj["top_z"], args.trials, args.tol, node, ex,
-                                               det, args.grasp_depth, obj["height"],
+                                               det, args.grasp_depth if args.grasp_depth is not None
+                                               else obj.get("grasp_depth"), obj["height"],
                                                jitter=args.jitter_cm / 100.0, recorder=recorder)
                     break
                 finally:

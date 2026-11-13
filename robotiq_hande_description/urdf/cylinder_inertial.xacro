@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="__robotiq_hande_cylinder_inertial" params="radius height mass *origin">
+    <inertial>
+      <mass value="${mass}"/>
+      <xacro:insert_block name="origin"/>
+      <inertia
+        ixx="${0.0833333 * mass * (3 * (radius * radius) + height * height)}"
+        ixy="0.0"
+        ixz="0.0"
+        iyy="${0.0833333 * mass * (3 * (radius * radius) + height * height)}"
+        iyz="0.0"
+        izz="${0.5 * mass * (radius * radius)}"
+      />
+    </inertial>
+  </xacro:macro>
+</robot>
