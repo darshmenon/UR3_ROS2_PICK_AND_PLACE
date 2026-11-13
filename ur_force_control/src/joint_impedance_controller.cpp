@@ -37,6 +37,7 @@
 #include <pinocchio/multibody/data.hpp>
 #include <pinocchio/multibody/model.hpp>
 #include <pinocchio/parsers/urdf.hpp>
+#include <rclcpp/create_timer.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
@@ -60,6 +61,13 @@ public:
     effort_limits_ = declare_parameter(
       "effort_limits", std::vector<double>{56.0, 56.0, 28.0, 12.0, 12.0, 12.0});
     publish_rate_hz_ = declare_parameter("publish_rate_hz", 200.0);
+    // true: tick the control loop on the node clock (/clock with use_sim_time) so the gains act per simulated step even when
+    // the sim runs below real time; false: wall-clock timer (the original behaviour).
+    // Needs /clock: if the clock is paused or absent no torque is published at all. In testing it made no difference to the hold.
+    sim_time_timer_ = declare_parameter("sim_time_timer", false);
+    // Multiplier on the gravity feedforward (tau = ... - gravity_scale * g(q)). 1.0 is the original behaviour; kept as a
+    // parameter so the sign/size of the compensation can be tested against the sim (see testing/impedance_check.py).
+    gravity_scale_ = declare_parameter("gravity_scale", 1.0);
     debug_logging_ = declare_parameter("debug_logging", false);
     debug_log_period_ms_ = declare_parameter("debug_log_period_ms", 200);
 
@@ -96,9 +104,13 @@ public:
       std::bind(&JointImpedanceController::jointStateCallback, this, std::placeholders::_1));
 
     auto period = std::chrono::duration<double>(1.0 / publish_rate_hz_);
-    timer_ = create_wall_timer(
-      std::chrono::duration_cast<std::chrono::nanoseconds>(period),
-      std::bind(&JointImpedanceController::update, this));
+    const auto period_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(period);
+    if (sim_time_timer_) {
+      timer_ = rclcpp::create_timer(
+        this, get_clock(), rclcpp::Duration(period_ns), std::bind(&JointImpedanceController::update, this));
+    } else {
+      timer_ = create_wall_timer(period_ns, std::bind(&JointImpedanceController::update, this));
+    }
 
     RCLCPP_INFO(
       get_logger(),
@@ -299,7 +311,7 @@ private:
     for (size_t i = 0; i < joint_names_.size(); ++i) {
       spring_term(i) = stiffness_[i] * (target(i) - q(i));
       damping_term(i) = -damping_[i] * qdot(i);
-      raw_tau(i) = spring_term(i) + damping_term(i) - gravity(i);
+      raw_tau(i) = spring_term(i) + damping_term(i) - gravity_scale_ * gravity(i);
       const double limit = effort_limits_[i];
       clamped_tau(i) = std::clamp(raw_tau(i), -limit, limit);
       saturated = saturated || (clamped_tau(i) != raw_tau(i));
@@ -340,6 +352,8 @@ private:
 
   std::shared_ptr<MoveGroupInterface> move_group_;
   moveit::core::RobotModelConstPtr robot_model_;
+  bool sim_time_timer_{false};
+  double gravity_scale_{1.0};
   pinocchio::Model pin_model_;
   pinocchio::Data pin_data_;
 

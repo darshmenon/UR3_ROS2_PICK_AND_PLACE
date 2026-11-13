@@ -1,9 +1,14 @@
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument("sim_time_timer", default_value="false",
+                              description="Tick the control loop on /clock instead of the wall clock"),
         Node(
             package="ur_force_control",
             executable="joint_impedance_controller",
@@ -21,6 +26,7 @@ def generate_launch_description():
                 "debug_logging": False,
                 "debug_log_period_ms": 200,
                 "use_sim_time": True,
+                "sim_time_timer": ParameterValue(LaunchConfiguration("sim_time_timer"), value_type=bool),
             }],
         ),
     ])
