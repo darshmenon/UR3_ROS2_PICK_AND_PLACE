@@ -80,8 +80,16 @@ PlannerInterface::Result JointInterpolationPlanner::plan(const planning_scene::P
 	if (from->isStateColliding(from_state, jmg->getName()))
 		return { false, "Start state is in collision!" };
 
-	if (!from_state.satisfiesBounds(jmg))
-		return { false, "Start state is out of bounds!" };
+	if (!from_state.satisfiesBounds(jmg)) {
+		// Name the offending joint: the bare message gave no hint which of the group's (mimic) joints was outside its limits.
+		std::string detail;
+		for (const moveit::core::JointModel* jm : jmg->getActiveJointModels()) {
+			const double* pos = from_state.getJointPositions(jm);
+			if (!from_state.satisfiesBounds(jm))
+				detail += " " + jm->getName() + "=" + std::to_string(pos[0]);
+		}
+		return { false, "Start state is out of bounds!" + (detail.empty() ? std::string() : " Outside limits:" + detail) };
+	}
 
 	moveit::core::RobotState waypoint(from_state);
 	double delta = d < 1e-6 ? 1.0 : props.get<double>("max_step") / d;
