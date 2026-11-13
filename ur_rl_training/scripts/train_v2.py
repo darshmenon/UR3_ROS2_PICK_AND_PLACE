@@ -83,7 +83,11 @@ def load_demos(model, venv, path, bc_epochs, n_envs):
             total = 0.0
             for i in range(0, len(x), 512):
                 idx = perm[i:i + 512]
-                loss = torch.nn.functional.mse_loss(actor(x[idx], deterministic=True), y[idx])
+                mean_a, log_std, _ = actor.get_action_dist_params(x[idx])
+                # the mean imitates the expert; log_std is pushed low too, otherwise SAC acts with std ~1 noise
+                # (the untrained log_std output) and wipes out the cloned behaviour straight away
+                loss = (torch.nn.functional.mse_loss(torch.tanh(mean_a), y[idx])
+                        + 0.1 * torch.nn.functional.mse_loss(log_std, torch.full_like(log_std, -3.0)))
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -157,7 +161,7 @@ def main():
             gamma=0.99,
             train_freq=1,
             gradient_steps=4,
-            ent_coef="auto_0.2",   # higher entropy target → more gripper exploration
+            ent_coef="auto_0.01" if args.demos else "auto_0.2",   # exploration noise would erase the cloned policy
             target_entropy=-4.0,   # 7-dim action space, ~-N/2
             policy_kwargs=policy_kwargs,
             verbose=1,

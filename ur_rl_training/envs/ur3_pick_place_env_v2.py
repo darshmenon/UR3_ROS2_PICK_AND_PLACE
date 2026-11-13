@@ -44,6 +44,7 @@ GRASP_DELTA_GAIN      = 420.0
 LIFT_DELTA_GAIN       = 420.0
 CARRY_DELTA_GAIN      = 360.0
 REWARD_SCALE          = 100.0
+PAD_OFFSET = 0.103   # flange (attachment_site) height above the finger pads, m
 GRASP_CLOSE_THRESHOLD = 0.28
 GRASP_LIFT_THRESHOLD  = 0.005
 CARRY_HEIGHT_THRESH   = 0.02
@@ -240,7 +241,9 @@ class UR3PickPlaceEnvV2(gym.Env):
         }
 
     def _reward(self):
-        ee   = self.data.site_xpos[self._ee_site].copy()
+        # The tracked site is the wrist flange, ~0.103 m above the finger pads. The reward measures the PADS (the point
+        # that has to reach the object); with the flange the "within 3 cm of the object" targets were unreachable.
+        ee   = self.data.site_xpos[self._ee_site] - np.array([0.0, 0.0, PAD_OFFSET])
         obj  = self.data.xpos[self._obj_body].copy()
         drop = self._drop_pos
         init = self._obj_init_pos
