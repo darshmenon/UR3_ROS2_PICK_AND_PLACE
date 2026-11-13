@@ -166,10 +166,12 @@ class DualArmController:
 
 
 def reach_poses(dual: DualArm, q0: np.ndarray, target_left: pin.SE3, target_right: pin.SE3,
-                iterations: int = 400, gain: float = 2.0, damping: float = 0.02, dt: float = 0.05):
+                iterations: int = 400, gain: float = 2.0, damping: float = 0.02, dt: float = 0.05,
+                q_ref: Optional[np.ndarray] = None, posture_gain: float = 0.5):
     """Drive both tool frames to given world poses (plain damped least squares); returns (q, left_err, right_err).
 
     Used to find a pose where the hands hold an object between them, before the cooperative controller takes over.
+    With q_ref the joints are also pulled towards that posture in the null space, which keeps wrists from winding up.
     """
     q = q0.copy()
     for _ in range(iterations):
@@ -178,7 +180,10 @@ def reach_poses(dual: DualArm, q0: np.ndarray, target_left: pin.SE3, target_righ
         eL = pin.log6(target_left.inverse() * dual.placement(fl)).vector
         eR = pin.log6(target_right.inverse() * dual.placement(fr)).vector
         J = np.vstack([dual.jacobian_local(q, fl), dual.jacobian_local(q, fr)])
-        dq = _pinv(J, damping) @ (-gain * np.concatenate([eL, eR]))
+        Jp = _pinv(J, damping)
+        dq = Jp @ (-gain * np.concatenate([eL, eR]))
+        if q_ref is not None:
+            dq = dq + (np.eye(len(q)) - Jp @ J) @ (posture_gain * (q_ref - q))
         q = np.clip(q + np.clip(dq, -1.5, 1.5) * dt, dual.lower + 0.02, dual.upper - 0.02)
     dual.update(q)
     eL = pin.log6(target_left.inverse() * dual.placement(dual.tool["left"])).vector

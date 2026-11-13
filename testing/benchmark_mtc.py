@@ -16,6 +16,7 @@ import argparse
 import csv
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -136,7 +137,8 @@ def wait_controllers(domain, timeout=300.0, need=("arm_controller", "gripper_con
                                  timeout=30).stdout
         except subprocess.TimeoutExpired:
             out = ""
-        active = {ln.split()[0] for ln in out.splitlines() if ln.split() and ln.split()[-1] == "active"}
+        out = re.sub(r"\x1b\[[0-9;]*m", "", out)      # list_controllers colours its output
+        active = {ln.split()[0].split("[")[0] for ln in out.splitlines() if ln.split() and ln.split()[-1] == "active"}
         if all(n in active for n in need):
             print(f"[mtc] controllers active after {timeout - (end - time.time()):.0f}s", flush=True)
             return True
@@ -231,7 +233,7 @@ def run_cell(args, g, name):
             # A reset cylinder can wobble, tip and roll before the arm moves: wait until it is still and
             # upright (z back at its standing height) and re-reset if not, rather than plan on a lying object.
             before = None
-            for _ in range(4):
+            for _ in range(8):
                 # no drop height: a cylinder released 5 mm above the table lands, rocks and tips over
                 bench.reset_object(initial, lift=0.0)
                 time.sleep(2.0)
@@ -247,10 +249,6 @@ def run_cell(args, g, name):
                         break
                     time.sleep(0.5)
                 if good >= 8:
-                    break
-                if before and abs(before[2] - initial[2]) < 0.008 and \
-                        math.hypot(before[0] - initial[0], before[1] - initial[1]) < 0.01:
-                    good = 8          # resting a few mm high (rocking on the table edge of its base) but in place
                     break
                 print(f"[mtc] trial {t}: object not settled upright (z={before and before[2]}), re-resetting",
                       flush=True)
@@ -270,11 +268,19 @@ def run_cell(args, g, name):
             t0 = time.time()
             with bench.LiftWatcher() as watcher:
                 resp = None
-                fut = client.call_async(Trigger.Request())
-                end = time.time() + 20
-                while not fut.done() and time.time() < end:
-                    time.sleep(0.1)
-                resp = fut.result() if fut.done() else None
+                busy_until = time.time() + 300      # the previous trial's retry loop can still be running
+                while True:
+                    fut = client.call_async(Trigger.Request())
+                    end = time.time() + 20
+                    while not fut.done() and time.time() < end:
+                        time.sleep(0.1)
+                    resp = fut.result() if fut.done() else None
+                    if resp is not None and not resp.success and "Already running" in resp.message \
+                            and time.time() < busy_until:
+                        time.sleep(5.0)
+                        continue
+                    break
+                t0 = time.time()                    # the cycle time starts when MTC really starts
                 notes = ""
                 if resp is None or not resp.success:
                     notes = f"run not accepted: {getattr(resp, 'message', 'no reply')}"
@@ -298,7 +304,8 @@ def run_cell(args, g, name):
                 ex_xy = math.hypot(err_dx, err_dy)
                 ex_z = after[2] - before[2]
                 moved = math.hypot(after[0] - before[0], after[1] - before[1]) > 0.05
-                success = moved and ex_xy < args.tol
+                carried = watcher.max_z is not None and watcher.max_z - before[2] > 0.03   # really lifted off the table
+                success = moved and carried and ex_xy < args.tol
                 # a fail by a few mm vs. a toppled/rolled object: z back at standing height means still upright
                 upright = abs(ex_z) < 0.01
                 notes = (notes + "; " if notes else "") + \
@@ -306,6 +313,8 @@ def run_cell(args, g, name):
                     + (" near(<30mm)" if moved and ex_xy < 0.03 else "")
                 if not moved:
                     notes = (notes + "; " if notes else "") + "object not moved"
+                elif not carried:
+                    notes = (notes + "; " if notes else "") + "object never lifted (pushed or rolled, not carried)"
             lifted = (watcher.max_z - before[2]) if (before is not None and watcher.max_z is not None) \
                 else float("nan")
             rows.append(dict(pipeline="mtc", gripper=g, object=name, trial=t,

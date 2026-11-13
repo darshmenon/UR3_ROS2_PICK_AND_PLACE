@@ -102,7 +102,7 @@ ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries
 
 <sub>MTC plans the whole pick and place before moving; the long planning pause is cut from these GIFs.</sub>
 
-Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. The 2F-140 picks a 5 cm cylinder 9 of 10 times within 30 mm (6 of 10 within 20 mm), after lowering the release to 0.5-2 cm so the cylinder no longer topples; the 10-25 mm placement scatter has no consistent direction. Reproduce with `python3 testing/benchmark_mtc.py --grippers robotiq_2f_140 --objects cylinder_5cm --trials 10 --attempts 2 --record-dir <dir>` (headless, one frame strip per trial). The RG6 setting is not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
+Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. The 2F-140 picks a 5 cm cylinder every time (lifted 12-15 cm in 10 of 10 trials) and places it within 20 mm in 6 of 10; the misses are the cylinder toppling on release (3) or a 27 mm placement (1). The benchmark restarts the sim every 4 trials, waits for the controllers, and only scores trials that start from a settled upright cylinder. Reproduce with `python3 testing/benchmark_mtc.py --grippers robotiq_2f_140 --objects cylinder_5cm --trials 10 --attempts 2 --record-dir <dir>` (headless, one frame strip per trial). The RG6 setting is not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
 
 ---
 
@@ -259,28 +259,6 @@ Compare training runs (reads all `ur_rl_training/logs/*/evaluations.npz`, no lau
 ```bash
 python3 testing/plot_rl_run_comparison.py
 # -> testing/rl_learning_curves.png, testing/rl_best_reward_bar.png
-```
-
-### Imitation from a scripted expert (CPU only)
-
-A scripted Jacobian-IK expert gives demonstrations, then a policy is cloned and improved with DAgger (the expert relabels the states the policy visits). A flow-matching policy predicts 16-action chunks. All three below are scored on the same 50 start positions (the expert scored 49% over 150 other starts, so the gap between them is within noise):
-
-| Policy | Success |
-|---|---|
-| Scripted expert | 34% (17/50) |
-| DAgger (`scripts/dagger.py`) | 46% (23/50) |
-| Flow matching (`scripts/flow_policy.py`) | 44% (22/50) |
-
-![DAgger policy placing the cube](assets/gifs/rl_dagger.gif)
-
-![Success rate by method](assets/rl_methods_comparison.png)
-
-```bash
-cd ur_rl_training
-python3 scripts/expert_demos.py --episodes 150
-python3 scripts/dagger.py && python3 scripts/flow_policy.py
-python3 scripts/eval_policy.py --policy ~/ur3_rl_demos/flow.pt --episodes 50
-MUJOCO_GL=osmesa python3 scripts/render_policy.py --policy ~/ur3_rl_demos/dagger.pt
 ```
 
 ---

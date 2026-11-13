@@ -96,7 +96,8 @@ GRIPPER_TCP_OFFSET_Z = 0.145
 # the other grippers have a different actuated joint, close position and
 # tool0->fingertip distance (onrobot: joint upper limit 1.3 and grasp_frame z
 # from onrobot_description/config/rg{2,6}_v1.yaml). robotiq_2f_140: finger_joint
-# limit 0.7, pad frame 0.187 m from tool0 (from the expanded URDF; 2F-85 pad is 0.140).
+# limit 0.7, pad frame 0.187 m from tool0 open; closing swings the 70 mm tall pads ~2 cm lower, so tcp is
+# 0.192 still (0.212 and a lower finger effort made it worse: the cube slipped out in the lift).
 GRIPPER_PROFILES: dict[str, dict] = {
     "robotiq_2f_85":  dict(joint="finger_joint", closed=GRIPPER_CLOSED,
                            half=GRIPPER_HALF, tcp_z=GRIPPER_TCP_OFFSET_Z),
@@ -737,7 +738,7 @@ class MotionExecutor:
 
         # Grasp pose: move down to object
         grasp_pose = self._make_downward_pose(obj_x, obj_y, obj_z + 0.01, obj_yaw)
-        if not self.move_to_pose(grasp_pose):
+        if not self._move_with_retry(grasp_pose, "grasp pose"):
             self._logger.error("[MotionExecutor] Failed to reach grasp pose.")
             return False
 
@@ -757,8 +758,10 @@ class MotionExecutor:
         self._speed_scale = CARRY_SPEED_SCALE
 
         # Lift back to pre-grasp height
-        if not self.move_to_pose(pregrasp_pose):
-            self._logger.warn("[MotionExecutor] Failed to lift after grasp — continuing.")
+        if not self._move_with_retry(pregrasp_pose, "lift"):
+            self._logger.error("[MotionExecutor] Failed to lift after grasp — aborting pick.")
+            self.open_gripper()
+            return False
 
         # Lift check: an object that slipped out during the lift lets the fingers close fully.
         time.sleep(0.3)
@@ -820,19 +823,30 @@ class MotionExecutor:
 
         # Descend
         place_pose = self._make_downward_pose(place_x, place_y, place_z)
-        if not self.move_to_pose(place_pose):
+        if not self._move_with_retry(place_pose, "place pose"):
             self._logger.error("[MotionExecutor] Failed to reach place pose.")
             return False
 
-        # Open gripper to release
-        if not self.open_gripper():
-            self._logger.warn("[MotionExecutor] Gripper open failed during place.")
+        # Open gripper to release; retry once, since retreating with the object still held drags it
+        if not self.open_gripper() and not self.open_gripper():
+            self._logger.error("[MotionExecutor] Gripper open failed during place — aborting.")
+            return False
 
         # Retreat
-        if not self.move_to_pose(above_pose):
+        if not self._move_with_retry(above_pose, "retreat"):
             self._logger.warn("[MotionExecutor] Retreat after place failed — continuing.")
 
         return True
+
+    def _move_with_retry(self, pose: PoseStamped, what: str, attempts: int = 3) -> bool:
+        """move_to_pose with a short pause between tries; planning and IK are randomised, so a
+        failed attempt often succeeds on the next one."""
+        for i in range(attempts):
+            if self.move_to_pose(pose):
+                return True
+            self._logger.warn(f"[MotionExecutor] {what}: attempt {i + 1}/{attempts} failed.")
+            time.sleep(0.3)
+        return False
 
     def _move_above(self, x: float, y: float, z: float, yaw: float = 0.0):
         """Move above (x, y, z); return the pose reached, or None.
