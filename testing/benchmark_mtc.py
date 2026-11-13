@@ -125,6 +125,26 @@ class DemoRecorder:
         print(f"[mtc] saved demo {name}: {len(self.q)} joint samples", flush=True)
 
 
+def wait_controllers(domain, timeout=300.0, need=("arm_controller", "gripper_controller", "joint_state_broadcaster")):
+    """Block until `ros2 control list_controllers` shows every controller in `need` as active (or time runs out)."""
+    env = dict(os.environ, ROS_DOMAIN_ID=str(domain))
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            out = subprocess.run(["bash", "-c", f"source /opt/ros/humble/setup.bash && source {bench.REPO}/install/setup.bash "
+                                  "&& ros2 control list_controllers"], env=env, capture_output=True, text=True,
+                                 timeout=30).stdout
+        except subprocess.TimeoutExpired:
+            out = ""
+        active = {ln.split()[0] for ln in out.splitlines() if ln.split() and ln.split()[-1] == "active"}
+        if all(n in active for n in need):
+            print(f"[mtc] controllers active after {timeout - (end - time.time()):.0f}s", flush=True)
+            return True
+        time.sleep(5.0)
+    print("[mtc] WARNING: controllers not active before the timeout", flush=True)
+    return False
+
+
 def run_cell(args, g, name):
     os.environ["ROS_DOMAIN_ID"] = str(args.domain)
     import rclpy
@@ -141,6 +161,8 @@ def run_cell(args, g, name):
     rows = []
     rclpy.init()
     sim = bench.launch_sim(g, obj["world"], args.domain, args.settle)
+    # A fixed sleep is too short when the machine is busy: wait until the controllers are really active.
+    wait_controllers(args.domain, timeout=300.0)
     mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup)
     node = Node("benchmark_mtc")
     executor = SingleThreadedExecutor()
@@ -175,8 +197,8 @@ def run_cell(args, g, name):
                 break
             last = initial
         print(f"[mtc] resting reference pose: {initial}", flush=True)
-        for t in range(1, args.trials + 1):
-            if args.restart_mtc and t > 1:        # diagnostic: does state leak from one MTC run into the next?
+        for t in range(args.trial_start, args.trial_start + args.trials):
+            if args.restart_mtc and t > args.trial_start:        # diagnostic: does state leak from one MTC run into the next?
                 for sig in (signal.SIGINT, signal.SIGKILL):
                     try:
                         os.killpg(os.getpgid(mtc.pid), sig)
@@ -201,6 +223,11 @@ def run_cell(args, g, name):
                     break
                 time.sleep(1.0)
             print(f"[mtc] trial {t}: arm back at start pose: {homed}", flush=True)
+            if not homed:
+                # the arm/MoveGroup stopped answering: every later trial would just fail. End this process so the
+                # parent can start a fresh sim and carry on from this trial.
+                print(f"[mtc] trial {t}: arm hung, ending this sim (parent restarts it)", flush=True)
+                break
             # A reset cylinder can wobble, tip and roll before the arm moves: wait until it is still and
             # upright (z back at its standing height) and re-reset if not, rather than plan on a lying object.
             before = None
@@ -324,6 +351,9 @@ def main():
     ap.add_argument("--record-frames", type=int, default=24)
     ap.add_argument("--demo-dir", default=None, help="save joint-state demos of successful trials here (.npz)")
     ap.add_argument("--restart-mtc", action="store_true", help="relaunch the MTC nodes before every trial after the first")
+    ap.add_argument("--chunk", type=int, default=4,
+                    help="trials per sim: a fresh sim every N trials (and after a hang), the sim degrades after ~5")
+    ap.add_argument("--trial-start", type=int, default=1, help=argparse.SUPPRESS)
     ap.add_argument("--trial-timeout", type=float, default=420.0)
     ap.add_argument("--output", default=None)
     ap.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
@@ -341,19 +371,30 @@ def main():
     all_rows = []
     for g in args.grippers:
         for name in args.objects:
-            tmp = out.with_suffix(f".{g}.{name}.tmp.csv")
-            subprocess.run([sys.executable, str(Path(__file__).resolve()), "--child", "--grippers", g,
-                            "--objects", name, "--trials", str(args.trials), "--attempts", str(args.attempts),
-                            "--tol", str(args.tol), "--domain", str(args.domain), "--settle", str(args.settle),
-                            "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout), *(["--restart-mtc"] if args.restart_mtc else []),
-                            *(["--record-dir", args.record_dir, "--record-topic", args.record_topic,
-                               "--record-period", str(args.record_period), "--record-frames", str(args.record_frames)]
-                              if args.record_dir else []),
-                            *(["--demo-dir", args.demo_dir] if args.demo_dir else []),
-                            "--output", str(tmp)], check=False)
-            if tmp.exists():
-                all_rows += bench.load_rows_from(list(csv.DictReader(open(tmp))))
-                tmp.unlink()
+            done, stalled = 0, 0
+            while done < args.trials and stalled < 2:
+                n = min(args.chunk, args.trials - done)
+                tmp = out.with_suffix(f".{g}.{name}.tmp.csv")
+                subprocess.run([sys.executable, str(Path(__file__).resolve()), "--child", "--grippers", g,
+                                "--objects", name, "--trials", str(n), "--trial-start", str(done + 1),
+                                "--attempts", str(args.attempts),
+                                "--tol", str(args.tol), "--domain", str(args.domain), "--settle", str(args.settle),
+                                "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout),
+                                *(["--restart-mtc"] if args.restart_mtc else []),
+                                *(["--record-dir", args.record_dir, "--record-topic", args.record_topic,
+                                   "--record-period", str(args.record_period), "--record-frames", str(args.record_frames)]
+                                  if args.record_dir else []),
+                                *(["--demo-dir", args.demo_dir] if args.demo_dir else []),
+                                "--output", str(tmp)], check=False)
+                got = []
+                if tmp.exists():
+                    got = bench.load_rows_from(list(csv.DictReader(open(tmp))))
+                    tmp.unlink()
+                trials = [int(r["trial"]) for r in got if r["trial"]]
+                all_rows += got
+                new_done = max(trials) if trials else done
+                stalled = stalled + 1 if new_done <= done else 0     # a sim that cannot run even one trial: give up
+                done = new_done
     if not all_rows:
         print("no results")
         return 1

@@ -62,7 +62,10 @@ def capture(args):
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
         red = cv2.inRange(hsv, (0, 120, 80), (10, 255, 255)) | cv2.inRange(hsv, (170, 120, 80), (180, 255, 255))
         segmap = (red > 0).astype(np.uint8)
-        tf = tfb.lookup_transform("base_link", buf["d"].header.frame_id, rclpy.time.Time(),
+        frame = buf["d"].header.frame_id           # gz publishes <name>_depth_frame (x forward); depth2pc is optical (z forward)
+        if frame.endswith("_depth_frame"):
+            frame = frame[:-len("_depth_frame")] + "_depth_optical_frame"
+        tf = tfb.lookup_transform("base_link", frame, rclpy.time.Time(),
                                   timeout=rclpy.duration.Duration(seconds=2.0))
         t, q = tf.transform.translation, tf.transform.rotation
         x, y, z, w = q.x, q.y, q.z, q.w
@@ -74,7 +77,7 @@ def capture(args):
         T[:3, 3] = [t.x, t.y, t.z]
         truth = bench.object_pose()
         np.savez(args.out, depth=depth, rgb=bgr[:, :, ::-1], K=np.array(buf["k"].k).reshape(3, 3),
-                 segmap=segmap, T_base_cam=T, truth=np.array(truth), red_pixels=int(segmap.sum()))
+                 segmap=segmap, T_base_cam=T, truth=np.array(truth), red_pixels=int(segmap.sum()), optical=1)
         print(f"saved {args.out}: depth {depth.shape}, red pixels {int(segmap.sum())}, truth {truth}")
         rclpy.shutdown()
     finally:
@@ -94,6 +97,10 @@ def run(args):
 
     d = np.load(args.npz)
     depth, K, segmap, T, truth = d["depth"], d["K"], d["segmap"], d["T_base_cam"], d["truth"]
+    if "optical" not in d.files:     # older capture: transform was for the native camera frame
+        T = T @ np.array([[0, 0, 1, 0], [-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 0, 1]], dtype=float)
+    # gz writes inf for sky/background; inf * 0 (the segment mask) is NaN and empties the object's cloud
+    depth = np.where(np.isfinite(depth) & (depth > 0.1) & (depth < 2.0), depth, 0.0).astype(np.float32)
     ckpt = gdir / "checkpoints" / "contact_graspnet"
     cfg = config_utils.load_config(str(ckpt), batch_size=1, arg_configs=[])
     est = GraspEstimator(cfg)
@@ -106,6 +113,7 @@ def run(args):
                                                            filter_grasps=True, forward_passes=args.passes)
     print(f"inference {time.time() - t0:.1f}s on {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu'}")
     g = grasps.get(1) if isinstance(grasps, dict) else grasps
+    cp = contacts.get(1) if isinstance(contacts, dict) else contacts
     s = scores.get(1) if isinstance(scores, dict) else scores
     if g is None or len(g) == 0:
         print("no grasps predicted for the red segment")
@@ -119,10 +127,19 @@ def run(args):
     print(f"best grasp centre base_link ({pos[0]:.3f}, {pos[1]:.3f}, {pos[2]:.3f}); truth ({truth[0]:.3f}, "
           f"{truth[1]:.3f}, {truth[2]:.3f}) -> xy err {err_xy:.0f} mm")
     print(f"approach direction {np.round(approach, 2)} ({tilt:.0f} deg from straight down)")
+    # The pose is the gripper base (~10 cm behind the contact along the approach axis); judge the CONTACT point.
+    def contact_base(i):
+        return (T @ np.append(cp[i], 1.0))[:3]
+    c = contact_base(best)
+    print(f"best grasp CONTACT point base_link ({c[0]:.3f}, {c[1]:.3f}, {c[2]:.3f}) -> xy err "
+          f"{math.hypot(c[0] - truth[0], c[1] - truth[1]) * 1000:.0f} mm (object radius 25 mm)")
     order = np.argsort(-s)[:5]
     for i in order:
-        p = (T @ g[i])[:3, 3]
-        print(f"  score {s[i]:.2f}  xy err {math.hypot(p[0] - truth[0], p[1] - truth[1]) * 1000:.0f} mm  z {p[2]:.3f}")
+        c = contact_base(i)
+        print(f"  score {s[i]:.2f}  contact xy err {math.hypot(c[0] - truth[0], c[1] - truth[1]) * 1000:.0f} mm  "
+              f"z {c[2]:.3f}  approach {np.round((T @ g[i])[:3, 2], 2)}")
+    errs = [math.hypot(contact_base(i)[0] - truth[0], contact_base(i)[1] - truth[1]) * 1000 for i in range(len(g))]
+    print(f"{sum(e < 30 for e in errs)}/{len(g)} grasps have a contact point within 30 mm of the object centre")
 
 
 def main():
