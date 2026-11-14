@@ -125,6 +125,7 @@ mtc_node:
     grasp_frame_transform: [0.0, 0.0, 0.207, 0.0, 3.14159, 0.0]  # top-down grasp; pads are 0.177 from the base link when open and swing ~2.2 cm further out as they close, so aim 2.5 cm higher than the open-pad offset (0.182): the closing pad tip otherwise hits the table (MoveIt: support_surface vs left_inner_finger_pad)
     # Pad centre distance from gripper_frame (robotiq_arg2f_base_link -> *_inner_finger_pad, from TF).
     grasp_pad_offset: 0.202
+    grasp_squeeze_margin: 0.004    # swept 1.5 mm (4/10 within 20 mm), 4 mm (7/10), 7 mm (5/10): 4 mm is best
     # Approach pitches for the grasp ladder; 3.14159 = straight top-down.
     grasp_pitches: [3.14159]
     # Place on the pick table at the world's drop_zone (0.35, 0.20). z is the SURFACE height (table top,

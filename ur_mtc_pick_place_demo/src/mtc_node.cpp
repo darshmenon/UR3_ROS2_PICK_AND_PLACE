@@ -410,6 +410,7 @@ declare_parameter("grasp_frame_transform",
   declare_parameter("gripper_joint_name", "finger_joint", "Actuated gripper joint commanded when closing onto an object's width");
   declare_parameter("gripper_closed_value", 0.8, "Actuated joint value at fully closed (2F-85: 0.8 rad; OnRobot RG2/RG6: 1.3 rad)");
   declare_parameter("gripper_stroke", 0.085, "Opening width at fully open (m); 2F-85 0.085, RG2 0.110, RG6 0.160");
+  declare_parameter("grasp_squeeze_margin", 0.004, "How far (m) the commanded finger gap is below the object width when closing; the pads interfere by this much, so a large value squeezes hard and can pop or tilt a light object");
   declare_parameter("grasp_pad_offset", 0.130, "Distance from gripper_frame to the finger pad centres along its z axis (m); measured via TF");
   declare_parameter("grasp_pose_max_ik_solutions", 25, "Maximum number of IK solutions for grasp pose generation");
   declare_parameter("grasp_pose_min_solution_distance", 0.5, "Minimum distance in joint-space units between IK solutions for grasp pose");
@@ -1087,6 +1088,7 @@ mtc::Task MTCTaskNode::createTask()
   auto grasp_pose_angle_delta = this->get_parameter("grasp_pose_angle_delta").as_double();
   (void)grasp_pose_angle_delta;  // retained param; absolute grasp ladder sets yaw explicitly
   const double grasp_pad_offset = this->get_parameter("grasp_pad_offset").as_double();
+  const double grasp_squeeze_margin = this->get_parameter("grasp_squeeze_margin").as_double();
   auto grasp_pose_max_ik_solutions = this->get_parameter("grasp_pose_max_ik_solutions").as_int();
   auto grasp_pose_min_solution_distance = this->get_parameter("grasp_pose_min_solution_distance").as_double();
 
@@ -1496,7 +1498,7 @@ mtc::Task MTCTaskNode::createTask()
       }
       if (grasp_width > 0.01 && grasp_width < gripper_stroke - 0.005) {
         const double close_target = std::clamp(
-            gripper_closed_value * (1.0 - (grasp_width - 0.004) / gripper_stroke), 0.05, gripper_closed_value);
+            gripper_closed_value * (1.0 - (grasp_width - grasp_squeeze_margin) / gripper_stroke), 0.05, gripper_closed_value);
         RCLCPP_INFO(this->get_logger(), "Closing gripper to %s=%.3f for object width %.3f m",
                     gripper_joint_name.c_str(), close_target, grasp_width);
         stage->setGoal(std::map<std::string, double>{ { gripper_joint_name, close_target } });

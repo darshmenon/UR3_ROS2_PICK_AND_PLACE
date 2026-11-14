@@ -159,6 +159,15 @@ def run_cell(args, g, name):
     obj = bench.OBJECTS[name]
     bench.OBJECT = obj["model"]
     bench.OBJECT_YAW = 0.0
+    if args.respawn:
+        # model SDF cut out of the world file, used to re-create the object at rest on every reset
+        import re as _re
+        txt = (bench.REPO / "ur_gazebo" / "worlds" / obj["world"]).read_text()
+        mdl = _re.search(rf'<model name="{obj["model"]}">.*?</model>', txt, _re.S).group(0)
+        sdf = bench.REPO / "testing" / "_out" / "respawn" / f"{obj['model']}_{Path(obj['world']).stem}.sdf"
+        sdf.parent.mkdir(parents=True, exist_ok=True)
+        sdf.write_text('<?xml version="1.0"?>\n<sdf version="1.9">' + mdl + "</sdf>")
+        bench.RESPAWN_SDF = str(sdf)
     (bench.REPO / "logs").mkdir(exist_ok=True)
     rows = []
     rclpy.init()
@@ -173,6 +182,25 @@ def run_cell(args, g, name):
     status = {"text": ""}
     node.create_subscription(String, "/mtc_bt/status", lambda m: status.update(text=m.data), 10)
     client = node.create_client(Trigger, "/mtc_bt/run")
+    # In clutter MTC picks whichever detected object its heuristic likes, not the one being scored. get_planning_scene_server
+    # takes the detected object nearest a fresh /vlm/target_pose, so tell it where the red cylinder is (true start pose).
+    hint = {"xy": None}
+    if args.hint_target is None:
+        args.hint_target = name.startswith("clutter")
+    if args.hint_target:
+        from geometry_msgs.msg import PoseStamped
+        hint_pub = node.create_publisher(PoseStamped, "/vlm/target_pose", 10)
+
+        def _send_hint():
+            if hint["xy"] is None:
+                return
+            m = PoseStamped()
+            m.header.frame_id = "base_link"
+            m.header.stamp = node.get_clock().now().to_msg()
+            m.pose.position.x, m.pose.position.y, m.pose.position.z = hint["xy"][0], hint["xy"][1], 0.0
+            m.pose.orientation.w = 1.0
+            hint_pub.publish(m)
+        node.create_timer(0.5, _send_hint)
     try:
         if not client.wait_for_service(timeout_sec=90.0):
             rows.append(dict(pipeline="mtc", gripper=g, object=name, trial=0, executed=False, success=False,
@@ -187,7 +215,7 @@ def run_cell(args, g, name):
         mover = MotionExecutor(node)
         mover.set_gripper(g)
         recorder = bench.Recorder(node, args.record_topic, args.record_dir, args.record_period,
-                                  args.record_frames) if args.record_dir else None
+                                  args.record_frames, tail_s=args.record_tail) if args.record_dir else None
         demo = DemoRecorder(node, args.demo_dir) if args.demo_dir else None
         # The object is spawned slightly above the table and drops on start-up: take the reference pose only once
         # z has stopped changing, otherwise it is the pre-drop height (never reached again after a reset).
@@ -199,6 +227,9 @@ def run_cell(args, g, name):
                 break
             last = initial
         print(f"[mtc] resting reference pose: {initial}", flush=True)
+        if args.hint_target and initial:
+            hint["xy"] = (initial[0], initial[1])
+            print(f"[mtc] target hint -> /vlm/target_pose at {hint['xy']}", flush=True)
         for t in range(args.trial_start, args.trial_start + args.trials):
             if args.restart_mtc and t > args.trial_start:        # diagnostic: does state leak from one MTC run into the next?
                 for sig in (signal.SIGINT, signal.SIGKILL):
@@ -358,6 +389,12 @@ def main():
     ap.add_argument("--record-topic", default="/camera_head/color/image_raw")
     ap.add_argument("--record-period", type=float, default=0.5)
     ap.add_argument("--record-frames", type=int, default=24)
+    ap.add_argument("--no-respawn", dest="respawn", action="store_false",
+                    help="reset the object with set_pose (keeps its velocity) instead of re-creating it at rest")
+    ap.add_argument("--hint-target", dest="hint_target", action="store_true", default=None,
+                    help="publish the object's true xy on /vlm/target_pose so MTC picks it (default: on for clutter_* objects)")
+    ap.add_argument("--no-hint-target", dest="hint_target", action="store_false")
+    ap.add_argument("--record-tail", type=float, default=0.0, help="also save a strip of the last N seconds of each trial")
     ap.add_argument("--demo-dir", default=None, help="save joint-state demos of successful trials here (.npz)")
     ap.add_argument("--restart-mtc", action="store_true", help="relaunch the MTC nodes before every trial after the first")
     ap.add_argument("--chunk", type=int, default=4,
@@ -390,8 +427,11 @@ def main():
                                 "--tol", str(args.tol), "--domain", str(args.domain), "--settle", str(args.settle),
                                 "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout),
                                 *(["--restart-mtc"] if args.restart_mtc else []),
+                                *([] if args.respawn else ["--no-respawn"]),
+                                *({None: [], True: ["--hint-target"], False: ["--no-hint-target"]}[args.hint_target]),
                                 *(["--record-dir", args.record_dir, "--record-topic", args.record_topic,
-                                   "--record-period", str(args.record_period), "--record-frames", str(args.record_frames)]
+                                   "--record-period", str(args.record_period), "--record-frames", str(args.record_frames),
+                                   "--record-tail", str(args.record_tail)]
                                   if args.record_dir else []),
                                 *(["--demo-dir", args.demo_dir] if args.demo_dir else []),
                                 "--output", str(tmp)], check=False)

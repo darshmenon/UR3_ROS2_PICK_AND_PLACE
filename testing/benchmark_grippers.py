@@ -64,6 +64,8 @@ OBJECTS = {
     "tall_box":       dict(world="colored_tall_box.world",       model="red_box",      top_z=0.145, height=0.09),
     "cylinder_5cm":   dict(world="colored_cylinder.world",       model="red_cylinder", top_z=0.135, height=0.08),
     "cylinder_4cm":   dict(world="colored_small_cylinder.world", model="red_cylinder", top_z=0.115, height=0.06),
+    # same red cylinder as cylinder_5cm but with five neighbours 6-10 cm away (clutter: MTC must plan around them)
+    "clutter_cyl":    dict(world="colored_two_objects.world",     model="red_cylinder", top_z=0.135, height=0.08),
     # 6 cm sphere resting on the table; grasp at its equator (depth = radius) so the pads do not squeeze it upward
     "ball_6cm":       dict(world="colored_ball.world",           model="red_ball",     top_z=0.115, height=0.06, grasp_depth=0.03),
 }
@@ -78,6 +80,7 @@ SCAN_TOOL_Z = 0.35
 SCAN_DX = 0.04
 WORLD = "default"
 OBJECT = None  # set per run by main()
+RESPAWN_SDF = None  # if set, reset_object removes and re-creates the model from this SDF (clears its velocity)
 POSE_TOPIC = f"/world/{WORLD}/pose/info"
 
 
@@ -205,6 +208,26 @@ def reset_object(initial, tries=4, lift=0.005):
     req = (f'name: "{OBJECT}", position: {{x: {initial[0]}, y: {initial[1]}, z: {initial[2] + lift}}}, '
            'orientation: {x: 0, y: 0, z: ' + f'{math.sin(OBJECT_YAW / 2):.6f}, w: {math.cos(OBJECT_YAW / 2):.6f}' + '}')
     for _ in range(tries):
+        if RESPAWN_SDF:
+            # set_pose keeps the old linear/angular velocity, so a cylinder reset after a moving trial keeps rocking
+            # and tips; a fresh model starts at rest.
+            q = f"z: {math.sin(OBJECT_YAW / 2):.6f}, w: {math.cos(OBJECT_YAW / 2):.6f}"
+            subprocess.run(["gz", "service", "-s", f"/world/{WORLD}/remove", "--reqtype", "gz.msgs.Entity",
+                            "--reptype", "gz.msgs.Boolean", "--timeout", "3000", "--req",
+                            f'name: "{OBJECT}" type: MODEL'], check=False, capture_output=True, text=True)
+            time.sleep(0.5)
+            r = subprocess.run(["gz", "service", "-s", f"/world/{WORLD}/create", "--reqtype", "gz.msgs.EntityFactory",
+                                "--reptype", "gz.msgs.Boolean", "--timeout", "5000", "--req",
+                                f'sdf_filename: "{RESPAWN_SDF}" pose: {{position: {{x: {initial[0]} y: {initial[1]} '
+                                f'z: {initial[2] + lift}}} orientation: {{{q.replace(", ", " ")}}}}} allow_renaming: false'],
+                               check=False, capture_output=True, text=True)
+            time.sleep(1.5)
+            now = object_pose()
+            print(f"[reset] respawn rc={r.returncode} out={r.stdout.strip()!r} now={now} initial={initial}", flush=True)
+            if now and math.hypot(now[0] - initial[0], now[1] - initial[1]) < 0.01 \
+                    and abs(now[2] - initial[2]) < 0.02:
+                return True
+            continue
         r = subprocess.run(["gz", "service", "-s", f"/world/{WORLD}/set_pose",
                             "--reqtype", "gz.msgs.Pose", "--reptype", "gz.msgs.Boolean",
                             "--timeout", "3000", "--req", req], check=False,
@@ -246,7 +269,7 @@ class LiftWatcher:
 class Recorder:
     """Keeps downscaled camera frames during a trial and writes one labelled strip per trial."""
 
-    def __init__(self, node, topic, out_dir, period=0.5, keep=12):
+    def __init__(self, node, topic, out_dir, period=0.5, keep=12, tail_s=0.0):
         import numpy as np
         from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Image
@@ -255,6 +278,7 @@ class Recorder:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.period = period
         self.keep = keep
+        self.tail_s = tail_s      # also write a strip of just the last tail_s seconds (release / retreat)
         self.frames = []
         self.active = False
         self._last = 0.0
@@ -283,20 +307,28 @@ class Recorder:
         self.active = False
         if not self.frames:
             return
-        keep = self._np.linspace(0, len(self.frames) - 1, min(self.keep, len(self.frames))).astype(int)
         t0 = self.frames[0][0]
-        tiles = []
-        for i in keep:
-            tt, im = self.frames[i]
-            im = im.copy()
-            cv2.putText(im, f"{tt - t0:.1f}s", (6, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-            tiles.append(im)
-        while len(tiles) % 4:
-            tiles.append(self._np.zeros_like(tiles[0]))
-        sheet = self._np.vstack([self._np.hstack(tiles[i:i + 4]) for i in range(0, len(tiles), 4)])
-        cv2.putText(sheet, f"{label}  {'PASS' if passed else 'FAIL'}", (8, sheet.shape[0] - 8),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 200, 0) if passed else (0, 0, 255), 2)
-        cv2.imwrite(str(self.out_dir / f"{label}_{'PASS' if passed else 'FAIL'}.png"), sheet)
+
+        def strip(frames, name):
+            keep = self._np.linspace(0, len(frames) - 1, min(self.keep, len(frames))).astype(int)
+            tiles = []
+            for i in keep:
+                tt, im = frames[i]
+                im = im.copy()
+                cv2.putText(im, f"{tt - t0:.1f}s", (6, 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                tiles.append(im)
+            while len(tiles) % 4:
+                tiles.append(self._np.zeros_like(tiles[0]))
+            sheet = self._np.vstack([self._np.hstack(tiles[i:i + 4]) for i in range(0, len(tiles), 4)])
+            cv2.putText(sheet, f"{label}  {'PASS' if passed else 'FAIL'}", (8, sheet.shape[0] - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 200, 0) if passed else (0, 0, 255), 2)
+            cv2.imwrite(str(self.out_dir / name), sheet)
+
+        strip(self.frames, f"{label}_{'PASS' if passed else 'FAIL'}.png")
+        if self.tail_s > 0:
+            tail = [f for f in self.frames if f[0] >= self.frames[-1][0] - self.tail_s]
+            if len(tail) > 1:
+                strip(tail, f"{label}_{'PASS' if passed else 'FAIL'}_tail.png")
 
 
 def run_trials(gripper, obj_name, top_z, trials, tol, node, ex, det=None, grasp_depth=None, height=0.05,
