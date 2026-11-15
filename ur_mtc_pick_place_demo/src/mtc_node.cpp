@@ -1180,6 +1180,9 @@ mtc::Task MTCTaskNode::createTask()
                                ->getLinkModelNamesWithCollisionGeometry(),
                            true);
     task.add(std::move(stage));
+    // The arm's base is bolted to the table, so the perceived table slab always overlaps it. This only
+    // shows once MTC's robot model sits at the real mount height (table_height); never re-forbidden.
+    stage->allowCollisions({ support_surface_id_ }, std::vector<std::string>{ "base_link", "base_link_inertia" }, true);
   }
   auto stage_open_gripper =
     std::make_unique<mtc::stages::MoveTo>("open gripper", interpolation_planner);
@@ -1469,6 +1472,9 @@ mtc::Task MTCTaskNode::createTask()
         ->getLinkModelNamesWithCollisionGeometry(),
         true);
       grasp->insert(std::move(stage));
+      // Arm base sits on the table slab; the grasp-IK states come from a generator that never saw the
+      // allowance added at the start of the task, so repeat it here.
+      stage->allowCollisions({ support_surface_id_ }, std::vector<std::string>{ "base_link", "base_link_inertia" }, true);
     }
     {
       auto stage = std::make_unique<mtc::stages::ModifyPlanningScene>("allow collision (gripper,support_surface)");

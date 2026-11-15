@@ -63,7 +63,10 @@ pip3 install py-trees          # required for ur_bt_planner
 # Ollama, for the LLM planner: install from https://ollama.com, then
 ollama pull llama2:latest
 
-colcon build --symlink-install
+# Build for Gazebo Harmonic. gz_ros2_control is built from source in src/ because the apt package
+# (ros-humble-gz-ros2-control) targets Ignition Fortress and silently fails to load on Harmonic.
+source /opt/ros/$ROS_DISTRO/setup.bash
+GZ_VERSION=harmonic colcon build --symlink-install --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 source install/setup.bash
 ```
 
@@ -93,6 +96,27 @@ ros2 launch ur_gazebo mtc_demo.launch.py gripper:=robotiq_2f_85        # default
 ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries on failure; progress on /mtc_bt/status
 ```
 
+**Quickstart: MTC with Gazebo and RViz** (after the install above, in a new terminal):
+
+```bash
+source /opt/ros/humble/setup.bash && source install/setup.bash
+ros2 launch ur_gazebo mtc_demo.launch.py                      # Gazebo window + RViz + MoveIt + MTC
+```
+
+1. Wait about 80 s until the log prints `MTCRetryNode ready`. Gazebo and MoveIt start first, MTC follows after `mtc_delay` (50 s).
+2. In a second terminal (same `source` lines) start the pick and place: `ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}`
+3. Watch it in RViz (Motion Planning Tasks panel shows each stage) and in the Gazebo window. `Task executed successfully` in the launch log means it worked.
+
+| Argument | Default | Use |
+|---|---|---|
+| `gripper` | `$UR_GRIPPER`, else `onrobot_rg2` | `robotiq_2f_85`, `robotiq_2f_140`, `onrobot_rg2`, `onrobot_rg6` |
+| `use_gazebo_gui` / `use_rviz` | `true` / `true` | set `false` to run without that window |
+| `world_file` | `colored_cylinder.world` | any file from `ur_gazebo/worlds/` |
+| `table_height` | `1.015` | arm mount height, must match the world; use `0.0` for the conveyor world |
+| `max_attempts` | `5` | retries before giving up |
+
+To run several setups side by side, or on a machine with other ROS 2 systems, set `export ROS_DOMAIN_ID=77` in every terminal first.
+
 <table>
   <tr>
     <td align="center"><img src="assets/gifs/mtc_rg2_cylinder.gif" width="340"><br><sub><b>OnRobot RG2</b>, 5 cm cylinder</sub></td>
@@ -102,7 +126,7 @@ ros2 service call /mtc_bt/run std_srvs/srv/Trigger {}                  # retries
 
 <sub>MTC plans the whole pick and place before moving; the long planning pause is cut from these GIFs.</sub>
 
-Status: works on the OnRobot RG2 (7 of 8 trials in a row at 1-19 mm) and, less reliably, on the Robotiq 2F-85. Over 20 trials the 2F-140 picks a 5 cm cylinder every time and places it within 20 mm in 12 of 20 (within 30 mm in 17 of 20); 3 cylinders tip over a few seconds after release. With five other objects 6-10 cm around it (`--objects clutter_cyl`, the benchmark tells MTC which object to pick) it places 5 of 10 within 20 mm and lifts the target every time it runs. On the same cylinder the OnRobot RG2 places 5 of 5 within 5 mm and the 2F-85 2 of 5 (5 trials each), so the pad geometry matters more than the grasp width. The benchmark restarts the sim every 4 trials, waits for the controllers, re-creates the cylinder at rest before every trial (a plain `set_pose` reset keeps its old velocity, so it rocks and tips) and only scores trials that start settled. Reproduce with `python3 testing/benchmark_mtc.py --grippers robotiq_2f_140 --objects cylinder_5cm --trials 10 --attempts 2 --record-dir <dir>` (headless, one frame strip per trial). The RG6 setting is not verified yet. Each run ends by moving the arm to the `view_clear` pose, so the next run's point cloud does not contain the arm.
+Reproduce: `python3 testing/benchmark_mtc.py --grippers robotiq_2f_140 --objects cylinder_5cm --trials 10 --attempts 2 --record-dir <dir>`
 
 ---
 
