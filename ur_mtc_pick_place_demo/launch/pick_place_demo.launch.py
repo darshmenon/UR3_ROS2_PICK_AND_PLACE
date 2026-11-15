@@ -71,6 +71,14 @@ def generate_launch_description():
                     "a BT (see ur_bt_planner/launch/mtc_retry.launch.py) drives attempts "
                     "via the run_pick_place service instead.")
 
+    # Must match the arm's mount height in Gazebo / move_group (ur.gazebo.launch.py table_height).
+    # Left at the xacro default 0.0, MTC's robot model sat 1.015 m below the world-frame scene objects,
+    # so the attached object ended up ~1 m from the gripper and nothing collided with the table.
+    declare_table_height_cmd = DeclareLaunchArgument(
+        name="table_height",
+        default_value="1.015",
+        description="Height (m) the arm base is raised above the world origin; 0.0 for worlds without the mount table")
+
     # Dual-arm support (see ur_gazebo/launch/dual_mtc_pick_place.launch.py,
     # which includes this file twice with namespace:=left/right). Defaults
     # reproduce single-arm behaviour exactly.
@@ -106,6 +114,7 @@ def generate_launch_description():
         namespace_str = LaunchConfiguration('namespace').perform(context)
         mtc_node_params_override = LaunchConfiguration('mtc_node_params_file').perform(context)
         use_dual_arm = LaunchConfiguration('use_dual_arm').perform(context) == 'true'
+        table_height_str = LaunchConfiguration('table_height').perform(context)
 
         # Get package path
         pkg_share_moveit_config = pkg_share_moveit_config_temp.find(package_name_moveit_config)
@@ -157,7 +166,8 @@ def generate_launch_description():
             MoveItConfigsBuilder(moveit_config_robot_name, package_name=package_name_moveit_config)
             .trajectory_execution(file_path=moveit_controllers_file_path)
             .robot_description_semantic(file_path=srdf_model_path, mappings={'gripper': gripper})
-            .robot_description(file_path=urdf_model_path, mappings={'gripper': gripper})
+            .robot_description(file_path=urdf_model_path, mappings=(
+                {'gripper': gripper} if use_dual_arm else {'gripper': gripper, 'table_height': table_height_str}))
             .joint_limits(file_path=joint_limits_file_path)
             .robot_description_kinematics(file_path=kinematics_file_path)
             .planning_pipelines(
@@ -219,6 +229,7 @@ def generate_launch_description():
     ld.add_action(declare_gripper_cmd)
     ld.add_action(declare_exe_cmd)
     ld.add_action(declare_auto_run_cmd)
+    ld.add_action(declare_table_height_cmd)
     ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_mtc_node_params_file_cmd)
     ld.add_action(declare_use_dual_arm_cmd)

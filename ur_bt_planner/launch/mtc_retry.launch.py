@@ -55,6 +55,7 @@ def generate_launch_description():
             "namespace": namespace,
             "mtc_node_params_file": LaunchConfiguration("mtc_node_params_file"),
             "use_dual_arm": LaunchConfiguration("use_dual_arm"),
+            "table_height": LaunchConfiguration("table_height"),
         }.items(),
     )
 
@@ -72,6 +73,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("gripper", default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
                               description="Gripper to attach to the robot"),
+        DeclareLaunchArgument("table_height", default_value="1.015",
+                              description="Arm base height; must match the sim (0.0 for the conveyor world)"),
         DeclareLaunchArgument("max_attempts", default_value="5",
                               description="Pick-place attempts before giving up"),
         # Dual-arm support (see dual_mtc_retry.launch.py). Defaults

@@ -25,6 +25,7 @@ def generate_launch_description():
             "world_file": LaunchConfiguration("world_file"),
             "use_gazebo_gui": LaunchConfiguration("use_gazebo_gui"),
             "use_rviz": LaunchConfiguration("use_rviz"),
+            "table_height": LaunchConfiguration("table_height"),
         }.items(),
     )
     mtc = IncludeLaunchDescription(
@@ -32,6 +33,7 @@ def generate_launch_description():
         launch_arguments={
             "gripper": LaunchConfiguration("gripper"),
             "max_attempts": LaunchConfiguration("max_attempts"),
+            "table_height": LaunchConfiguration("table_height"),
         }.items(),
     )
     return LaunchDescription([
@@ -39,6 +41,8 @@ def generate_launch_description():
                               description="robotiq_2f_85, robotiq_2f_140, onrobot_rg2 or onrobot_rg6"),
         DeclareLaunchArgument("world_file", default_value="colored_cylinder.world",
                               description="World with the object to pick (a bare filename from ur_gazebo/worlds)"),
+        DeclareLaunchArgument("table_height", default_value="1.015",
+                              description="Arm base height shared by the sim and MTC (0.0 for the conveyor world)"),
         DeclareLaunchArgument("use_gazebo_gui", default_value="true"),
         DeclareLaunchArgument("use_rviz", default_value="true"),
         DeclareLaunchArgument("max_attempts", default_value="5", description="pick-place attempts before giving up"),
