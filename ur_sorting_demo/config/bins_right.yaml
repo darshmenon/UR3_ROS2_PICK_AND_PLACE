@@ -1,25 +1,21 @@
-# Bin positions for the RIGHT arm's SortingNode instance (dual-arm mode).
+# Bin positions for the RIGHT arm, in right_base_link.
 #
-# TODO placeholder: these are DEFAULT_BINS (sorting_node.py) shifted by the
-# right arm's -0.45m Y base offset (see dual_ur.urdf.xacro's right_y default)
-# so they land somewhere plausibly in front of the right arm rather than at
-# the single-arm origin — NOT verified reachable. Needs re-deriving once a
-# real dual-arm table/workspace layout is chosen (see
-# encapsulated-leaping-otter.md Phase B.3 open decision).
+# The right base is yawed 180 deg, so +X in this frame is world -X (forward
+# for that arm). Same reachable bins as the left arm, in the arm's own frame.
 /**:
   ros__parameters:
-    bins.red.x: 0.15
-    bins.red.y: -0.15
+    bins.red.x: 0.06
+    bins.red.y: 0.38
     bins.red.z: 0.08
-    bins.green.x: 0.35
-    bins.green.y: -0.15
+    bins.green.x: 0.20
+    bins.green.y: 0.28
     bins.green.z: 0.08
-    bins.blue.x: 0.50
-    bins.blue.y: -0.15
+    bins.blue.x: 0.34
+    bins.blue.y: 0.28
     bins.blue.z: 0.08
     bins.yellow.x: 0.15
-    bins.yellow.y: -0.75
+    bins.yellow.y: -0.30
     bins.yellow.z: 0.08
     bins.orange.x: 0.35
-    bins.orange.y: -0.75
+    bins.orange.y: -0.30
     bins.orange.z: 0.08

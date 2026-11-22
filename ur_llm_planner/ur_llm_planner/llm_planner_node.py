@@ -22,10 +22,11 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 from std_msgs.msg import String
+from geometry_msgs.msg import PoseStamped
 
 from ur_interfaces.msg import DetectedObjectArray
 
-from ur_llm_planner.ollama_client import OllamaClient
+from ur_llm_planner.ollama_client import OllamaClient, apply_vlm_target
 from ur_llm_planner.motion_executor import MotionExecutor
 
 
@@ -46,6 +47,8 @@ class LLMPlannerNode(Node):
 
     Subscriptions:
         /detected_objects  (ur_interfaces/msg/DetectedObjectArray)
+        /vlm/target_object_id (std_msgs/msg/String)
+        /vlm/target_pose (geometry_msgs/msg/PoseStamped)
         /llm_planner/command (std_msgs/msg/String)
 
     Parameters:
@@ -87,6 +90,8 @@ class LLMPlannerNode(Node):
 
         # ── State ─────────────────────────────────────────────────────
         self._latest_objects: list[dict] = []
+        self._vlm_id = ""
+        self._vlm_xyz = None
         self._is_executing = False
 
         # ── Subscriptions ─────────────────────────────────────────────
@@ -103,6 +108,10 @@ class LLMPlannerNode(Node):
             self._command_callback,
             10,
         )
+        self._vlm_id_sub = self.create_subscription(
+            String, "/vlm/target_object_id", self._vlm_id_callback, 10)
+        self._vlm_pose_sub = self.create_subscription(
+            PoseStamped, "/vlm/target_pose", self._vlm_pose_callback, 10)
 
         # ── Startup ───────────────────────────────────────────────────
         self.get_logger().info(
@@ -146,6 +155,13 @@ class LLMPlannerNode(Node):
             }
             for obj in msg.objects
         ]
+
+    def _vlm_id_callback(self, msg: String) -> None:
+        self._vlm_id = msg.data.strip()
+
+    def _vlm_pose_callback(self, msg: PoseStamped) -> None:
+        p = msg.pose.position
+        self._vlm_xyz = (p.x, p.y, p.z)
 
     def _command_callback(self, msg: String) -> None:
         """Handle an incoming natural language command."""
@@ -200,7 +216,7 @@ class LLMPlannerNode(Node):
     _MAX_RETRIES = 2
 
     def _do_plan_and_execute(self, command: str, _retry: int = 0) -> None:
-        detected_objects = list(self._latest_objects)  # snapshot
+        detected_objects = apply_vlm_target(self._latest_objects, self._vlm_id, self._vlm_xyz)
 
         self.get_logger().info(
             f"Planning for command: '{command}' "

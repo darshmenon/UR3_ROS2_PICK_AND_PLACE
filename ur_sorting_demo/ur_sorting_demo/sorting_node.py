@@ -35,10 +35,13 @@ from ur_interfaces.msg import DetectedObjectArray
 # ── default bin positions (x, y, z) in base_link frame ────────────────────────
 # Override via ROS params:  ros2 param set /sorting_node bins.red.x 0.15
 
+# red/green/blue are the bin_* models in conveyor_sorting.world. z is above the 60 mm bin.
+# The old blue bin (0.50, 0.30) is outside UR3 reach with a 0.15 m tool. Yellow and orange
+# have no model in that world; both are reachable on the near side of the table.
 DEFAULT_BINS: dict[str, tuple[float, float, float]] = {
-    "red":    (0.15,  0.30, 0.08),
-    "green":  (0.35,  0.30, 0.08),
-    "blue":   (0.50,  0.30, 0.08),
+    "red":    (0.06,  0.38, 0.08),
+    "green":  (0.20,  0.28, 0.08),
+    "blue":   (0.34,  0.28, 0.08),
     "yellow": (0.15, -0.30, 0.08),
     "orange": (0.35, -0.30, 0.08),
 }
@@ -73,9 +76,8 @@ class SortingNode(Node):
         # Workspace split: when two SortingNode instances run against the
         # same /detected_objects stream (one per arm), each must only act on
         # its own half. Disabled by default so single-arm behaviour is
-        # unchanged. split_value/split_keep_positive default to a y=0.0
-        # midline matching the dual rig's left(+y)/right(-y) base offsets —
-        # TODO: confirm/tune against real table geometry once chosen.
+        # unchanged. split_value defaults to y=0, the midline between the
+        # dual bases at y=+0.45 and y=-0.45 (dual_ur.gazebo.launch.py).
         self.declare_parameter("enable_workspace_split", False)
         self.declare_parameter("split_axis", "y")
         self.declare_parameter("split_value", 0.0)

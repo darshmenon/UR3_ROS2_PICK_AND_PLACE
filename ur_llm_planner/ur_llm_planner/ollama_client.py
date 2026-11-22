@@ -20,6 +20,37 @@ import urllib.request
 import urllib.error
 
 
+def apply_vlm_target(detected_objects, target_id="", pose=None):
+    """Put the VLM selection first and, when a pose is given, use that position.
+
+    A pose whose id is not in the list becomes a new object, so the planner still
+    has a target when perception never published that id. No id and no pose leaves
+    the list unchanged. The input list is not modified.
+    """
+    objects = [dict(o) for o in detected_objects]
+    tid = (target_id or "").strip()
+    xyz = None if pose is None else tuple(float(v) for v in list(pose)[:3])
+    if not tid and xyz is None:
+        return objects
+    idx = next((i for i, o in enumerate(objects) if tid and o.get("id") == tid), None)
+    if idx is None:
+        if xyz is None:
+            return objects
+        chosen = {
+            "id": tid or "vlm_target",
+            "label": tid or "vlm_target",
+            "position": {"x": xyz[0], "y": xyz[1], "z": xyz[2]},
+            "dimensions": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "confidence": 1.0,
+        }
+    else:
+        chosen = objects.pop(idx)
+        if xyz is not None:
+            chosen["position"] = {"x": xyz[0], "y": xyz[1], "z": xyz[2]}
+    chosen["vlm_target"] = True
+    return [chosen] + objects
+
+
 SYSTEM_PROMPT = """\
 You are a task planner for a UR3 robot arm with a Robotiq 2F-85 gripper.
 Convert natural language commands into a structured sequence of robot actions.
@@ -114,9 +145,18 @@ class OllamaClient:
             named_poses = ["home", "ready"]
 
         objects_text = self._format_objects(detected_objects)
+        vlm = next((o for o in detected_objects if o.get("vlm_target")), None)
+        vlm_line = ""
+        if vlm is not None:
+            vlm_line = (
+                f"VLM TARGET: id={vlm.get('id', '?')}. "
+                "This is the object the vision model selected. Prefer it when the command "
+                "refers to something the camera can see.\n\n"
+            )
         user_message = (
             f"COMMAND: {command}\n\n"
             f"DETECTED OBJECTS ({len(detected_objects)}):\n{objects_text}\n\n"
+            f"{vlm_line}"
             f"AVAILABLE NAMED POSES: {', '.join(named_poses)}\n\n"
             "Respond with the JSON plan only."
         )

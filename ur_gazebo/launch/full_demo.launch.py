@@ -87,6 +87,11 @@ def generate_launch_description():
         # Grasp node
         DeclareLaunchArgument("grasp_colour",  default_value="any"),
         DeclareLaunchArgument("grasp_backend", default_value="auto"),
+        # Optional open-vocabulary grounding (needs `ollama serve` with the VLM pulled)
+        DeclareLaunchArgument("vlm", default_value="false",
+                              description="Start vlm_grounding_node (query it on /vlm/query)"),
+        DeclareLaunchArgument("vlm_model", default_value="qwen2.5vl:3b",
+                              description="Ollama VLM model used when vlm:=true"),
     ]
 
     # ── Conditions ───────────────────────────────────────────────────────────
@@ -136,6 +141,17 @@ def generate_launch_description():
         }],
     )
     delayed_grasp = TimerAction(period=62.0, actions=[grasp_node])
+
+    # ── VLM grounding node (delayed 64 s, only when vlm:=true) ──────────────
+    vlm_node = Node(
+        package="ur_perception",
+        executable="vlm_grounding_node.py",
+        name="vlm_grounding_node",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("vlm")),
+        parameters=[{"model": LaunchConfiguration("vlm_model"), "use_sim_time": use_sim}],
+    )
+    delayed_vlm = TimerAction(period=64.0, actions=[vlm_node])
 
     # ── Brain nodes (delayed 65 s each) ──────────────────────────────────────
 
@@ -225,6 +241,7 @@ def generate_launch_description():
     ld.add_action(gazebo_launch)
     ld.add_action(delayed_perception)
     ld.add_action(delayed_grasp)
+    ld.add_action(delayed_vlm)
     ld.add_action(brain_log)
     ld.add_action(delayed_llm)
     ld.add_action(delayed_rl)

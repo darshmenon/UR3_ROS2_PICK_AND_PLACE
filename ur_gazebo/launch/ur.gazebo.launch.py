@@ -64,6 +64,8 @@ def generate_launch_description():
     )
     moveit_controllers_path = os.path.join(moveit_config_share, "config", "moveit_controllers.yaml")
     moveit_controllers_onrobot_path = os.path.join(moveit_config_share, "config", "moveit_controllers_onrobot.yaml")
+    moveit_controllers_hande_path = os.path.join(moveit_config_share, "config", "moveit_controllers_hande.yaml")
+    moveit_controllers_ag95_path = os.path.join(moveit_config_share, "config", "moveit_controllers_ag95.yaml")
     joint_limits_path = os.path.join(moveit_config_share, "config", "joint_limits.yaml")
     pilz_cartesian_limits_path = os.path.join(moveit_config_share, "config", "pilz_cartesian_limits.yaml")
     rviz_config_path = os.path.join(moveit_config_share, "rviz", "moveit.rviz")
@@ -103,7 +105,7 @@ def generate_launch_description():
             "gripper",
             default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
             description="Gripper to attach to the robot",
-            choices=["robotiq_2f_85", "robotiq_2f_140", "onrobot_rg2", "onrobot_rg6", "peg"],
+            choices=["robotiq_2f_85", "robotiq_2f_140", "onrobot_rg2", "onrobot_rg6", "robotiq_hande", "dh_ag95", "peg"],
         ),
         DeclareLaunchArgument("safety_limits", default_value="true", description="Enable safety limits controller"),
         DeclareLaunchArgument("safety_pos_margin", default_value="0.15", description="Safety controller position margin"),
@@ -243,6 +245,33 @@ def generate_launch_description():
         .to_moveit_configs()
       )
     moveit_config_onrobot.robot_description = robot_description
+
+    def _moveit_config_for(controllers_path):
+        cfg = (
+            MoveItConfigsBuilder("ur", package_name=moveit_config_pkg)
+            .trajectory_execution(file_path=controllers_path)
+            .robot_description_semantic(file_path=srdf_path, mappings={'gripper': gripper})
+            .joint_limits(file_path=joint_limits_path)
+            .robot_description_kinematics(file_path=kinematics_path)
+            .pilz_cartesian_limits(file_path=pilz_cartesian_limits_path)
+            .planning_pipelines(
+                pipelines=["ompl", "pilz_industrial_motion_planner"],
+                default_planning_pipeline="ompl"
+            )
+            .planning_scene_monitor(
+                publish_robot_description=True,
+                publish_robot_description_semantic=True,
+                publish_planning_scene=True
+            )
+            .to_moveit_configs()
+        )
+        cfg.robot_description = robot_description
+        return cfg
+
+    # Robotiq Hand-E and DH AG-95 differ from the other grippers only in the gripper_controller joint
+    # (moveit_controllers_hande.yaml / moveit_controllers_ag95.yaml), so each gets its own MoveIt config.
+    moveit_config_hande = _moveit_config_for(moveit_controllers_hande_path)
+    moveit_config_ag95 = _moveit_config_for(moveit_controllers_ag95_path)
 
     # Set environment variables
     set_env_vars_resources = AppendEnvironmentVariable(
@@ -426,6 +455,13 @@ def generate_launch_description():
         ])
     )
 
+    def _gripper_condition(gripper_name, launch_arg):
+        return IfCondition(
+            PythonExpression([
+                "'", gripper, "' == '", gripper_name, "' and '", LaunchConfiguration(launch_arg), "' == 'true'",
+            ])
+        )
+
     rviz_node_robotiq = Node(
         package="rviz2",
         executable="rviz2",
@@ -490,6 +526,34 @@ def generate_launch_description():
         condition=onrobot_move_group_condition,
     )
 
+    # Robotiq Hand-E / DH AG-95: same rviz + move_group nodes as above, with their own MoveIt config
+    extra_gripper_nodes = []
+    for _name, _cfg in (("robotiq_hande", moveit_config_hande), ("dh_ag95", moveit_config_ag95)):
+        _mg_params = _cfg.to_dict()
+        _mg_params.update(robot_description)
+        extra_gripper_nodes.append(Node(
+            package="rviz2",
+            executable="rviz2",
+            name="rviz2",
+            output="screen",
+            arguments=["-d", LaunchConfiguration("rviz_config")],
+            parameters=[
+                robot_description,
+                _cfg.robot_description_semantic,
+                _cfg.robot_description_kinematics,
+                _cfg.planning_pipelines,
+                {"use_sim_time": use_sim_time},
+            ],
+            condition=_gripper_condition(_name, "use_rviz"),
+        ))
+        extra_gripper_nodes.append(Node(
+            package="moveit_ros_move_group",
+            executable="move_group",
+            output="screen",
+            parameters=[_mg_params, {"use_sim_time": use_sim_time}, mtc_capabilities, planning_padding],
+            condition=_gripper_condition(_name, "use_move_group"),
+        ))
+
     ld.add_action(set_env_vars_resources)
     ld.add_action(robot_state_publisher_cmd)
     ld.add_action(start_gazebo_cmd)
@@ -503,5 +567,7 @@ def generate_launch_description():
     ld.add_action(move_group_node_onrobot)
     ld.add_action(rviz_node_robotiq)
     ld.add_action(rviz_node_onrobot)
+    for node in extra_gripper_nodes:
+        ld.add_action(node)
 
     return ld

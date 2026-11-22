@@ -65,8 +65,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "split_value", default_value="0.0",
             description="Y-axis workspace split (left keeps y>=split_value, "
-                        "right keeps y<split_value) -- TODO: confirm/tune "
-                        "against real table geometry"),
+                        "right keeps y<split_value). y=0 is the midline "
+                        "between the bases at y=+0.45 and y=-0.45."),
         left_sorting,
         right_sorting,
     ])

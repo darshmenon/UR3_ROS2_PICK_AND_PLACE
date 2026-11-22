@@ -1,0 +1,61 @@
+# Observation and action contract for a UR3 pick-and-place policy.
+#
+# This is the schema both training paths have to consume. The collector writes
+# HDF5 (collector_node.py). export_lerobot_dataset.py maps that file onto the
+# LeRobot names below. OpenVLA-OFT wants RLDS, not this HDF5, so do not point
+# a fine-tune at the raw episodes. pi0.5 / openpi can start from the LeRobot
+# export. No weights are downloaded by this file.
+#
+# One step is one control tick. The action is the next joint target, not a
+# Cartesian delta: it is the same vector as the state, shifted by one tick
+# in a behaviour-cloning set (the collector stores the commanded joints).
+
+hdf5:
+  timestamps: {dtype: float64, shape: [N]}
+  joint_positions: {dtype: float32, shape: [N, 6]}
+  gripper_positions: {dtype: float32, shape: [N, 1]}
+  rgb_images: {dtype: uint8, shape: [N, H, W, 3]}
+  depth_images: {dtype: float32, shape: [N, H, W], optional: true}
+  actions: {dtype: float32, shape: [N, 7]}
+
+observation:
+  images.rgb:
+    dtype: uint8
+    shape: [H, W, 3]
+    frame: camera_wrist_color_optical_frame
+    note: wrist RGB. The collector's image_height and image_width attributes set H and W.
+  state:
+    dtype: float32
+    shape: [7]
+    names:
+      - shoulder_pan_joint
+      - shoulder_lift_joint
+      - elbow_joint
+      - wrist_1_joint
+      - wrist_2_joint
+      - wrist_3_joint
+      - finger_joint
+    units: [rad, rad, rad, rad, rad, rad, rad]
+
+action:
+  dtype: float32
+  shape: [7]
+  names:
+    - shoulder_pan_joint
+    - shoulder_lift_joint
+    - elbow_joint
+    - wrist_1_joint
+    - wrist_2_joint
+    - wrist_3_joint
+    - finger_joint
+  units: [rad, rad, rad, rad, rad, rad, rad]
+  gripper: finger_joint is 0 open and 0.8 closed for the 2F-85. RG2 and RG6 use 1.3 closed.
+
+lerobot:
+  observation.images.rgb: observation.images.rgb
+  observation.state: observation.state
+  action: action
+
+not_in_this_file:
+  - rlds_trajectory: required by OpenVLA-OFT, not written by the collector
+  - cartesian_delta: not the action; the policy outputs joint targets

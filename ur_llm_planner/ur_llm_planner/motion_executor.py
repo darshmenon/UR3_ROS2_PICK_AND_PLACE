@@ -17,7 +17,7 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 
 from action_msgs.msg import GoalStatus
-from control_msgs.action import GripperCommand
+from control_msgs.action import GripperCommand, ParallelGripperCommand
 from geometry_msgs.msg import PoseStamped
 from moveit_msgs.action import MoveGroup as MoveGroupAction
 from moveit_msgs.msg import (
@@ -32,6 +32,8 @@ from moveit_msgs.msg import (
 )
 from moveit_msgs.srv import GetPositionIK
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String
+from std_srvs.srv import Trigger
 from shape_msgs.msg import SolidPrimitive
 from tf2_ros import Buffer, TransformListener, LookupException, ExtrapolationException
 
@@ -104,6 +106,16 @@ GRIPPER_PROFILES: dict[str, dict] = {
     "robotiq_2f_140": dict(joint="finger_joint", closed=0.7, half=0.35, tcp_z=0.192),
     "onrobot_rg2":    dict(joint="gripper_joint", closed=1.3, half=0.65, tcp_z=0.19),   # swept: 0.18-0.195 6/6, 0.14 2/6
     "onrobot_rg6":    dict(joint="gripper_joint", closed=1.3, half=0.65, tcp_z=0.19),
+    # dh_ag95: actuated left_outer_knuckle_joint 0..0.93 rad; tcp_z = tool0 -> gripper_grasp_frame (0.01 mount + 0.19
+    # vendor grasp_link_offset), from the URDF only -- not swept in the sim yet.
+    "dh_ag95":        dict(joint="left_outer_knuckle_joint", closed=0.93, half=0.465, tcp_z=0.20),
+    # Hand-E in this URDF: left finger axis +X, right finger axis -X and a mimic, so a larger
+    # value moves the fingers apart. SRDF open=0.025 m, closed=0 (50 mm opening). The 2026
+    # robotiq-ros driver uses the opposite sign (0 open, 0.025 closed) because its axis points
+    # inward; this profile matches this description. tcp_z = 0.01 mount + 0.011 coupler
+    # + 0.099 body + 0.02325 (middle of the 46.5 mm pad).
+    "robotiq_hande":  dict(joint="robotiq_hande_left_finger_joint", open=0.025, closed=0.0,
+                           half=0.0125, tcp_z=0.1433),
 }
 
 
@@ -145,11 +157,17 @@ class MotionExecutor:
             "/move_action",
         )
 
+        # Humble sim controllers serve GripperCommand. A Jazzy Robotiq driver
+        # serves ParallelGripperCommand on the same action name. Set
+        # UR_GRIPPER_ACTION=parallel before starting the node for that driver.
+        self._parallel_gripper = os.environ.get("UR_GRIPPER_ACTION", "gripper").strip().lower() == "parallel"
         self._gripper_client = ActionClient(
             node,
-            GripperCommand,
+            ParallelGripperCommand if self._parallel_gripper else GripperCommand,
             f"/{prefix}gripper_controller/gripper_cmd",
         )
+        if not node.has_parameter("servo_at_pregrasp"):
+            node.declare_parameter("servo_at_pregrasp", False)
 
         self._ik_client = node.create_client(GetPositionIK, "/compute_ik")
 
@@ -183,12 +201,16 @@ class MotionExecutor:
             gripper, prof = "robotiq_2f_85", GRIPPER_PROFILES["robotiq_2f_85"]
         self._gripper_name = gripper
         self._gripper_joint_name = f"{self._prefix}{prof['joint']}"
+        self._gripper_open = prof.get("open", GRIPPER_OPEN)
         self._gripper_closed = prof["closed"]
         self._gripper_half = prof["half"]
         self._tcp_offset_z = prof["tcp_z"]
+        # Grippers that open at 0 keep the old named half (75% of the close target).
+        # A decreasing joint (Hand-E) cannot use that: 0.75 * 0 is fully closed.
+        half_named = prof["closed"] * 0.75 if self._gripper_open == GRIPPER_OPEN else prof["half"]
         self._named_gripper_poses = {
-            "open": GRIPPER_OPEN, "closed": prof["closed"],
-            "half_closed": prof["closed"] * 0.75,
+            "open": self._gripper_open, "closed": prof["closed"],
+            "half_closed": half_named,
         }
 
     def wait_for_servers(self, timeout: float = 5.0) -> bool:
@@ -306,16 +328,37 @@ class MotionExecutor:
         carries it away.
         """
         self._logger.info("[MotionExecutor] open_gripper")
-        ok = self._send_gripper_goal(GRIPPER_OPEN, 10.0, timeout)
+        ok = self._send_gripper_goal(self._gripper_open, 10.0, timeout)
         self._wait_gripper_open()
         return ok
 
-    def _wait_gripper_open(self, timeout: float = 3.0, tol: float = 0.05) -> bool:
+    def _stroke(self) -> float:
+        return abs(self._gripper_closed - self._gripper_open)
+
+    def _closes_upward(self) -> bool:
+        """True when closing increases the joint. The Hand-E in this URDF closes toward 0."""
+        return self._gripper_closed >= self._gripper_open
+
+    def _open_tolerance(self) -> float:
+        # 0.05 matches the 2F/RG/AG95 stroke. On a 25 mm prismatic finger that
+        # band covers the whole opening, so both open and closed would pass.
+        span = self._stroke()
+        if span > 0.2:
+            return 0.05
+        return max(0.001, 0.2 * span)
+
+    def _is_at_open(self, position: float, tol: float | None = None) -> bool:
+        tol = self._open_tolerance() if tol is None else tol
+        if self._closes_upward():
+            return position <= self._gripper_open + tol
+        return position >= self._gripper_open - tol
+
+    def _wait_gripper_open(self, timeout: float = 3.0, tol: float | None = None) -> bool:
         end = time.time() + timeout
         while time.time() < end:
             js = self._latest_joint_state
             if js is not None and self._gripper_joint_name in js.name:
-                if js.position[js.name.index(self._gripper_joint_name)] <= GRIPPER_OPEN + tol:
+                if self._is_at_open(js.position[js.name.index(self._gripper_joint_name)], tol):
                     return True
             time.sleep(0.05)
         self._logger.warn("[MotionExecutor] gripper did not fully open in time")
@@ -464,6 +507,83 @@ class MotionExecutor:
         )
         # Use Pilz PTP with the IK solution (avoids TOTG)
         return self._move_to_joint_values(group, joint_values, timeout)
+
+    def _move_linear(self, pose: PoseStamped, timeout: float = 20.0) -> bool:
+        """Pilz LIN to a Cartesian pose. This is the short approach, lift and retreat.
+
+        LIN wants a pose goal. A joint goal (the PTP path) makes Pilz reject it,
+        so this request carries a position sphere and an orientation constraint.
+        """
+        group = f"{self._prefix}arm"
+        goal = MoveGroupAction.Goal()
+        req: MotionPlanRequest = goal.request
+        req.group_name = group
+        req.pipeline_id = "pilz_industrial_motion_planner"
+        req.planner_id = "LIN"
+        req.num_planning_attempts = 1
+        req.allowed_planning_time = min(timeout * 0.7, 10.0)
+        scale = min(self._speed_scale, 0.2)
+        req.max_velocity_scaling_factor = scale
+        req.max_acceleration_scaling_factor = scale
+
+        frame = pose.header.frame_id or f"{self._prefix}base_link"
+        constraints = Constraints()
+        pc = PositionConstraint()
+        pc.header.frame_id = frame
+        pc.link_name = f"{self._prefix}tool0"
+        region = BoundingVolume()
+        sphere = SolidPrimitive()
+        sphere.type = SolidPrimitive.SPHERE
+        sphere.dimensions = [0.005]
+        region.primitives.append(sphere)
+        region.primitive_poses.append(pose.pose)
+        pc.constraint_region = region
+        pc.weight = 1.0
+        constraints.position_constraints.append(pc)
+
+        oc = OrientationConstraint()
+        oc.header.frame_id = frame
+        oc.link_name = f"{self._prefix}tool0"
+        oc.orientation = pose.pose.orientation
+        oc.absolute_x_axis_tolerance = 0.1
+        oc.absolute_y_axis_tolerance = 0.1
+        oc.absolute_z_axis_tolerance = 0.1
+        oc.weight = 1.0
+        constraints.orientation_constraints.append(oc)
+        req.goal_constraints.append(constraints)
+        return self._send_move_group_goal(goal, timeout)
+
+    def _correct_pregrasp(self) -> None:
+        """Ask ur_visual_servo to trim the residual at the hover, then continue.
+
+        No-op unless servo_at_pregrasp is true and /visual_servo/correct is up.
+        The correct service stops at the hover; this node still closes the gripper.
+        """
+        if not bool(self._node.get_parameter("servo_at_pregrasp").value):
+            return
+        client = self._node.create_client(Trigger, "/visual_servo/correct")
+        if not client.wait_for_service(timeout_sec=2.0):
+            self._logger.warn("[MotionExecutor] visual servo is not up — continuing open-loop.")
+            return
+        done = threading.Event()
+        texts: list[str] = []
+
+        def _on_status(msg: String) -> None:
+            texts.append(msg.data)
+            if "converged" in msg.data or "max iterations" in msg.data or "ERROR" in msg.data:
+                done.set()
+
+        sub = self._node.create_subscription(String, "/visual_servo/status", _on_status, 10)
+        future = client.call_async(Trigger.Request())
+        if not self._wait_for_future(future, 5.0):
+            self._logger.warn("[MotionExecutor] visual servo correct call timed out.")
+            self._node.destroy_subscription(sub)
+            return
+        if not done.wait(20.0):
+            self._logger.warn("[MotionExecutor] visual servo did not report convergence.")
+        else:
+            self._logger.info(f"[MotionExecutor] visual servo: {texts[-1] if texts else 'done'}")
+        self._node.destroy_subscription(sub)
 
     def _compute_ik(self, pose: PoseStamped, group: str, timeout: float = 5.0):
         """Call /compute_ik and return joint values list, or None on failure."""
@@ -647,6 +767,7 @@ class MotionExecutor:
         pregrasp = self._make_downward_pose(obj_x, obj_y, obj_z + PREGRASP_HEIGHT_OFFSET)
         if not self.move_to_pose(pregrasp):
             return False
+        self._correct_pregrasp()
 
         if not self.open_gripper():
             self._logger.warn("[MotionExecutor] Gripper open failed — continuing.")
@@ -698,8 +819,8 @@ class MotionExecutor:
             )
 
         else:
-            self._logger.warn(f"[MotionExecutor] Unknown action '{action}' — skipping.")
-            return True  # skip unknown actions gracefully
+            self._logger.warn(f"[MotionExecutor] Unknown action '{action}' — failing.")
+            return False
 
     def _execute_pick(self, task: dict) -> bool:
         """
@@ -731,6 +852,7 @@ class MotionExecutor:
         if pregrasp_pose is None:
             self._logger.error("[MotionExecutor] Failed to reach pre-grasp pose.")
             return False
+        self._correct_pregrasp()
 
         # Open gripper before descending
         if not self.open_gripper():
@@ -772,7 +894,7 @@ class MotionExecutor:
 
         return True
 
-    def _gripper_fully_closed(self, margin: float = 0.05) -> bool:
+    def _gripper_fully_closed(self, margin: float | None = None) -> bool:
         """True if the gripper joint has reached its close target, i.e. holds nothing.
 
         Returns False when the joint state is unavailable, so a missing reading never
@@ -781,11 +903,19 @@ class MotionExecutor:
         js = self._latest_joint_state
         if js is None or self._gripper_joint_name not in js.name:
             return False
+        if margin is None:
+            span = self._stroke()
+            margin = 0.05 if span > 0.2 else min(0.05, 0.2 * span)
         pos = js.position[js.name.index(self._gripper_joint_name)]
+        if self._closes_upward():
+            reached = pos >= self._gripper_closed - margin
+            limit = self._gripper_closed - margin
+        else:
+            reached = pos <= self._gripper_closed + margin
+            limit = self._gripper_closed + margin
         self._logger.info(
-            f"[MotionExecutor] finger position {pos:.3f} (fully closed counts from "
-            f"{self._gripper_closed - margin:.3f})")
-        return pos >= self._gripper_closed - margin
+            f"[MotionExecutor] finger position {pos:.3f} (fully closed counts from {limit:.3f})")
+        return reached
 
     def _execute_place(self, task: dict) -> bool:
         """
@@ -842,7 +972,9 @@ class MotionExecutor:
         """move_to_pose with a short pause between tries; planning and IK are randomised, so a
         failed attempt often succeeds on the next one."""
         for i in range(attempts):
-            if self.move_to_pose(pose):
+            # Straight line for the last centimetres. PTP is the fallback when
+            # Pilz LIN cannot see a free Cartesian segment.
+            if self._move_linear(pose) or self.move_to_pose(pose):
                 return True
             self._logger.warn(f"[MotionExecutor] {what}: attempt {i + 1}/{attempts} failed.")
             time.sleep(0.3)
@@ -961,9 +1093,15 @@ class MotionExecutor:
             self._logger.warn("Gripper action server not ready — skipping.")
             return False
 
-        goal = GripperCommand.Goal()
-        goal.command.position = position
-        goal.command.max_effort = max_effort
+        if self._parallel_gripper:
+            goal = ParallelGripperCommand.Goal()
+            goal.command.name = [self._gripper_joint_name]
+            goal.command.position = [position]
+            goal.command.effort = [max_effort]
+        else:
+            goal = GripperCommand.Goal()
+            goal.command.position = position
+            goal.command.max_effort = max_effort
 
         send_goal_future = self._gripper_client.send_goal_async(goal)
         if not self._wait_for_future(send_goal_future, timeout):

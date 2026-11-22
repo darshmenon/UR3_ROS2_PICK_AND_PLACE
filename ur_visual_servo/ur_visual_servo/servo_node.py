@@ -39,8 +39,11 @@ Parameters:
                           verify grasp; use "gripper_joint" for OnRobot RG2/RG6
     gripper_fully_closed  (float, 0.8) — that joint's fully-closed position
                           (OnRobot RG2/RG6 use 1.3 — see their SRDF "closed" state)
+    gripper_open          (float, 0.0) — fully open. This URDF's Hand-E is 0.025;
+                          its joint decreases as it closes
     gripper_stall_margin  (float, 0.05) — stalling this far short of fully-closed
-                          counts as "hit something" (a real grasp)
+                          counts as "hit something" (a real grasp). Shrunk to
+                          a fifth of the stroke when that is smaller than 0.05
 """
 
 import math
@@ -76,6 +79,22 @@ def _as_bool(value) -> bool:
     return bool(value)
 
 
+def grasp_stalled(position: float, closed: float, open_pos: float = 0.0, margin: float = 0.05) -> bool:
+    """True when the fingers stopped short of the close target, i.e. on an object.
+
+    Grippers that close by increasing the joint (2F, RG, AG95) stall below the
+    close target. This URDF's Hand-E closes toward 0, so a stall is above it.
+    A 0.05 band is wider than the Hand-E's 25 mm finger travel, so the margin
+    is capped at a fifth of the stroke.
+    """
+    span = abs(closed - open_pos)
+    if span > 0.0:
+        margin = min(margin, 0.2 * span)
+    if closed >= open_pos:
+        return position < (closed - margin)
+    return position > (closed + margin)
+
+
 def _quat_to_rotation_matrix(q) -> np.ndarray:
     x2, y2, z2, w2 = q.x * q.x, q.y * q.y, q.z * q.z, q.w * q.w
     return np.array([
@@ -109,6 +128,7 @@ class VisualServoNode(Node):
         # gripper_fully_closed:=1.3 (their SRDF "closed" state).
         self.declare_parameter("gripper_joint_name",   "finger_joint")
         self.declare_parameter("gripper_fully_closed", 0.8)
+        self.declare_parameter("gripper_open",         0.0)
         self.declare_parameter("gripper_stall_margin", 0.05)
 
         self._rate_hz        = float(self.get_parameter("servo_rate_hz").value)
@@ -124,6 +144,7 @@ class VisualServoNode(Node):
         )
         self._gripper_joint_name   = str(self.get_parameter("gripper_joint_name").value)
         self._gripper_fully_closed = float(self.get_parameter("gripper_fully_closed").value)
+        self._gripper_open         = float(self.get_parameter("gripper_open").value)
         self._gripper_stall_margin = float(self.get_parameter("gripper_stall_margin").value)
 
         self._target_pose: PoseStamped | None = None
@@ -145,7 +166,9 @@ class VisualServoNode(Node):
 
         self._status_pub = self.create_publisher(String, "/visual_servo/status", 10)
 
+        self._hover_only = False
         self.create_service(Trigger, "/visual_servo/start", self._start_cb)
+        self.create_service(Trigger, "/visual_servo/correct", self._correct_cb)
         self.create_service(Trigger, "/visual_servo/stop",  self._stop_cb)
 
         from ur_llm_planner.motion_executor import MotionExecutor
@@ -175,6 +198,18 @@ class VisualServoNode(Node):
         threading.Thread(target=self._servo_loop, daemon=True).start()
         response.success = True
         response.message = "Visual servo started"
+        return response
+
+    def _correct_cb(self, request, response):
+        """Hover correction only. The caller still closes the gripper."""
+        if self._active:
+            response.success = False
+            response.message = "Already active"
+            return response
+        self._hover_only = True
+        threading.Thread(target=self._servo_loop, daemon=True).start()
+        response.success = True
+        response.message = "Visual servo hover correction started"
         return response
 
     def _stop_cb(self, request, response):
@@ -275,9 +310,10 @@ class VisualServoNode(Node):
             self.get_logger().warn(f"Max iterations ({self._max_iter}) reached without convergence.")
             self._publish_status("Servo: max iterations reached")
 
-        if self._active and self._auto_grasp:
+        if self._active and self._auto_grasp and not self._hover_only:
             self._execute_final_grasp(target)
 
+        self._hover_only = False
         self._active = False
 
     def _execute_final_grasp(self, target: PoseStamped):
@@ -323,7 +359,9 @@ class VisualServoNode(Node):
         if js is None or self._gripper_joint_name not in js.name:
             return None
         position = js.position[js.name.index(self._gripper_joint_name)]
-        return position < (self._gripper_fully_closed - self._gripper_stall_margin)
+        return grasp_stalled(
+            position, self._gripper_fully_closed, self._gripper_open, self._gripper_stall_margin
+        )
 
     # ── helpers ───────────────────────────────────────────────────────────────
 

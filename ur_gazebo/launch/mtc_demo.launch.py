@@ -38,7 +38,7 @@ def generate_launch_description():
     )
     return LaunchDescription([
         DeclareLaunchArgument("gripper", default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
-                              description="robotiq_2f_85, robotiq_2f_140, onrobot_rg2 or onrobot_rg6"),
+                              description="robotiq_2f_85, robotiq_2f_140, onrobot_rg2, onrobot_rg6, robotiq_hande or dh_ag95"),
         DeclareLaunchArgument("world_file", default_value="colored_cylinder.world",
                               description="World with the object to pick (a bare filename from ur_gazebo/worlds)"),
         DeclareLaunchArgument("table_height", default_value="1.015",

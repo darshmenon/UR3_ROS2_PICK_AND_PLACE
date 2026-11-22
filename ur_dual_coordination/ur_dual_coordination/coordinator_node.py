@@ -22,8 +22,10 @@ import pinocchio as pin
 import rclpy
 from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import PoseStamped
+from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from control_msgs.action import GripperCommand
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from std_srvs.srv import Trigger
@@ -49,6 +51,9 @@ class DualCoordinator(Node):
         self.declare_parameter("resync_threshold", 0.35)      # rad: resync the command to the measured joints if the arm lags this far
         self.declare_parameter("left_topic", "/left_arm_controller/joint_trajectory")
         self.declare_parameter("right_topic", "/right_arm_controller/joint_trajectory")
+        self.declare_parameter("handover_x", 0.15)
+        self.declare_parameter("handover_z", 1.215)
+        self.declare_parameter("gripper_close", 0.8)
 
         self._lock = threading.Lock()
         self.dual: Optional[DualArm] = None
@@ -58,6 +63,7 @@ class DualCoordinator(Node):
         self.q_cmd: Optional[np.ndarray] = None     # what we last commanded (integrated, not re-read from the sim)
         self._mode = "idle"                  # idle | holding
         self._path = None                    # (start SE3, goal SE3, t0, duration)
+        self._held_pose = None               # object pose captured at /dual/grasp, for /dual/return
 
         latched = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
                              reliability=ReliabilityPolicy.RELIABLE)
@@ -66,6 +72,10 @@ class DualCoordinator(Node):
         self.create_subscription(PoseStamped, "/dual/object_target", self._on_target, 10)
         self.create_service(Trigger, "/dual/grasp", self._grasp)
         self.create_service(Trigger, "/dual/release", self._release)
+        self.create_service(Trigger, "/dual/handover", self._handover)
+        self.create_service(Trigger, "/dual/return", self._return_to_start)
+        self._left_grip = ActionClient(self, GripperCommand, "/left_gripper_controller/gripper_cmd")
+        self._right_grip = ActionClient(self, GripperCommand, "/right_gripper_controller/gripper_cmd")
         self._left_pub = self.create_publisher(JointTrajectory, self.get_parameter("left_topic").value, 10)
         self._right_pub = self.create_publisher(JointTrajectory, self.get_parameter("right_topic").value, 10)
         self._status_pub = self.create_publisher(String, "/dual/status", 10)
@@ -103,6 +113,9 @@ class DualCoordinator(Node):
         p = msg.pose
         goal = pin.SE3(pin.Quaternion(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z).matrix(),
                        np.array([p.position.x, p.position.y, p.position.z]))
+        self._set_object_goal(goal)
+
+    def _set_object_goal(self, goal: pin.SE3):
         with self._lock:
             start = self.ctl.object_pose(self.q)
         dist = float(np.linalg.norm(goal.translation - start.translation))
@@ -120,10 +133,45 @@ class DualCoordinator(Node):
             self.ctl.set_grasp(self.q.copy())
             obj = self.ctl.object_pose(self.q)
         self.q_cmd = self.q.copy()
+        self._held_pose = obj
         self._mode, self._path = "holding", (obj, obj, 0.0, 1.0)
+        self._close_grippers()
         response.success = True
-        response.message = f"holding: hands frozen at their current relative pose; object at {obj.translation.round(3).tolist()}"
+        response.message = f"holding: grippers closing, hands frozen; object at {obj.translation.round(3).tolist()}"
         return response
+
+    def _handover(self, request, response):
+        if self._mode != "holding":
+            response.success, response.message = False, "call /dual/grasp first"
+            return response
+        msg = PoseStamped()
+        msg.header.frame_id = "world"
+        msg.pose.position.x = float(self.get_parameter("handover_x").value)
+        msg.pose.position.z = float(self.get_parameter("handover_z").value)
+        msg.pose.orientation.w = 1.0
+        self._on_target(msg)
+        response.success = True
+        response.message = "moving the held object to the midline handover"
+        return response
+
+    def _return_to_start(self, request, response):
+        if self._mode != "holding" or self._held_pose is None:
+            response.success, response.message = False, "call /dual/grasp first"
+            return response
+        self._set_object_goal(self._held_pose)
+        response.success = True
+        response.message = "returning the held object to the grasp pose"
+        return response
+
+    def _close_grippers(self):
+        position = float(self.get_parameter("gripper_close").value)
+        for client in (self._left_grip, self._right_grip):
+            if not client.server_is_ready():
+                continue
+            goal = GripperCommand.Goal()
+            goal.command.position = position
+            goal.command.max_effort = 40.0
+            client.send_goal_async(goal)
 
     def _release(self, request, response):
         self._mode, self._path = "idle", None
@@ -165,7 +213,14 @@ class DualCoordinator(Node):
             msg.joint_names = [f"{side}_{j}" for j in ARM_JOINTS]
             pt = JointTrajectoryPoint()
             pt.positions = [float(q_cmd[self.dual.col[n]]) for n in msg.joint_names]
-            ns = int(2.5 * dt * 1e9)
+            # A 2.5-tick horizon gets replaced before the arm arrives, so a return
+            # stalls about 30 mm short. Give the controller long enough to cover
+            # the joint error it still has.
+            delta = 0.0
+            if self.q is not None:
+                delta = float(np.max(np.abs(q_cmd - self.q)))
+            horizon = max(2.5 * dt, 1.3 * delta / self.get_parameter("max_joint_speed").value, 0.05)
+            ns = int(horizon * 1e9)
             pt.time_from_start = Duration(sec=ns // 10 ** 9, nanosec=ns % 10 ** 9)
             msg.points = [pt]
             pub.publish(msg)
