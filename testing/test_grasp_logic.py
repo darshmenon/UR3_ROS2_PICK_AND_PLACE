@@ -177,6 +177,8 @@ MTC_YAML = {   # mirrors ur_mtc_pick_place_demo/launch/pick_place_demo.launch.py
     "robotiq_2f_140": "mtc_node_params_robotiq_2f_140.yaml",
     "onrobot_rg2": "mtc_node_params_onrobot.yaml",
     "onrobot_rg6": "mtc_node_params_onrobot_rg6.yaml",
+    "robotiq_hande": "mtc_node_params_robotiq_hande.yaml",
+    "dh_ag95": "mtc_node_params_dh_ag95.yaml",
 }
 
 

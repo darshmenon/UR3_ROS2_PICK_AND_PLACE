@@ -41,9 +41,12 @@ def test_profile_is_applied(node, gripper):
     prof = GRIPPER_PROFILES[gripper]
     assert ex._gripper_joint_name == prof["joint"]
     assert ex._gripper_closed == prof["closed"]
+    assert ex._gripper_open == prof.get("open", 0.0)
     assert ex._tcp_offset_z == prof["tcp_z"]
+    assert ex._named_gripper_poses["open"] == prof.get("open", 0.0)
     assert ex._named_gripper_poses["closed"] == prof["closed"]
-    assert ex._named_gripper_poses["half_closed"] == pytest.approx(prof["closed"] * 0.75)
+    expected_half = prof["closed"] * 0.75 if prof.get("open", 0.0) == 0.0 else prof["half"]
+    assert ex._named_gripper_poses["half_closed"] == pytest.approx(expected_half)
 
 
 def test_unknown_gripper_falls_back_to_2f85(node):
@@ -54,12 +57,26 @@ def test_unknown_gripper_falls_back_to_2f85(node):
 @pytest.mark.parametrize("gripper", sorted(GRIPPER_PROFILES))
 def test_fully_closed_means_nothing_held(node, gripper):
     ex = make(node, gripper)
-    closed = GRIPPER_PROFILES[gripper]["closed"]
+    prof = GRIPPER_PROFILES[gripper]
+    closed = prof["closed"]
+    open_pos = prof.get("open", 0.0)
     ex._latest_joint_state = joint_state(ex._gripper_joint_name, closed)
     assert ex._gripper_fully_closed()
-    # stopped well short of the close target: the fingers are on something
-    ex._latest_joint_state = joint_state(ex._gripper_joint_name, closed * 0.5)
+    # halfway back toward open: the fingers stopped on something
+    short = closed + 0.5 * (open_pos - closed)
+    ex._latest_joint_state = joint_state(ex._gripper_joint_name, short)
     assert not ex._gripper_fully_closed()
+
+
+def test_hande_open_is_the_wide_position(node):
+    ex = make(node, "robotiq_hande")
+    assert ex._gripper_joint_name == "robotiq_hande_left_finger_joint"
+    ex._latest_joint_state = joint_state(ex._gripper_joint_name, 0.025)
+    assert ex._is_at_open(0.025)
+    assert not ex._gripper_fully_closed()
+    ex._latest_joint_state = joint_state(ex._gripper_joint_name, 0.0)
+    assert ex._gripper_fully_closed()
+    assert not ex._is_at_open(0.0)
 
 
 def test_missing_joint_state_never_blocks_a_pick(node):
@@ -96,3 +113,19 @@ def test_yaw_turns_the_fingers(node):
         return (1 - 2 * (q.y ** 2 + q.z ** 2), 2 * (q.x * q.y + q.w * q.z))
     a0, a1 = math.atan2(tool_x(q0)[1], tool_x(q0)[0]), math.atan2(tool_x(q1)[1], tool_x(q1)[0])
     assert abs(a1 - a0) == pytest.approx(0.8, abs=1e-6)
+
+
+def test_unknown_action_fails(node):
+    ex = make(node, "onrobot_rg2")
+    assert ex._dispatch_task({"action": "no_such_action"}) is False
+    assert ex._dispatch_task({}) is False
+
+
+def test_server_not_ready_fails(node):
+    # the node is never spun and no servers exist, so both clients report not ready
+    ex = make(node, "onrobot_rg2")
+    assert not ex._move_group_client.server_is_ready()
+    assert ex._send_move_group_goal(object(), timeout=0.1) is False
+    assert ex.move_to_named_pose("arm", "home") is False
+    assert ex._send_gripper_goal(0.0, 10.0, timeout=0.1) is False
+    assert ex.wait_for_servers(timeout=0.1) is False

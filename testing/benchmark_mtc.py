@@ -34,11 +34,12 @@ FIELDS = ["pipeline", "gripper", "object", "trial", "executed", "success", "erro
           "perception_error_xy_m", "cycle_time_s", "lifted_m", "err_dx_m", "err_dy_m", "notes"]
 
 
-def launch_mtc(gripper, domain, attempts, startup):
+def launch_mtc(gripper, domain, attempts, startup, overrides=""):
     env = dict(os.environ, ROS_DOMAIN_ID=str(domain), GZ_VERSION="harmonic")
+    extra = f" mtc_param_overrides:={overrides}" if overrides else ""
     cmd = ["bash", "-c",
            f"source /opt/ros/humble/setup.bash && source {bench.REPO}/install/setup.bash && "
-           f"exec ros2 launch ur_bt_planner mtc_retry.launch.py gripper:={gripper} max_attempts:={attempts}"]
+           f"exec ros2 launch ur_bt_planner mtc_retry.launch.py gripper:={gripper} max_attempts:={attempts}{extra}"]
     log = open(bench.REPO / "logs" / f"bench_mtc_{gripper}.log", "w")
     proc = subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT, preexec_fn=os.setsid)
     time.sleep(startup)
@@ -171,10 +172,17 @@ def run_cell(args, g, name):
     (bench.REPO / "logs").mkdir(exist_ok=True)
     rows = []
     rclpy.init()
+    # Other sessions' sims push the load average past 20; the sim then runs far below real time and the first
+    # gripper / MoveGroup goals time out. Wait for the machine to calm down before starting this sim.
+    if args.max_load > 0:
+        end = time.time() + 900.0
+        while os.getloadavg()[0] > args.max_load and time.time() < end:
+            print(f"[mtc] load {os.getloadavg()[0]:.1f} > {args.max_load:.1f}, waiting before the sim starts", flush=True)
+            time.sleep(30.0)
     sim = bench.launch_sim(g, obj["world"], args.domain, args.settle)
     # A fixed sleep is too short when the machine is busy: wait until the controllers are really active.
     wait_controllers(args.domain, timeout=300.0)
-    mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup)
+    mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup, args.mtc_overrides)
     node = Node("benchmark_mtc")
     executor = SingleThreadedExecutor()
     executor.add_node(node)
@@ -214,7 +222,14 @@ def run_cell(args, g, name):
         # so return to that before every trial, gripper open.
         mover = MotionExecutor(node)
         mover.set_gripper(g)
-        recorder = bench.Recorder(node, args.record_topic, args.record_dir, args.record_period,
+        # "controllers active" is not enough on a loaded machine: the first gripper goal can still time out and
+        # the whole first trial is lost to a sim restart. Warm up until the gripper really answers.
+        for warm in range(6):
+            if mover.open_gripper():
+                print(f"[mtc] gripper answered (warm-up {warm + 1})", flush=True)
+                break
+            print(f"[mtc] gripper not answering yet (warm-up {warm + 1}/6)", flush=True)
+        recorder =bench.Recorder(node, args.record_topic, args.record_dir, args.record_period,
                                   args.record_frames, tail_s=args.record_tail) if args.record_dir else None
         demo = DemoRecorder(node, args.demo_dir) if args.demo_dir else None
         # The object is spawned slightly above the table and drops on start-up: take the reference pose only once
@@ -239,7 +254,7 @@ def run_cell(args, g, name):
                         break
                     except (subprocess.TimeoutExpired, ProcessLookupError):
                         continue
-                mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup)
+                mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup, args.mtc_overrides)
                 client.wait_for_service(timeout_sec=60.0)
             # Clear the old scene FIRST: leftover collision objects can block the move back, and an arm still
             # hovering over the place spot shows up in the point cloud as extra "objects".
@@ -348,6 +363,11 @@ def run_cell(args, g, name):
                     notes = (notes + "; " if notes else "") + "object never lifted (pushed or rolled, not carried)"
             lifted = (watcher.max_z - before[2]) if (before is not None and watcher.max_z is not None) \
                 else float("nan")
+            false_success = ("SUCCESS" in status["text"] and before is not None and after is not None
+                             and math.hypot(after[0] - before[0], after[1] - before[1]) <= 0.05
+                             and (math.isnan(lifted) or lifted < 0.01))
+            if false_success:
+                notes = (notes + "; " if notes else "") + "FALSE SUCCESS: MTC reported success, object unmoved"
             rows.append(dict(pipeline="mtc", gripper=g, object=name, trial=t,
                              executed="SUCCESS" in status["text"], success=success, error_xy_m=ex_xy,
                              error_z_m=ex_z, perception_error_xy_m=float("nan"), cycle_time_s=cycle,
@@ -384,6 +404,8 @@ def main():
     ap.add_argument("--tol", type=float, default=0.02)
     ap.add_argument("--domain", type=int, default=91)
     ap.add_argument("--settle", type=float, default=45.0, help="seconds after the sim launch")
+    ap.add_argument("--max-load", type=float, default=8.0,
+                    help="wait (up to 15 min) for the 1-minute load average to drop below this before each sim start; 0 disables")
     ap.add_argument("--mtc-startup", type=float, default=40.0, help="seconds after the MTC launch")
     ap.add_argument("--record-dir", default=None, help="save a labelled frame strip per trial here")
     ap.add_argument("--record-topic", default="/camera_head/color/image_raw")
@@ -401,6 +423,8 @@ def main():
                     help="trials per sim: a fresh sim every N trials (and after a hang), the sim degrades after ~5")
     ap.add_argument("--trial-start", type=int, default=1, help=argparse.SUPPRESS)
     ap.add_argument("--trial-timeout", type=float, default=420.0)
+    ap.add_argument("--mtc-overrides", default="",
+                    help="YAML applied after the gripper params file (later keys win)")
     ap.add_argument("--output", default=None)
     ap.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
@@ -424,6 +448,7 @@ def main():
                 subprocess.run([sys.executable, str(Path(__file__).resolve()), "--child", "--grippers", g,
                                 "--objects", name, "--trials", str(n), "--trial-start", str(done + 1),
                                 "--attempts", str(args.attempts),
+                                *(["--mtc-overrides", args.mtc_overrides] if args.mtc_overrides else []),
                                 "--tol", str(args.tol), "--domain", str(args.domain), "--settle", str(args.settle),
                                 "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout),
                                 *(["--restart-mtc"] if args.restart_mtc else []),
@@ -452,6 +477,9 @@ def main():
         w.writeheader()
         w.writerows(all_rows)
     bench.summarise([r for r in all_rows if r["trial"]], args.grippers, args.objects)
+    n_fs = sum(1 for r in all_rows if "FALSE SUCCESS" in str(r.get("notes", "")))
+    if n_fs:
+        print(f"\nFALSE SUCCESS trials (MTC reported success, object unmoved): {n_fs} of {len(all_rows)}")
     print(f"\nWrote {out}")
     return 0
 

@@ -5,7 +5,7 @@
     python3 testing/record_showcase.py --gripper robotiq_2f_85 --object cylinder_5cm --mode mtc --out assets/mtc_2f85.gif
 
 mode executor: MotionExecutor (IK + Pilz).  mode mtc: MoveIt Task Constructor through the retry node.
-The showcase camera (960x540, in every colored_*.world) is off unless subscribed to, so it costs nothing otherwise.
+The showcase camera (1280x720, in every colored_*.world) is off unless subscribed to, so it costs nothing otherwise.
 Frames are kept in --frames-dir (default /tmp) so a GIF can be rebuilt with a different crop or speed.
 """
 import argparse
@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import benchmark_grippers as bench  # noqa: E402
 
-CROP = "130,25,830,475"        # keeps the whole table, the arm and both the pick and the place spot
+CROP = "173,33,1107,633"        # keeps the whole table, the arm and both the pick and the place spot
 
 
 def main():

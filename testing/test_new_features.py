@@ -207,8 +207,8 @@ def test_benchmark_imports():
     assert hasattr(mod, "BenchmarkNode")
     assert hasattr(mod, "POLICY_RUNNERS")
     assert "mtc" in mod.POLICY_RUNNERS
-    assert "act" in mod.POLICY_RUNNERS
     assert "openvla" in mod.POLICY_RUNNERS
+    assert "flow" in mod.POLICY_RUNNERS
 
 
 def test_benchmark_pick_range():

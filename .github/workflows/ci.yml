@@ -34,5 +34,62 @@ jobs:
         run: |
           source /opt/ros/humble/setup.bash
           colcon test --packages-select ur_mtc_pick_place_demo \
-            --ctest-args -R test_object_segmentation --event-handlers console_direct+
+            --ctest-args -R 'test_object_segmentation|test_cloud_filters' --event-handlers console_direct+
           colcon test-result --verbose
+
+  python-unit:
+    runs-on: ubuntu-22.04
+    container: ros:humble
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pytest
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends python3-pytest python3-numpy python3-opencv \
+            ros-humble-sensor-msgs ros-humble-std-msgs ros-humble-std-srvs
+
+      - name: Build message package
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --packages-select ur_interfaces
+
+      - name: Offline python tests
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          export PYTHONPATH="$PWD/ur_conveyor:$PWD/ur_perception:$PWD/ur_sorting_demo:${PYTHONPATH:-}"
+          python3 -m pytest -q testing/test_unit_conveyor.py testing/test_unit_perception.py testing/test_unit_sorting_demo.py
+
+  gripper-urdf:
+    runs-on: ubuntu-22.04
+    container: ros:humble
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ros-humble-xacro liburdfdom-tools
+
+      - name: Build description packages
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          colcon build --packages-select ur_description robotiq_description onrobot_description \
+            robotiq_2f_85_gripper_visualization robotiq_hande_description dh_ag95_description moveit_config
+
+      - name: Every gripper expands to a valid URDF
+        shell: bash
+        run: |
+          source /opt/ros/humble/setup.bash
+          source install/setup.bash
+          for g in robotiq_2f_85 robotiq_2f_140 onrobot_rg2 onrobot_rg6 robotiq_hande dh_ag95; do
+            xacro moveit_config/config/ur.urdf.xacro gripper:=$g > /tmp/$g.urdf
+            check_urdf /tmp/$g.urdf > /dev/null
+            echo "$g ok"
+          done

@@ -379,6 +379,13 @@ The arm picks each box off the belt and drops it on the bin of its colour (`pyth
 
 <p align="center"><img src="assets/gifs/conveyor_pick_place.gif" width="560"></p>
 
+<table align="center">
+  <tr>
+    <td align="center"><img src="assets/gifs/conveyor_belt.gif" width="380"><br><sub>belt feed</sub></td>
+    <td align="center"><img src="assets/gifs/yolo_conveyor.gif" width="380"><br><sub>YOLO detection on the belt</sub></td>
+  </tr>
+</table>
+
 ---
 
 ## Dual-Arm Support
@@ -480,6 +487,10 @@ ros2 launch ur_web_dashboard view_logs.launch.py plotjuggler:=false # rqt_consol
 
 </details>
 
+### Pad friction in Gazebo
+
+Friction set on a link that a fixed joint merges into its parent is dropped from the generated SDF, so the 2F-85 pads had no friction until it was also set on the inner finger. Check with `gz sdf -p`. Adding the RG2's torsional friction (0.456, patch radius 0.05) to the 2F-85 raised a 5 cm cylinder from 4/10 to 7/10 within 20 mm. On the 2F-140 it made no difference (12/20, same as without).
+
 ### Running it
 
 ```bash
@@ -554,12 +565,21 @@ this took the pass rate from 3 of 10 to 5 of 9.
 
 ## Future Scope / Work in Progress
 
-- Real robot deployment (swap Gazebo hardware interface for the live UR3 driver)
-- Fine-tune OpenVLA on collected demonstrations for sim-to-real
-- 6-DoF object pose estimation from depth for grasp orientation
-- Dual-arm MTC task graph for [coordinated bimanual pick](#dual-arm-support)
-- Multi-object sorting: BT planner + conveyor + perception together
-- **Vision (`ur_perception`)**: color/YOLO detection works; multi-view reconstruction (`reconstruct.launch.py`) is inspection-only, not yet consumed by the pick pipeline
-- **LLM planner (`ur_llm_planner`)**: relative moves (`move the gripper up by 10 centimeters`) and named poses work; pick-by-description doesn't yet — the color detector reports zero objects for this scene
+Checked against the repo and public sources (Nov 2026). Already in the tree, so not listed again: VLM text grounding, Contact-GraspNet, `ur_dual_coordination` (12-joint Pinocchio carry), `full_sorting_demo.launch.py` (conveyor + perception + sorting), and HDF5 → LeRobot export.
+
+- **Real UR3.** Swap the Gazebo `gz_ros2_control` hardware interface for the official driver, [UniversalRobots/Universal_Robots_ROS2_Driver](https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver) (Humble, Jazzy, Kilted, Lyrical, Rolling). On Jazzy: `sudo apt install ros-jazzy-ur`, extract the factory calibration, then `ros2 launch ur_robot_driver ur_control.launch.py ur_type:=ur3 robot_ip:=<ip>`. Skipping calibration puts the TCP off by centimetres. Use `ur_controllers` (`scaled_joint_trajectory_controller`) so pendant speed scaling still works. [Install](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/jazzy/doc/ur_robot_driver/ur_robot_driver/doc/installation/installation.html), [startup](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/jazzy/doc/ur_robot_driver/ur_robot_driver/doc/usage/startup.html).
+- **VLA fine-tune, not stock OpenVLA.** `ur_openvla` still runs autoregressive `openvla-7b` joint deltas. The current recipe is OpenVLA-OFT (Kim, Finn, Liang, [arXiv:2502.19645](https://arxiv.org/abs/2502.19645), [moojink/openvla-oft](https://github.com/moojink/openvla-oft)): parallel decoding, action chunks, continuous actions, L1 loss. On LIBERO that moves average success from 76.5% to 97.1% and action throughput about 26×. Demos must be RLDS, which `ur_data_collector` does not write yet. A UR5e + Robotiq 2F-85 pipeline that already does this is [ChangChrisLiu/DataCollection](https://github.com/ChangChrisLiu/DataCollection) (EEF deltas over `moveL`). UR push-T fine-tunes have stalled with a high, oscillating loss when the global batch is small or the demos are multimodal ([openvla-oft#73](https://github.com/moojink/openvla-oft/issues/73)). The other path is π₀ / π₀.₅ (Black et al., [arXiv:2410.24164](https://arxiv.org/abs/2410.24164); [Physical-Intelligence/openpi](https://github.com/Physical-Intelligence/openpi), π₀.₅ released Sept 2025), which matches the flow-matching head already in `ur_flow_policy` and can train from the existing LeRobot export.
+- **6-DoF object pose.** Colour + depth still gives position, not grasp orientation. FoundationPose (Wen et al., CVPR 2024) has ROS 2 wrappers that publish a tracked 6-D pose from an RGB-D stream plus a mesh: [ammar-n-abbas/FoundationPoseROS2](https://github.com/ammar-n-abbas/FoundationPoseROS2) (Humble, SAM 2, multi-object, 8 GB GPU) and [IRVLUTD/FoundationPoseROS](https://github.com/IRVLUTD/FoundationPoseROS). YCB meshes in `ur_gazebo` are the models; the pose still has to land in the MoveIt planning scene.
+- **6-DoF grasps beyond Contact-GraspNet.** The in-repo port returns side grasps (16–23 mm on the 5 cm cylinder) but is not what MTC executes. GraspGen (Murali et al., [arXiv:2507.13097](https://arxiv.org/abs/2507.13097), ICRA 2026, [NVlabs/GraspGen](https://github.com/NVlabs/GraspGen)) ships a Robotiq 2F-140 checkpoint, reports 81.3% real grasp success on a UR10 with a Robotiq gripper, and runs at about 20 Hz before TensorRT. Ranked grasps should replace the cylinder heuristic inside the MTC grasp stage.
+- **Coordinated dual arm.** MTC still plans one Cartesian end-effector per stage; a combined group only takes joint goals, and `Merger` only stitches independent group plans ([moveit_task_constructor#390](https://github.com/moveit/moveit_task_constructor/issues/390)). Keep `ur_dual_coordination` for the shared-object carry. Left to do: replace the placeholder object, place, and handover poses (the file headers say they are unconfirmed), use `Merger` for the two approaches, then hand the grasped object to `/dual/object_target`. [emusman-lab/dual_robot_arm](https://github.com/emusman-lab/dual_robot_arm) is a ROS 2 MTC dual-arm pick, but the arms run one after the other.
+- **Sorting supervisor.** Conveyor, perception, and colour bins already start together from `ur_sorting_demo` `full_sorting_demo.launch.py`. What is missing is `ur_bt_planner` as the supervisor, and real bin poses: `bins_left.yaml` / `bins_right.yaml` are still the single-arm defaults shifted sideways.
+- **Reconstruction into the pick.** `reconstruct.launch.py` fuses a wrist cloud and can save a mesh, and nothing in the pick pipeline reads it. Publishing that cloud as collision geometry is the direct fix for the VLM picks that die when the arm clips a neighbour (about half the runs in `testing/vlm_pick_check.py`). The same mesh is the FoundationPose model above.
+- **Language pick through the planner.** `vlm_grounding_node` already resolves “the red cylinder” to `/vlm/target_pose`. `llm_planner_node` still plans only from `/detected_objects`, so a text command fails when that detector returns nothing. Subscribe to the VLM pose and object id and pass that object into `MotionExecutor`.
+- **Real gripper, separate from the arm.** The official driver is [robotiq/robotiq-ros](https://github.com/robotiq/robotiq-ros) (January 2026; Humble, Jazzy, Lyrical; 2F-85 and 2F-140). On Jazzy the gripper action is `ParallelGripperCommand`, not `GripperCommand`, so `MotionExecutor` will not close a live gripper until that goal type is handled.
+- **Hand-eye before a real camera.** Simulation TF is exact, so the current detection error will not survive a physical camera. [easy_handeye2](https://github.com/marcoesposito1988/easy_handeye2) covers eye-on-base for the head camera and eye-in-hand for the wrist camera. Prove the solve in sim by shifting the camera a known amount and checking that the calibration recovers it.
+- **Clutter motion, not more padding.** Six millimetres of robot padding only partly stops “path became invalid” when the upper arm sweeps a neighbour. [isaac_ros_cumotion](https://github.com/nvidia-isaac-ros/isaac_ros_cumotion) is a MoveIt 2 planning pipeline (cuRobo). It needs an XRDF for this UR3. With nvblox it plans against a depth signed-distance field, which is the reconstructed cloud the pick does not read today. Execution stays Gazebo or URSim; that tutorial has no fake UR hardware.
+- **Close the last centimetres in the loop.** MTC plans the whole task before the arm moves. Pilz `LIN` is already configured and can take the approach, lift, and retreat. `ur_visual_servo` already servos to `/ur_grasp/grasp_pose` and is never called from the pick. Run both on the same benchmark seeds and compare cycle time and the 20 mm place rate.
+- **Leave force control alone until it holds.** The joint impedance controller does not hold a pose in this Gazebo after the switch to effort mode (the arm drifts, and the drift is not repeatable). A peg-in-hole comparison is not informative until a hold is stable.
+- **Conveyor pick is stop-then-grasp.** `conveyor_node` moves boxes by teleporting them, and the demo marks `/conveyor/picked` before the grasp so the box freezes. Picking while the belt is still moving is a separate task.
 
 Contributions welcome, especially around sim stability, transfer learning, and perception-to-action integration.

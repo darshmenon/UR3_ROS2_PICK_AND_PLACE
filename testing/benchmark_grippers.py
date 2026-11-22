@@ -28,8 +28,10 @@ Modes:
     --objects ...    subset of: cube_5cm tall_box cylinder_5cm cylinder_4cm ball_6cm (default: all but the ball)
 
 Grippers supported by ur.gazebo.launch.py: robotiq_2f_85, robotiq_2f_140,
-onrobot_rg2, onrobot_rg6. dh_ag95 / robotiq_hande are not wired into the launch
-file's `gripper` choices yet, so they are not in the default list.
+onrobot_rg2, onrobot_rg6, robotiq_hande, dh_ag95. The last two are wired into the launch
+file, URDF, SRDF, controllers and MTC params but are UNTUNED/unverified in the sim, so they
+are not in the default list (pass them with --grippers). The Hand-E only opens
+50 mm, so a 5 cm object does not fit between its fingers.
 
 Results CSV columns:
     gripper, object, trial, executed, success, error_xy_m, error_z_m,
@@ -296,7 +298,7 @@ class Recorder:
         img = self._np.frombuffer(msg.data, self._np.uint8).reshape(msg.height, msg.width, -1)
         if msg.encoding == "rgb8":
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        self.frames.append((now, cv2.resize(img, (320, 180))))
+        self.frames.append((now, cv2.resize(img, (480, 270))))
 
     def start(self):
         self.frames = []
