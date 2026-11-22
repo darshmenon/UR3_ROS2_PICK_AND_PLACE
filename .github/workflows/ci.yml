@@ -48,7 +48,8 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends python3-pytest python3-numpy python3-opencv \
-            ros-humble-sensor-msgs ros-humble-std-msgs ros-humble-std-srvs
+            ros-humble-sensor-msgs ros-humble-std-msgs ros-humble-std-srvs \
+            ros-humble-moveit-msgs
 
       - name: Build message package
         shell: bash
@@ -81,7 +82,8 @@ jobs:
         run: |
           source /opt/ros/humble/setup.bash
           colcon build --packages-select ur_description robotiq_description onrobot_description \
-            robotiq_2f_85_gripper_visualization robotiq_hande_description dh_ag95_description moveit_config
+            robotiq_2f_85_gripper_visualization robotiq_hande_description dh_ag95_description moveit_config \
+            --packages-ignore warehouse_ros_mongo
 
       - name: Every gripper expands to a valid URDF
         shell: bash
