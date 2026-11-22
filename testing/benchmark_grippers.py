@@ -333,6 +333,16 @@ class Recorder:
                 strip(tail, f"{label}_{'PASS' if passed else 'FAIL'}_tail.png")
 
 
+def place_target(before, off=(0.0, 0.0)):
+    """Where the object should end up (x, y) given its start pose `before` and the jitter offset `off`.
+
+    The tool is placed at the fixed PLACE_XY whatever the jitter. `before` already contains the jitter
+    offset, so remove it; otherwise every jittered trial is scored as off by the jitter itself.
+    """
+    return (before[0] - off[0] + (PLACE_XY[0] - PICK_XY[0]),
+            before[1] - off[1] + (PLACE_XY[1] - PICK_XY[1]))
+
+
 def run_trials(gripper, obj_name, top_z, trials, tol, node, ex, det=None, grasp_depth=None, height=0.05,
                jitter=0.0, recorder=None):
     rows = []
@@ -405,8 +415,7 @@ def run_trials(gripper, obj_name, top_z, trials, tol, node, ex, det=None, grasp_
         if before is None or after is None:
             notes = (notes + "; " if notes else "") + "no gz pose"
         else:
-            tx = before[0] + (PLACE_XY[0] - PICK_XY[0])
-            ty = before[1] + (PLACE_XY[1] - PICK_XY[1])
+            tx, ty = place_target(before, off)
             err_dx, err_dy = after[0] - tx, after[1] - ty
             ex_xy = math.hypot(err_dx, err_dy)
             ex_z = after[2] - before[2]

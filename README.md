@@ -3,8 +3,7 @@
 
 Blog post (dev journey, engineering details): [How I'm Building an Autonomous Pick-and-Place System with ROS 2 Jazzy and Gazebo Harmonic](https://medium.com/@darshmenon02/how-i-am-building-an-autonomous-pick-and-place-system-with-ros-2-jazzy-and-gazebo-harmonic-6474cbcc8dc7)
 
-UR3 + Robotiq 2-Finger Gripper on **ROS 2 Humble** + **Gazebo Harmonic**: URDF/ros2_control, MoveIt Task Constructor pick-and-place, vision-based detection, LLM task planning (Ollama), RL (SAC), and demo recording for behavior cloning.
-
+UR3 + Robotiq 2-Finger Gripper on **ROS 2 Humble** + **Gazebo Harmonic**: URDF/ros2_control, MoveIt Task Constructor pick-and-place (top-down grasps), colour/depth and VLM detection, a prototype LLM task planner (Ollama), RL (SAC), and demo recording for behavior cloning.
 **New here? Start with [Full MTC Pick-and-Place Demo](#full-mtc-pick-and-place-demo)** — one command to run.
 
 <details>
@@ -235,6 +234,8 @@ ros2 launch ur_gazebo full_demo.launch.py brain:=none     # perception + grasp o
 ```
 
 Startup sequence: Gazebo+MoveIt → perception (60s) → grasp (62s) → brain (65s).
+
+None of the brains here use MTC: the LLM brain drives the arm through `MotionExecutor`, and the RL and OpenVLA policies publish joint trajectories directly. The MTC pipeline with its own point-cloud scene server and behavior-tree retry is a separate launch (`ros2 launch ur_gazebo mtc_demo.launch.py`); the two are not chained.
 
 ```
 Camera/Depth  → ur_perception → /detected_objects        → LLM planner / RL policy

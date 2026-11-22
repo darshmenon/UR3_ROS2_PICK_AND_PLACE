@@ -26,6 +26,7 @@ def make_executor(gripper="robotiq_2f_85"):
     prof = me.GRIPPER_PROFILES[gripper]
     ex._gripper_joint_name = prof["joint"]
     ex._gripper_closed = prof["closed"]
+    ex._gripper_open = prof.get("open", me.GRIPPER_OPEN)
     ex._tcp_offset_z = prof["tcp_z"]
     ex._latest_joint_state = None
     return ex
@@ -38,7 +39,9 @@ def joint_state(name, pos):
 @pytest.mark.parametrize("gripper", list(me.GRIPPER_PROFILES))
 def test_profiles_are_complete(gripper):
     prof = me.GRIPPER_PROFILES[gripper]
-    assert prof["closed"] > prof["half"] > 0
+    opened = prof.get("open", me.GRIPPER_OPEN)
+    # closed lies beyond half, which lies beyond open; the Hand-E joint decreases when it closes
+    assert abs(prof["closed"] - opened) > abs(prof["half"] - opened) > 0
     assert 0.1 < prof["tcp_z"] < 0.25
 
 
@@ -207,4 +210,23 @@ def test_mtc_params_match_the_gripper(gripper):
     if "gripper_joint_name" in p:
         assert p["gripper_joint_name"] in joints
         upper = float(joints[p["gripper_joint_name"]].find("limit").get("upper"))
-        assert 0 < p["gripper_closed_value"] <= upper + 1e-9, "close target beyond the joint limit"
+        lower = float(joints[p["gripper_joint_name"]].find("limit").get("lower"))
+        assert lower - 1e-9 <= p["gripper_closed_value"] <= upper + 1e-9, "close target beyond the joint limit"
+
+
+def test_place_target_ignores_the_jitter_offset():
+    # object respawned 4 cm in x and -3 cm in y from the nominal pick spot; the tool still places at PLACE_XY
+    off = (0.04, -0.03)
+    before = (bench.PICK_XY[0] + off[0], bench.PICK_XY[1] + off[1], 1.1)
+    tx, ty = bench.place_target(before, off)
+    assert (tx, ty) == pytest.approx(bench.PLACE_XY)
+    # a perfect placement at PLACE_XY has zero error, a placement that kept the jitter has exactly the jitter
+    assert math.hypot(bench.PLACE_XY[0] - tx, bench.PLACE_XY[1] - ty) == pytest.approx(0.0)
+    assert math.hypot(bench.PLACE_XY[0] + off[0] - tx, bench.PLACE_XY[1] + off[1] - ty) == pytest.approx(0.05)
+
+
+def test_place_target_without_jitter_is_unchanged():
+    before = (0.352, 0.001, 1.1)
+    tx, ty = bench.place_target(before)
+    assert tx == pytest.approx(before[0] + bench.PLACE_XY[0] - bench.PICK_XY[0])
+    assert ty == pytest.approx(before[1] + bench.PLACE_XY[1] - bench.PICK_XY[1])
