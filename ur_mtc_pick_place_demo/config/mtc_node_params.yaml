@@ -146,6 +146,7 @@ mtc_node:
     use_transit_clear_via: true
     transit_planner_id: "RRTConnectkConfigDefault"
     planning_robot_padding: 0.006
+    grasp_palm_margin: 0.015
     planning_support_inflation: 0.005
 
     # Grasp generation (critical fixes)

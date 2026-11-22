@@ -179,11 +179,12 @@ class ObjectDetectorNode(Node):
         # ------------------------------------------------------------------ #
         # Publishers
         # ------------------------------------------------------------------ #
-        self._pub_detected_objects = self.create_publisher(
-            # ur_interfaces must be importable at runtime
-            self._import_detected_object_array(),
-            '/detected_objects',
-            10,
+        # ur_interfaces must be importable at runtime; otherwise no publisher is
+        # created (publishing a wrong type would silently break subscribers).
+        _det_type = self._import_detected_object_array()
+        self._pub_detected_objects = (
+            self.create_publisher(_det_type, '/detected_objects', 10)
+            if _det_type is not None else None
         )
 
         self._pub_debug_image = self.create_publisher(
@@ -250,13 +251,13 @@ class ObjectDetectorNode(Node):
             self.get_logger().info("ur_interfaces messages imported successfully.")
             return DetectedObjectArray
         except ImportError:
-            self.get_logger().warn(
-                "ur_interfaces not found. /detected_objects will publish std_msgs/String as placeholder."
+            self.get_logger().error(
+                "ur_interfaces not found (build/source it). /detected_objects will NOT be "
+                "published: no detections reach downstream nodes until this is fixed."
             )
-            from std_msgs.msg import String
             self._DetectedObject = None
             self._DetectedObjectArray = None
-            return String
+            return None
 
     # ------------------------------------------------------------------ #
     # Callbacks
@@ -517,12 +518,12 @@ class ObjectDetectorNode(Node):
     # ------------------------------------------------------------------ #
 
     def _publish_detected_objects(self, objects_3d, stamp) -> None:
-        """Build and publish a DetectedObjectArray (or String placeholder)."""
-        if self._DetectedObjectArray is None:
-            from std_msgs.msg import String
-            msg = String()
-            msg.data = f"{len(objects_3d)} objects detected"
-            self._pub_detected_objects.publish(msg)
+        """Build and publish a DetectedObjectArray."""
+        if self._DetectedObjectArray is None or self._pub_detected_objects is None:
+            self.get_logger().error(
+                "ur_interfaces missing: dropping detections, /detected_objects not published",
+                throttle_duration_sec=5.0,
+            )
             return
 
         from ur_interfaces.msg import DetectedObjectArray, DetectedObject

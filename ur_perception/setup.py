@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'object_detector_node = ur_perception.object_detector_node:main',
+            'pose_to_scene_node = ur_perception.pose_to_scene_node:main',
         ],
     },
 )

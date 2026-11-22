@@ -37,6 +37,7 @@
 #include <limits>
 #include "ur_mtc_pick_place_demo/cluster_extraction.h"
 #include "ur_mtc_pick_place_demo/normals_curvature_and_rsd_estimation.h"
+#include "ur_mtc_pick_place_demo/cloud_filters.hpp"
 #include "ur_mtc_pick_place_demo/object_segmentation.h"
 #include "ur_mtc_pick_place_demo/plane_segmentation.h"
 #include <ur_interfaces/srv/get_planning_scene.hpp>
@@ -72,6 +73,11 @@ class GetPlanningSceneServer : public rclcpp::Node {
   }
 
  private:
+  // Cluster ids from the previous frame, so cylinder_2 stays cylinder_2 when
+  // Euclidean clustering emits the neighbours in a different order.
+  std::vector<ur_mtc::ObjectTrack> object_tracks_;
+  int object_track_seq_ = 0;
+
   // Parameters for inputs
   std::string point_cloud_topic;
   std::string rgb_image_topic;
@@ -236,6 +242,9 @@ class GetPlanningSceneServer : public rclcpp::Node {
     declare_parameter("simple_max_object_height", 0.20,
                       "Tallest cluster accepted as an object (m); taller clusters are robot links seen by the camera");
     declare_parameter("simple_min_object_height", 0.015, "Shortest object accepted by the fallback detector (m)");
+    declare_parameter("enable_robot_mask", true,
+                      "Drop cloud points within robot_mask_radius of any robot link frame known to TF (arm seen by the camera)");
+    declare_parameter("robot_mask_radius", 0.12, "Radius (m) around each robot link frame whose points are dropped");
 
     // Declare parameters for normal, curvature, and RSD estimation
     declare_parameter("k_neighbors", 30, "Number of neighbors to consider for normal estimation");
@@ -1052,14 +1061,40 @@ class GetPlanningSceneServer : public rclcpp::Node {
     plane_z = ground_z;
     plane_found = false;
 
+    // Robot self-mask: positions of link frames in target_frame (best effort; empty if TF is unavailable)
+    std::vector<Eigen::Vector3d> mask_centers;
+    const double mask_r = this->get_parameter("robot_mask_radius").as_double();
+    if (this->get_parameter("enable_robot_mask").as_bool() && mask_r > 0.0) {
+      try {
+        for (const auto& frame : tf_buffer_->getAllFrameNames()) {
+          if (frame == target_frame || frame == "world" || frame == "map" || frame == "odom") continue;
+          if (frame.find("camera") != std::string::npos || frame.find("optical") != std::string::npos) continue;
+          try {
+            auto tf = tf_buffer_->lookupTransform(target_frame, frame, tf2::TimePointZero);
+            mask_centers.emplace_back(tf.transform.translation.x, tf.transform.translation.y,
+                                      tf.transform.translation.z);
+          } catch (const tf2::TransformException&) {
+          }
+        }
+      } catch (const std::exception& e) {
+        RCLCPP_WARN(this->get_logger(), "[simple] robot mask unavailable: %s", e.what());
+      }
+      if (mask_centers.empty())
+        RCLCPP_WARN(this->get_logger(), "[simple] robot mask enabled but no link frames in TF; skipping mask");
+    }
+    size_t masked = 0;
+
     // 1. Crop to the workspace
     auto cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
     for (const auto& p : input->points) {
       if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) continue;
+      if (ur_mtc::pointNearLinks(p.x, p.y, p.z, mask_centers, mask_r)) { ++masked; continue; }
       if (enable_cropping && (p.x < crop_min_x || p.x > crop_max_x || p.y < crop_min_y ||
                               p.y > crop_max_y || p.z < crop_min_z || p.z > crop_max_z)) continue;
       cloud->push_back(p);
     }
+    RCLCPP_INFO(this->get_logger(), "[simple] robot mask dropped %zu points (%zu link frames, r=%.2f m)",
+                masked, mask_centers.size(), mask_r);
     RCLCPP_INFO(this->get_logger(), "[simple] %zu points after crop", cloud->size());
     if (cloud->size() < static_cast<size_t>(min_pts)) return result;
 
@@ -1140,8 +1175,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
       std::vector<double> zs;
       zs.reserve(ci.indices.size());
       for (int i : ci.indices) zs.push_back(objects_cloud->points[i].z);
-      std::sort(zs.begin(), zs.end());
-      const double ztop = zs[static_cast<size_t>(0.98 * (zs.size() - 1))];
+      const double ztop = ur_mtc::percentile(std::move(zs), 0.98);
       const double height = ztop - plane_z;
 
       // Footprint from the top face (fully visible from above, unlike the sides)
@@ -1183,7 +1217,7 @@ class GetPlanningSceneServer : public rclcpp::Node {
       const double ox = mx + c * ucen - s * vcen;
       const double oy = my + s * ucen + c * vcen;
 
-      if (std::max(w, l) > max_size || height < min_height || height > max_height || ox < min_x) {
+      if (ur_mtc::rejectBySize(w, l, height, ox, max_size, min_height, max_height, min_x)) {
         RCLCPP_INFO(this->get_logger(),
                     "[simple] skip cluster (%zu pts) at (%.3f, %.3f): footprint %.3fx%.3f height %.3f",
                     ci.indices.size(), ox, oy, w, l, height);
@@ -1291,6 +1325,21 @@ class GetPlanningSceneServer : public rclcpp::Node {
                   rms_rect, rms_circle, ci.indices.size());
       result.push_back(obj);
       ++idx;
+    }
+    if (!result.empty()) {
+      std::vector<std::string> shapes;
+      std::vector<double> xs, ys;
+      shapes.reserve(result.size());
+      for (const auto& obj : result) {
+        const bool cylinder = !obj.primitives.empty() &&
+            obj.primitives[0].type == shape_msgs::msg::SolidPrimitive::CYLINDER;
+        shapes.push_back(cylinder ? "cylinder" : "box");
+        xs.push_back(obj.primitive_poses[0].position.x);
+        ys.push_back(obj.primitive_poses[0].position.y);
+      }
+      const auto ids = ur_mtc::assignStableIds(
+          shapes, xs, ys, object_tracks_, 0.04, object_track_seq_);
+      for (size_t i = 0; i < result.size(); ++i) result[i].id = ids[i];
     }
     return result;
   }

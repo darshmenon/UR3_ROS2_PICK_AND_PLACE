@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -38,12 +39,15 @@ from rclpy.time import Time
 
 import tf2_ros
 
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped
+from moveit_msgs.msg import CollisionObject, PlanningScene
 from sensor_msgs.msg import PointCloud2, PointField
+from shape_msgs.msg import SolidPrimitive
 from std_msgs.msg import Header
 from std_srvs.srv import Trigger
 
 from ur_grasp.cylinder_grasp_detector import decode_pointcloud2, colour_mask
+from ur_perception.scene_geometry import axis_aligned_box
 
 try:
     import open3d as o3d
@@ -200,6 +204,7 @@ class ObjectReconstructorNode(Node):
         self.declare_parameter("icp_max_iteration", 30)
         self.declare_parameter("icp_min_fitness", 0.3)
         self.declare_parameter("icp_min_target_points", 50)
+        self.declare_parameter("publish_collision", True)
 
         self._camera_topic = self.get_parameter("camera_topic").value
         self._secondary_topic = str(self.get_parameter("secondary_camera_topic").value).strip()
@@ -255,6 +260,8 @@ class ObjectReconstructorNode(Node):
         self._cloud_pub = self.create_publisher(
             PointCloud2, "/ur_perception/reconstructed_points", 10
         )
+        self._scene_pub = self.create_publisher(PlanningScene, "/planning_scene", 10)
+        self._last_collision_pub = 0.0
 
         self.create_service(Trigger, "/ur_perception/reconstruct/start", self._start_cb)
         self.create_service(Trigger, "/ur_perception/reconstruct/stop", self._stop_cb)
@@ -377,6 +384,9 @@ class ObjectReconstructorNode(Node):
                     saved_msg += f", mesh to {mesh_path}"
                 else:
                     saved_msg += ", mesh export skipped (open3d missing or failed)"
+
+        if n_points > 0:
+            self._publish_collision(cloud, force=True)
 
         icp_msg = f", icp_refined={icp_refined}/{n_frames}" if self._use_icp else ""
         response.success = True
@@ -594,6 +604,39 @@ class ObjectReconstructorNode(Node):
         msg.is_dense = True
         msg.data = data.tobytes()
         self._cloud_pub.publish(msg)
+        self._publish_collision(cloud, force=False)
+
+    def _publish_collision(self, cloud: np.ndarray, force: bool) -> None:
+        """Axis-aligned box of the fused cloud, as a planning-scene collision object."""
+        if not _as_bool(self.get_parameter("publish_collision").value):
+            return
+        now = time.monotonic()
+        if not force and now - self._last_collision_pub < 2.0:
+            return
+        box = axis_aligned_box(cloud)
+        if box is None:
+            return
+        center, size = box
+        self._last_collision_pub = now
+        obj = CollisionObject()
+        obj.header.frame_id = BASE_FRAME
+        obj.header.stamp = self.get_clock().now().to_msg()
+        obj.id = "reconstructed_object"
+        prim = SolidPrimitive()
+        prim.type = SolidPrimitive.BOX
+        prim.dimensions = [float(size[0]), float(size[1]), float(size[2])]
+        pose = Pose()
+        pose.position.x = float(center[0])
+        pose.position.y = float(center[1])
+        pose.position.z = float(center[2])
+        pose.orientation.w = 1.0
+        obj.primitives.append(prim)
+        obj.primitive_poses.append(pose)
+        obj.operation = CollisionObject.ADD
+        scene = PlanningScene()
+        scene.is_diff = True
+        scene.world.collision_objects.append(obj)
+        self._scene_pub.publish(scene)
 
 
 def _write_ply(path: str, cloud: np.ndarray) -> None:

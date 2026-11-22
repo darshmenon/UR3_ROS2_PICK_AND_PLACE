@@ -4,14 +4,12 @@
 # controller/frame names and force_fallback_scene:true (Phase B decision:
 # no live perception dependency for the dual-arm pipeline).
 #
-# TODO placeholder geometry: object_pose/place_pose/fallback_support_pose
-# below are extrapolated from the single-arm mtc_node_params.yaml numbers,
-# shifted into "world" frame by the left arm's base offset
-# (x=0, y=+0.45, z=1.015 -- dual_ur.gazebo.launch.py defaults), assuming the
-# left arm's un-rotated (rpy=0) orientation faces +X same as single-arm.
-# NOT verified reachable -- needs tuning via a real headless launch (or an
-# offline KDL IK check) before this is a working demo, not just a wired-up
-# mechanism. See encapsulated-leaping-otter.md Phase B.1 open decision.
+# Poses are in the world frame (world_frame below). The left base is at
+# (0, +0.45, 1.015). Table top is 1.055 (support box centre 1.035, height 0.04).
+# Object centre is that top plus the 0.07 m half-height. Place xy is the
+# single-arm reachable place (0.35, -0.20) in the left base, which is world
+# (0.35, 0.25). A single-arm reach check treated z=1.075 as a base_link height
+# and reported a 365 mm error; that z is a world height, not a base height.
 # Wildcard node-name key, NOT "mtc_node:" -- this instance runs namespaced
 # (namespace:=left -> fully-qualified name /left/mtc_node), and ROS 2's
 # --params-file matches top-level keys against the FULLY-QUALIFIED node
@@ -46,10 +44,8 @@
     object_type: "cylinder"
     object_reference_frame: "world"
     object_dimensions: [0.14, 0.018]
-    # TODO placeholder -- see file header.
-    object_pose: [0.36, 0.45, 1.085, 0.0, 0.0, 0.0]
+    object_pose: [0.36, 0.45, 1.125, 0.0, 0.0, 0.0]
     fallback_support_dimensions: [0.30, 0.45, 0.04]
-    # TODO placeholder -- see file header.
     fallback_support_pose: [0.275, 0.45, 1.035, 0.0, 0.0, 0.0]
     force_fallback_scene: true
     support_min_z: -0.01
@@ -57,8 +53,11 @@
     move_group_wait_timeout: 30.0
 
     grasp_frame_transform: [0.0, 0.0, 0.135, 0.0, 3.14159, 0.0]  # top-down grasp
-    # TODO placeholder -- see file header.
-    place_pose: [-0.15, 0.20, 1.075, 0.0, 0.0, 0.0]
+    # Explicit values = mtc_node.cpp declare_parameter defaults (same as base mtc_node_params.yaml except pitches).
+    grasp_pad_offset: 0.130
+    grasp_palm_margin: 0.015
+    grasp_pitches: [3.14159, 2.7, 2.4]
+    place_pose: [0.35, 0.25, 1.055, 0.0, 0.0, 0.0]
 
     approach_object_min_dist: 0.05
     approach_object_max_dist: 0.3
@@ -69,6 +68,9 @@
     move_to_place_timeout: 40.0
 
     arm_transit_clear_pose: "transit_clear"
+    # Empty = stay where the retreat ends (cpp default). The dual SRDF has no "view_clear" arm state
+    # (states are unprefixed: home/ready/transit_clear/handover); add one before setting this.
+    arm_final_pose: ""
     use_transit_clear_via: true
     transit_planner_id: "RRTConnectkConfigDefault"
     planning_robot_padding: 0.004

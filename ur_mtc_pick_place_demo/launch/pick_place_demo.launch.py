@@ -56,7 +56,7 @@ def generate_launch_description():
         name='gripper',
         default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
         description='Gripper to attach to the robot',
-        choices=['robotiq_2f_85', 'robotiq_2f_140', 'onrobot_rg2', 'onrobot_rg6'])
+        choices=['robotiq_2f_85', 'robotiq_2f_140', 'onrobot_rg2', 'onrobot_rg6', 'robotiq_hande', 'dh_ag95'])
 
     declare_exe_cmd = DeclareLaunchArgument(
         name="exe",
@@ -98,6 +98,12 @@ def generate_launch_description():
                     "mtc_node_params_left.yaml). Empty means use the gripper-based "
                     "default (mtc_node_params.yaml / _onrobot.yaml).")
 
+    declare_mtc_param_overrides_cmd = DeclareLaunchArgument(
+        name="mtc_param_overrides",
+        default_value="",
+        description="Optional second params YAML applied after the gripper file "
+                    "(later keys win). Empty leaves the gripper file unchanged.")
+
     declare_use_dual_arm_cmd = DeclareLaunchArgument(
         name="use_dual_arm",
         default_value="false",
@@ -113,6 +119,7 @@ def generate_launch_description():
         gripper_str = gripper.perform(context)
         namespace_str = LaunchConfiguration('namespace').perform(context)
         mtc_node_params_override = LaunchConfiguration('mtc_node_params_file').perform(context)
+        mtc_param_overrides = LaunchConfiguration('mtc_param_overrides').perform(context)
         use_dual_arm = LaunchConfiguration('use_dual_arm').perform(context) == 'true'
         table_height_str = LaunchConfiguration('table_height').perform(context)
 
@@ -143,6 +150,10 @@ def generate_launch_description():
             kinematics_file_path = os.path.join(config_path, 'kinematics.yaml')
             if gripper_str in ('onrobot_rg2', 'onrobot_rg6'):
                 moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers_onrobot.yaml')
+            elif gripper_str == 'robotiq_hande':
+                moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers_hande.yaml')
+            elif gripper_str == 'dh_ag95':
+                moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers_ag95.yaml')
             else:
                 moveit_controllers_file_path = os.path.join(config_path, 'moveit_controllers.yaml')
             srdf_model_path = os.path.join(config_path, 'ur.srdf.xacro')
@@ -153,6 +164,10 @@ def generate_launch_description():
             mtc_node_params_file_path = mtc_node_params_override
         elif gripper_str == 'robotiq_2f_140':
             mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_robotiq_2f_140.yaml')
+        elif gripper_str == 'robotiq_hande':
+            mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_robotiq_hande.yaml')
+        elif gripper_str == 'dh_ag95':
+            mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_dh_ag95.yaml')
         elif gripper_str == 'onrobot_rg6':
             mtc_node_params_file_path = os.path.join(mtc_node_config_path, 'mtc_node_params_onrobot_rg6.yaml')
         elif gripper_str == 'onrobot_rg2':
@@ -184,18 +199,22 @@ def generate_launch_description():
         )
 
         # Create MTC demo node
+        mtc_parameters = [
+            moveit_config.to_dict(),
+            {'use_sim_time': use_sim_time},
+            {'start_state': {'content': initial_positions_file_path}},
+            mtc_node_params_file_path,
+        ]
+        if mtc_param_overrides:
+            mtc_parameters.append(mtc_param_overrides)
+        mtc_parameters.append({'auto_run_on_startup': auto_run_on_startup})
+
         mtc_demo_node = Node(
             package="ur_mtc_pick_place_demo",
             executable=exe,
             namespace=namespace_str,
             output="screen",
-            parameters=[
-                moveit_config.to_dict(),
-                {'use_sim_time': use_sim_time},
-                {'start_state': {'content': initial_positions_file_path}},
-                mtc_node_params_file_path,
-                {'auto_run_on_startup': auto_run_on_startup},
-            ],
+            parameters=mtc_parameters,
             # execute_task_solution is a relative action client lookup inside
             # mtc_node's executeSolution() -- under a namespace push it would
             # otherwise resolve to /<namespace>/execute_task_solution, but
@@ -232,6 +251,7 @@ def generate_launch_description():
     ld.add_action(declare_table_height_cmd)
     ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_mtc_node_params_file_cmd)
+    ld.add_action(declare_mtc_param_overrides_cmd)
     ld.add_action(declare_use_dual_arm_cmd)
 
     # Add the setup and node creation

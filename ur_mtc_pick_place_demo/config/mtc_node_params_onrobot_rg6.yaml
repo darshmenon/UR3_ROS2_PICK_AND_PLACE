@@ -126,8 +126,12 @@ mtc_node:
     grasp_frame_transform: [0.0, 0.0, 0.0, 0.0, 3.14159, 0.0]  # top-down grasp; frame is already at the pads
     # Pad centre distance from gripper_frame (robotiq_arg2f_base_link -> *_inner_finger_pad, from TF).
     grasp_pad_offset: 0.0   # pads sit at gripper_grasp_frame (RG2/RG6 URDF: within 6 mm)
+    grasp_squeeze_margin: 0.004   # same as the C++ default; not yet tuned for OnRobot
     # Approach pitches for the grasp ladder; 3.14159 = straight top-down.
-    grasp_pitches: [3.14159]
+    # Straight down (pi) is the wrist singularity and the long RG6 body meets the
+    # camera pole there, so KDL returns no grasp IK. The tilted pitches are the
+    # same ladder the 2F-85 uses to get off that singularity.
+    grasp_pitches: [3.14159, 2.8, 2.6]
     # Place on the pick table at the world's drop_zone (0.35, 0.20). z is the SURFACE height (table top,
     # 0.04 in base_link); mtc_node adds place_pose_z_offset_factor * object_height for the object centre.
     place_pose: [0.35, 0.20, 0.04, 0.0, 0.0, 0.0]
@@ -150,7 +154,8 @@ mtc_node:
     arm_final_pose: "view_clear"   # after a place, leave the arm where the camera sees the table (no arm clusters next run)
     use_transit_clear_via: true
     transit_planner_id: "RRTConnectkConfigDefault"
-    planning_robot_padding: 0.0
+    planning_robot_padding: 0.006
+    grasp_palm_margin: 0.015   # base value; palm_reach in mtc_node.cpp is Robotiq-derived, untuned for OnRobot
     planning_support_inflation: 0.005
 
     # Grasp generation (critical fixes)
@@ -158,7 +163,7 @@ mtc_node:
     # Was 25 / 0.5 — with KDL near top-down poses, demanding 25 mutually
     # ≥0.5rad-apart solutions burns the timeout and yields 0 successes.
     # Prefer fewer solutions so each setFromIK call can finish.
-    grasp_pose_max_ik_solutions: 1
+    grasp_pose_max_ik_solutions: 8
     grasp_pose_min_solution_distance: 0.1
 
     # Place generation

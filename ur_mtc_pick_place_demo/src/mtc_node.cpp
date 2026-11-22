@@ -46,6 +46,7 @@
 #include <moveit_task_constructor_msgs/action/execute_task_solution.hpp>
 #include <moveit_task_constructor_msgs/msg/solution.hpp>
 #include <moveit_msgs/srv/get_planning_scene.hpp>
+#include <moveit_msgs/msg/planning_scene_components.hpp>
 #include <moveit_msgs/srv/apply_planning_scene.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <moveit_msgs/msg/planning_scene.hpp>
@@ -65,6 +66,7 @@
 
 // Handling the GetPlanningScene service
 #include "ur_mtc_pick_place_demo/get_planning_scene_client.h"
+#include <sensor_msgs/msg/joint_state.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
@@ -151,6 +153,17 @@ void logAllFailures(const rclcpp::Logger& logger, const moveit::task_constructor
       return true;  // keep descending; this stage succeeded
     }
     if (dynamic_cast<const moveit::task_constructor::ContainerBase*>(&stage) != nullptr) {
+      if (stage.numFailures() > 0) {
+        std::map<std::string, size_t> reason_counts;
+        for (const auto& failure : stage.failures()) {
+          reason_counts[failure->comment()]++;
+        }
+        std::ostringstream reasons;
+        for (const auto& [comment, count] : reason_counts) {
+          reasons << "\n    (" << count << "x) " << comment;
+        }
+        RCLCPP_ERROR(logger, "  %s (0/%zu):%s", stage.name().c_str(), stage.numFailures(), reasons.str().c_str());
+      }
       return true;  // keep descending; let its children report individually
     }
     if (stage.numFailures() == 0) {
@@ -267,6 +280,7 @@ public:
   MTCTaskNode(const rclcpp::NodeOptions& options);
 
   bool doTask();
+  bool planAndExecute();
   void setupPlanningScene();
 
   // One full attempt: fresh perception read (setupPlanningScene) + fresh
@@ -277,7 +291,13 @@ public:
 
 private:
   mtc::Task task_;
+  // Empty: createTask reads the task_part parameter. doTask sets this to
+  // "pick" then "place" when task_part is "split".
+  std::string task_part_;
+  sensor_msgs::msg::JointState last_joint_state_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
   mtc::Task createTask();
+  void logSceneComparison(const std::string& tag);
 
   void handleRunPickPlace(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
                           std::shared_ptr<std_srvs::srv::Trigger::Response> response);
@@ -327,6 +347,15 @@ MTCTaskNode::MTCTaskNode(const rclcpp::NodeOptions& options)
 
   // General parameters
   declare_parameter("execute", true, "Whether to execute the planned task");
+  declare_parameter("task_part", "full",
+                    "full runs pick and place as one task. split plans and executes the pick, logs the finger "
+                    "position, then plans the place from the live state. pick or place run that half only.");
+  declare_parameter("linear_planner", "cartesian",
+                    "cartesian (MoveIt CartesianPath) or pilz_lin for approach, lift, lower and retreat. "
+                    "CartesianPath is the default: Pilz LIN inside MTC is a joint-goal request and is not "
+                    "the pose-constraint LIN MotionExecutor uses for the last centimetres.");
+  declare_parameter("retreat_velocity_scaling", 0.0,
+                    "If > 0, retreat uses its own Cartesian speed scale. 0 keeps the approach scale.");
   declare_parameter("max_solutions", 25, "Maximum number of solutions to compute");
   // Failures seen this project are RRTConnect random-seed variance (a
   // different link/obstacle grazed each run, ~25% raw success rate observed
@@ -409,7 +438,10 @@ declare_parameter("grasp_frame_transform",
   declare_parameter("grasp_pitches", std::vector<double>{ 3.14159, 2.7, 2.4 }, "Approach pitches to try for the grasp ladder (rad); pi = straight top-down");
   declare_parameter("gripper_joint_name", "finger_joint", "Actuated gripper joint commanded when closing onto an object's width");
   declare_parameter("gripper_closed_value", 0.8, "Actuated joint value at fully closed (2F-85: 0.8 rad; OnRobot RG2/RG6: 1.3 rad)");
+  declare_parameter("gripper_open_value", 0.0,
+                    "Actuated joint value at fully open. 0 for 2F/RG/AG95. This URDF's Hand-E is 0.025 (the joint decreases when closing).");
   declare_parameter("gripper_stroke", 0.085, "Opening width at fully open (m); 2F-85 0.085, RG2 0.110, RG6 0.160");
+  declare_parameter("grasp_palm_margin", 0.015, "Clearance (m) kept between the palm and the top of the object when picking; the pads are held no lower than this allows, so a larger value grips higher above the centre of mass and a tall object can pivot between the pads");
   declare_parameter("grasp_squeeze_margin", 0.004, "How far (m) the commanded finger gap is below the object width when closing; the pads interfere by this much, so a large value squeezes hard and can pop or tilt a light object");
   declare_parameter("grasp_pad_offset", 0.130, "Distance from gripper_frame to the finger pad centres along its z axis (m); measured via TF");
   declare_parameter("grasp_pose_max_ik_solutions", 25, "Maximum number of IK solutions for grasp pose generation");
@@ -444,6 +476,10 @@ declare_parameter("grasp_frame_transform",
   run_pick_place_service_ = this->create_service<std_srvs::srv::Trigger>(
     "run_pick_place",
     std::bind(&MTCTaskNode::handleRunPickPlace, this, std::placeholders::_1, std::placeholders::_2));
+
+  joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
+      "/joint_states", 10,
+      [this](const sensor_msgs::msg::JointState::SharedPtr msg) { last_joint_state_ = *msg; });
 }
 
 void MTCTaskNode::handleRunPickPlace(const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
@@ -676,6 +712,57 @@ void MTCTaskNode::installFallbackSupportAndTarget(
 /**
  * @brief Set up the planning scene with collision objects.
  */
+void MTCTaskNode::logSceneComparison(const std::string& tag)
+{
+  auto describe = [this, &tag](const std::string& side, const moveit_msgs::msg::CollisionObject& object) {
+    if (object.primitives.empty()) {
+      RCLCPP_INFO(this->get_logger(), "[scene-compare] %s %s id=%s primitives=0",
+                  tag.c_str(), side.c_str(), object.id.c_str());
+      return;
+    }
+    std::ostringstream dims;
+    for (size_t i = 0; i < object.primitives[0].dimensions.size(); ++i) {
+      if (i) dims << ",";
+      dims << object.primitives[0].dimensions[i];
+    }
+    const auto pose = object.primitive_poses.empty() ? geometry_msgs::msg::Pose() : object.primitive_poses[0];
+    RCLCPP_INFO(this->get_logger(),
+                "[scene-compare] %s %s id=%s type=%u dims=[%s] pose=(%.4f, %.4f, %.4f)",
+                tag.c_str(), side.c_str(), object.id.c_str(), object.primitives[0].type, dims.str().c_str(),
+                pose.position.x, pose.position.y, pose.position.z);
+  };
+  for (const auto& object : scene_world_.collision_objects) describe("mtc", object);
+
+  auto client = this->create_client<moveit_msgs::srv::GetPlanningScene>("/get_planning_scene");
+  if (!client->wait_for_service(std::chrono::seconds(2))) {
+    RCLCPP_WARN(this->get_logger(), "[scene-compare] %s move_group scene unavailable", tag.c_str());
+    return;
+  }
+  auto request = std::make_shared<moveit_msgs::srv::GetPlanningScene::Request>();
+  request->components.components =
+      moveit_msgs::msg::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY |
+      moveit_msgs::msg::PlanningSceneComponents::LINK_PADDING_AND_SCALING;
+  auto future = client->async_send_request(request);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+  while (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready &&
+         std::chrono::steady_clock::now() < deadline) {
+    rclcpp::sleep_for(std::chrono::milliseconds(50));
+  }
+  if (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+    RCLCPP_WARN(this->get_logger(), "[scene-compare] %s move_group scene timed out", tag.c_str());
+    return;
+  }
+  const auto scene = future.get()->scene;
+  for (const auto& object : scene.world.collision_objects) describe("move_group", object);
+  if (scene.link_padding.empty()) {
+    RCLCPP_INFO(this->get_logger(), "[scene-compare] %s move_group link padding: none", tag.c_str());
+  }
+  for (const auto& pad : scene.link_padding) {
+    RCLCPP_INFO(this->get_logger(), "[scene-compare] %s move_group padding %s=%.4f",
+                tag.c_str(), pad.link_name.c_str(), pad.padding);
+  }
+}
+
 void MTCTaskNode::setupPlanningScene()
 {
   const double wait_timeout = this->get_parameter("move_group_wait_timeout").as_double();
@@ -741,12 +828,14 @@ void MTCTaskNode::setupPlanningScene()
           if (o.id == target_object_id_ || o.id == support_surface_id_) continue;
           for (auto& prim : o.primitives) {
             if (prim.type == shape_msgs::msg::SolidPrimitive::CYLINDER && prim.dimensions.size() >= 2) {
-              prim.dimensions[0] += margin;          // height (one-sided: the base sits on the table)
+              prim.dimensions[0] += margin;          // height, then the pose is raised so the base stays put
               prim.dimensions[1] += margin;          // radius
+              if (!o.primitive_poses.empty()) o.primitive_poses[0].position.z += 0.5 * margin;
             } else if (prim.type == shape_msgs::msg::SolidPrimitive::BOX && prim.dimensions.size() >= 3) {
               prim.dimensions[0] += 2.0 * margin;
               prim.dimensions[1] += 2.0 * margin;
-              prim.dimensions[2] += margin;
+              prim.dimensions[2] += margin;          // height, raised with the pose so it does not sink into the table
+              if (!o.primitive_poses.empty()) o.primitive_poses[0].position.z += 0.5 * margin;
             }
           }
         }
@@ -754,7 +843,9 @@ void MTCTaskNode::setupPlanningScene()
     }
     if (!scene_world_.collision_objects.empty()) {
       psi.addCollisionObjects(scene_world_.collision_objects);
+      logSceneComparison("before-delay");
       rclcpp::sleep_for(std::chrono::milliseconds(3000));
+      logSceneComparison("after-3s-delay");
       RCLCPP_INFO(this->get_logger(), "Successfully added %zu collision objects to the planning scene",
                   scene_world_.collision_objects.size());
     }
@@ -798,6 +889,7 @@ void MTCTaskNode::setupPlanningScene()
   }
 
   applyPlanningPadding();
+  logSceneComparison("after-padding");
 
   RCLCPP_INFO(this->get_logger(), "Planning scene setup completed");
 }
@@ -924,6 +1016,39 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
 
 bool MTCTaskNode::doTask()
 {
+  const std::string configured = this->get_parameter("task_part").as_string();
+  if (configured == "split") {
+    RCLCPP_INFO(this->get_logger(), "Split pick and place: planning the pick first");
+    task_part_ = "pick";
+    if (!planAndExecute()) {
+      task_part_.clear();
+      return false;
+    }
+    const std::string joint = this->get_parameter("gripper_joint_name").as_string();
+    const auto it = std::find(last_joint_state_.name.begin(), last_joint_state_.name.end(), joint);
+    if (it == last_joint_state_.name.end()) {
+      RCLCPP_WARN(this->get_logger(),
+                  "Split confirm: no reading for %s yet. Place will plan from the live arm anyway.",
+                  joint.c_str());
+    } else {
+      const double pos = last_joint_state_.position[static_cast<size_t>(it - last_joint_state_.name.begin())];
+      const double closed = this->get_parameter("gripper_closed_value").as_double();
+      RCLCPP_INFO(this->get_logger(),
+                  "Split confirm: %s=%.3f (fully closed is %.3f; short of that means the fingers are on the object)",
+                  joint.c_str(), pos, closed);
+    }
+    RCLCPP_INFO(this->get_logger(), "Split pick and place: planning the place from the live state");
+    task_part_ = "place";
+    const bool ok = planAndExecute();
+    task_part_.clear();
+    return ok;
+  }
+  task_part_.clear();
+  return planAndExecute();
+}
+
+bool MTCTaskNode::planAndExecute()
+{
   RCLCPP_INFO(this->get_logger(), "Starting the pick and place task");
 
   task_ = createTask();
@@ -1017,6 +1142,10 @@ mtc::Task MTCTaskNode::createTask()
   // Get parameters
   // Robot configuration parameters
   auto arm_group_name = this->get_parameter("arm_group_name").as_string();
+  const std::string task_part = task_part_.empty()
+      ? this->get_parameter("task_part").as_string() : task_part_;
+  const bool do_pick = task_part != "place";
+  const bool do_place = task_part != "pick";
   auto gripper_group_name = this->get_parameter("gripper_group_name").as_string();
   auto gripper_frame = this->get_parameter("gripper_frame").as_string();
   auto arm_home_pose = this->get_parameter("arm_home_pose").as_string();
@@ -1030,6 +1159,7 @@ mtc::Task MTCTaskNode::createTask()
   auto gripper_close_pose = this->get_parameter("gripper_close_pose").as_string();
   const auto gripper_joint_name = this->get_parameter("gripper_joint_name").as_string();
   const double gripper_closed_value = this->get_parameter("gripper_closed_value").as_double();
+  const double gripper_open_value = this->get_parameter("gripper_open_value").as_double();
   const double gripper_stroke = this->get_parameter("gripper_stroke").as_double();
 
   // Frame parameters
@@ -1140,6 +1270,28 @@ mtc::Task MTCTaskNode::createTask()
   cartesian_planner->setStepSize(cartesian_step_size);
   RCLCPP_INFO(this->get_logger(), "Cartesian planner created");
 
+  const std::string linear_planner_name = this->get_parameter("linear_planner").as_string();
+  mtc::solvers::PlannerInterfacePtr linear_planner = cartesian_planner;
+  if (linear_planner_name == "pilz_lin") {
+    auto pilz_lin = std::make_shared<mtc::solvers::PipelinePlanner>(
+        this->shared_from_this(), "pilz_industrial_motion_planner");
+    pilz_lin->setPlannerId("LIN");
+    pilz_lin->setMaxVelocityScalingFactor(cartesian_max_velocity_scaling);
+    pilz_lin->setMaxAccelerationScalingFactor(cartesian_max_acceleration_scaling);
+    linear_planner = pilz_lin;
+    RCLCPP_INFO(this->get_logger(), "Approach, lift, lower and retreat use Pilz LIN");
+  }
+  mtc::solvers::PlannerInterfacePtr retreat_planner = linear_planner;
+  const double retreat_scale = this->get_parameter("retreat_velocity_scaling").as_double();
+  if (retreat_scale > 0.0 && linear_planner_name != "pilz_lin") {
+    auto slower = std::make_shared<mtc::solvers::CartesianPath>();
+    slower->setMaxVelocityScalingFactor(retreat_scale);
+    slower->setMaxAccelerationScalingFactor(retreat_scale);
+    slower->setStepSize(cartesian_step_size);
+    retreat_planner = slower;
+    RCLCPP_INFO(this->get_logger(), "Retreat velocity scale %.3f", retreat_scale);
+  }
+
   // Set task properties
   task.setProperty("group", arm_group_name); // The main planning group
   task.setProperty("eef", gripper_group_name); // The end-effector group
@@ -1158,6 +1310,27 @@ mtc::Task MTCTaskNode::createTask()
   current_state_ptr = stage_state_current.get();
   task.add(std::move(stage_state_current));
 
+  auto make_connect_with_fallbacks = [&](const std::string& name, double timeout) {
+    auto fallbacks = std::make_unique<mtc::Fallbacks>(name);
+    for (const std::string& planner_id :
+         { transit_planner_id, std::string("BiTRRTkConfigDefault"), std::string("LazyPRMstarkConfigDefault") }) {
+      auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(this->shared_from_this(), "ompl");
+      planner->setPlannerId(planner_id);
+      auto connect = std::make_unique<mtc::stages::Connect>(
+          name + " (" + planner_id + ")",
+          mtc::stages::Connect::GroupPlannerVector{ { arm_group_name, planner } });
+      connect->setTimeout(timeout);
+      connect->properties().configureInitFrom(mtc::Stage::PARENT);
+      connect->properties().set(
+          "trajectory_execution_info",
+          mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
+      fallbacks->add(std::move(connect));
+    }
+    return fallbacks;
+  };
+  mtc::Stage* attach_object_stage = nullptr;
+
+  if (do_pick) {
   /****************************************************
    *                                                  *
    *               Open Gripper                       *
@@ -1179,10 +1352,10 @@ mtc::Task MTCTaskNode::createTask()
                                ->getJointModelGroup(gripper_group_name)
                                ->getLinkModelNamesWithCollisionGeometry(),
                            true);
-    task.add(std::move(stage));
     // The arm's base is bolted to the table, so the perceived table slab always overlaps it. This only
     // shows once MTC's robot model sits at the real mount height (table_height); never re-forbidden.
     stage->allowCollisions({ support_surface_id_ }, std::vector<std::string>{ "base_link", "base_link_inertia" }, true);
+    task.add(std::move(stage));
   }
   auto stage_open_gripper =
     std::make_unique<mtc::stages::MoveTo>("open gripper", interpolation_planner);
@@ -1254,36 +1427,11 @@ mtc::Task MTCTaskNode::createTask()
   // fail in different ways. Arm only — gripper is already opened in the
   // previous stage; including it made Connect fail to link the successful
   // grasp IK solutions back to the start state.
-  auto make_connect_with_fallbacks = [&](const std::string& name, double timeout) {
-    auto fallbacks = std::make_unique<mtc::Fallbacks>(name);
-    for (const std::string planner_id :
-         { transit_planner_id, std::string("BiTRRTkConfigDefault"), std::string("LazyPRMstarkConfigDefault") }) {
-      auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(this->shared_from_this(), "ompl");
-      planner->setPlannerId(planner_id);
-      auto connect = std::make_unique<mtc::stages::Connect>(
-          name + " (" + planner_id + ")",
-          mtc::stages::Connect::GroupPlannerVector{ { arm_group_name, planner } });
-      connect->setTimeout(timeout);
-      connect->properties().configureInitFrom(mtc::Stage::PARENT);
-      connect->properties().set(
-          "trajectory_execution_info",
-          mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
-      fallbacks->add(std::move(connect));
-    }
-    return fallbacks;
-  };
   // Transit uses joint via + planning padding; path constraints previously
   // made OMPL find nothing within 40s and were reverted.
   task.add(make_connect_with_fallbacks("move to pick", move_to_pick_timeout / 2.0));
   (void)ompl_planner_arm;  // available for non-transit stages if needed later
   (void)arm_home_pose;
-
-  // Create a pointer for the stage that will attach the object (to be used later)
-  // By declaring it at the top level of the function, it can be accessed throughout
-  // the entire task creation process.
-  // This allows different parts of the code to use and modify this pointer.
-  mtc::Stage* attach_object_stage =
-      nullptr;  // Forward attach_object_stage to place pose generator
 
   /****************************************************
    *                                                  *
@@ -1305,8 +1453,26 @@ mtc::Task MTCTaskNode::createTask()
       // Create a stage for moving the gripper close to the object before trying to grab it.
       // We are doing a movement that is relative to our current position.
       // Cartesian planner will move the gripper in a straight line
+      std::vector<std::string> arm_links;
+      if (const auto* arm = task.getRobotModel()->getJointModelGroup(arm_group_name)) {
+        for (const auto& link : arm->getLinkModelNames()) {
+          if (link.find("upper_arm_link") != std::string::npos ||
+              link.find("forearm_link") != std::string::npos) {
+            arm_links.push_back(link);
+          }
+        }
+      }
+      // The upper arm sweeps the target on the way in (move_group then aborts
+      // with "path became invalid"). Allow that pair only for this approach;
+      // the close and the lift forbid it again.
+      if (!arm_links.empty()) {
+        auto allow = std::make_unique<mtc::stages::ModifyPlanningScene>(
+            "allow collision (upper_arm,object)");
+        allow->allowCollisions(object_name, arm_links, true);
+        grasp->insert(std::move(allow));
+      }
       auto stage =
-        std::make_unique<mtc::stages::MoveRelative>("approach object", cartesian_planner);
+        std::make_unique<mtc::stages::MoveRelative>("approach object", linear_planner);
 
       // Set properties for visualization and planning
       stage->properties().set("marker_ns", "approach_object"); // Namespace for visualization markers
@@ -1322,6 +1488,12 @@ mtc::Task MTCTaskNode::createTask()
       vec.vector.z = approach_object_direction_z; // Set the direction (in this case, along the z-axis of the gripper frame)
       stage->setDirection(vec);
       grasp->insert(std::move(stage));
+      if (!arm_links.empty()) {
+        auto forbid = std::make_unique<mtc::stages::ModifyPlanningScene>(
+            "forbid collision (upper_arm,object)");
+        forbid->allowCollisions(object_name, arm_links, false);
+        grasp->insert(std::move(forbid));
+      }
     }
 
     /****************************************************
@@ -1373,7 +1545,7 @@ mtc::Task MTCTaskNode::createTask()
       // ~0.09 m past the gripper frame, so the frame must be >= top + 0.09 + margin. For a 5 cm cube that is
       // satisfied at the centre; a 9 cm box or 8 cm cylinder would otherwise have the palm sitting on top of it
       // and push it over while the fingers close.
-      const double palm_reach = 0.09, palm_margin = 0.015;
+      const double palm_reach = 0.09, palm_margin = this->get_parameter("grasp_palm_margin").as_double();
       const double palm_clear_hold = object_half_height + palm_reach + palm_margin - grasp_pad_offset;
       const double grasp_hold_height = std::min(max_depth, std::max(0.005, palm_clear_hold));
 
@@ -1471,10 +1643,10 @@ mtc::Task MTCTaskNode::createTask()
         ->getJointModelGroup(gripper_group_name)
         ->getLinkModelNamesWithCollisionGeometry(),
         true);
-      grasp->insert(std::move(stage));
       // Arm base sits on the table slab; the grasp-IK states come from a generator that never saw the
       // allowance added at the start of the task, so repeat it here.
       stage->allowCollisions({ support_surface_id_ }, std::vector<std::string>{ "base_link", "base_link_inertia" }, true);
+      grasp->insert(std::move(stage));
     }
     {
       auto stage = std::make_unique<mtc::stages::ModifyPlanningScene>("allow collision (gripper,support_surface)");
@@ -1503,8 +1675,18 @@ mtc::Task MTCTaskNode::createTask()
         grasp_width = 2.0 * object_dimensions[1];
       }
       if (grasp_width > 0.01 && grasp_width < gripper_stroke - 0.005) {
-        const double close_target = std::clamp(
-            gripper_closed_value * (1.0 - (grasp_width - grasp_squeeze_margin) / gripper_stroke), 0.05, gripper_closed_value);
+        const double closed_fraction =
+            1.0 - (grasp_width - grasp_squeeze_margin) / gripper_stroke;
+        double close_target;
+        if (gripper_closed_value + 1e-9 >= gripper_open_value) {
+          const double hi = gripper_closed_value;
+          const double lo = std::min(0.05, hi);
+          close_target = std::clamp(gripper_closed_value * closed_fraction, lo, hi);
+        } else {
+          // Joint decreases toward closed (this URDF's Hand-E). clamp(x, 0.05, 0) is undefined.
+          close_target = gripper_open_value + (gripper_closed_value - gripper_open_value) * closed_fraction;
+          close_target = std::clamp(close_target, gripper_closed_value, gripper_open_value);
+        }
         RCLCPP_INFO(this->get_logger(), "Closing gripper to %s=%.3f for object width %.3f m",
                     gripper_joint_name.c_str(), close_target, grasp_width);
         stage->setGoal(std::map<std::string, double>{ { gripper_joint_name, close_target } });
@@ -1541,7 +1723,7 @@ mtc::Task MTCTaskNode::createTask()
 ---- *       Lift object                               *
      ***************************************************/
     {
-      auto stage = std::make_unique<mtc::stages::MoveRelative>("lift object", cartesian_planner);
+      auto stage = std::make_unique<mtc::stages::MoveRelative>("lift object", linear_planner);
       stage->properties().configureInitFrom(mtc::Stage::PARENT, { "group" });
       stage->setMinMaxDistance(lift_object_min_dist, lift_object_max_dist);
       stage->setIKFrame(gripper_frame);
@@ -1583,6 +1765,27 @@ mtc::Task MTCTaskNode::createTask()
       // and lifting the object
       task.add(std::move(grasp));
   }
+  }  // do_pick
+  // A place-only task has no attach stage. The pick execution already forbade
+  // object-vs-table collision after the lift, so a release 5-20 mm up is in
+  // collision and ComputeIK returns nothing. Re-attach and allow that pair,
+  // matching the scene the full task's place pose monitors (the attach stage,
+  // which still allows the object to touch the table).
+  mtc::Stage* place_pose_monitor = attach_object_stage;
+  if (do_place && !do_pick) {
+    auto held = std::make_unique<mtc::stages::ModifyPlanningScene>("held object");
+    held->attachObject(object_name, gripper_frame);
+    held->allowCollisions(
+        object_name,
+        task.getRobotModel()
+            ->getJointModelGroup(gripper_group_name)
+            ->getLinkModelNamesWithCollisionGeometry(),
+        true);
+    held->allowCollisions({ object_name }, { support_surface_id_ }, true);
+    place_pose_monitor = held.get();
+    task.add(std::move(held));
+  }
+  if (do_place) {
   /******************************************************
    *                                                    *
    *          Move to Place                             *
@@ -1610,7 +1813,7 @@ mtc::Task MTCTaskNode::createTask()
 ---- *          Lower Object                              *
      *****************************************************/
     {
-      auto stage = std::make_unique<mtc::stages::MoveRelative>("lower object", cartesian_planner);
+      auto stage = std::make_unique<mtc::stages::MoveRelative>("lower object", linear_planner);
       stage->properties().set("marker_ns", "lower_object");
       stage->properties().set("link", gripper_frame);
       stage->properties().set("trajectory_execution_info",
@@ -1671,7 +1874,7 @@ mtc::Task MTCTaskNode::createTask()
         stage->properties().configureInitFrom(mtc::Stage::PARENT);
         stage->properties().set("marker_ns", "place_pose");
         stage->setPose(grasp_pose);
-        stage->setMonitoredStage(attach_object_stage);
+        stage->setMonitoredStage(place_pose_monitor ? place_pose_monitor : current_state_ptr);
 
         auto wrapper = std::make_unique<mtc::stages::ComputeIK>(
           "place pose IK " + std::to_string(idx), std::move(stage));
@@ -1722,7 +1925,7 @@ mtc::Task MTCTaskNode::createTask()
 ---- *          Retreat Motion                            *
      *****************************************************/
     {
-      auto stage = std::make_unique<mtc::stages::MoveRelative>("retreat after place", cartesian_planner);
+      auto stage = std::make_unique<mtc::stages::MoveRelative>("retreat after place", retreat_planner);
       stage->properties().set("trajectory_execution_info",
         mtc::TrajectoryExecutionInfo().set__controller_names(controller_names));
       stage->properties().configureInitFrom(mtc::Stage::PARENT, { "group" });
@@ -1767,6 +1970,7 @@ mtc::Task MTCTaskNode::createTask()
     task.add(std::move(final_fallbacks));
     RCLCPP_INFO(this->get_logger(), "Added final move to '%s' after the place", arm_final_pose.c_str());
   }
+  }  // do_place
 
   return task;
 }

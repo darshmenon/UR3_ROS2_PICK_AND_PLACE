@@ -199,6 +199,13 @@ if(BUILD_TESTING)
     normals_curvature_and_rsd_estimation
     ${PCL_LIBS}
   )
+
+  ament_add_gtest(test_cloud_filters test/test_cloud_filters.cpp)
+  target_include_directories(test_cloud_filters PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    ${PCL_INCLUDE_DIRS}
+  )
+  ament_target_dependencies(test_cloud_filters ${dependencies})
 endif()
 
 # Export and package

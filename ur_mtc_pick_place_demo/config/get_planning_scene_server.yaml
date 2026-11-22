@@ -21,6 +21,10 @@ get_planning_scene_server:
     crop_min_z: -0.02
     crop_max_z: 0.60
 
+    # Drop cloud points near robot link frames (TF) so the arm is not clustered as an object
+    enable_robot_mask: true
+    robot_mask_radius: 0.12
+
     # Plane and object segmentation parameters
     max_iterations: 100
     distance_threshold: 0.01
