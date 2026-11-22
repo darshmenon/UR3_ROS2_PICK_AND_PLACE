@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!-- cuRobo / isaac_ros_cumotion c-space for this UR3.
+     Not loaded by any launch. isaac_ros_cumotion is not installed here, and
+     the live MoveIt pipelines stay ompl + pilz_industrial_motion_planner.
+     Joint origins match ur_description/config/ur3/default_kinematics.yaml. -->
+<robot name="ur3">
+  <cspace>
+    <joint name="shoulder_pan_joint"/>
+    <joint name="shoulder_lift_joint"/>
+    <joint name="elbow_joint"/>
+    <joint name="wrist_1_joint"/>
+    <joint name="wrist_2_joint"/>
+    <joint name="wrist_3_joint"/>
+    <acceleration_limits>
+      <limit joint="shoulder_pan_joint" value="8.0"/>
+      <limit joint="shoulder_lift_joint" value="8.0"/>
+      <limit joint="elbow_joint" value="8.0"/>
+      <limit joint="wrist_1_joint" value="8.0"/>
+      <limit joint="wrist_2_joint" value="8.0"/>
+      <limit joint="wrist_3_joint" value="8.0"/>
+    </acceleration_limits>
+  </cspace>
+  <tool_frame link="tool0"/>
+</robot>

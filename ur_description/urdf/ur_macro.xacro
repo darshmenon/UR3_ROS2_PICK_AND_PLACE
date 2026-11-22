@@ -4,6 +4,8 @@
   <xacro:include filename="$(find robotiq_2f_85_gripper_visualization)/urdf/robotiq_arg2f_85_model_macro.xacro"/>
   <xacro:include filename="$(find robotiq_description)/urdf/robotiq_2f_140_macro.urdf.xacro"/>
   <xacro:include filename="$(find onrobot_description)/urdf/onrobot_rg.urdf.xacro"/>
+  <xacro:include filename="$(find robotiq_hande_description)/urdf/robotiq_hande_gripper.xacro"/>
+  <xacro:include filename="$(find dh_ag95_description)/urdf/dh_ag95_macro.xacro"/>
 
   <xacro:macro name="ur_robot" params="
     name
@@ -407,6 +409,23 @@
     <xacro:onrobot_rg prefix="${tf_prefix}" model="rg6_v1" parent="${tf_prefix}tool0" standalone="false" include_ros2_control="false">
       <origin xyz="0 0 0.01" rpy="0 0 ${pi/2}"/>
     </xacro:onrobot_rg>
+  </xacro:if>
+
+  <!-- Robotiq Hand-E (prismatic, 0-25 mm per finger = 0-50 mm opening; the right finger mimics the left).
+       The host ros2_control block (ur.ros2_control.xacro) owns the finger joints, so the package's own
+       mock/serial ros2_control block is skipped. -->
+  <xacro:if value="${gripper == 'robotiq_hande'}">
+    <xacro:robotiq_hande_gripper name="${tf_prefix}robotiq_hande" prefix="${tf_prefix}" parent="${tf_prefix}tool0"
+      grip_pos_min="0.0" grip_pos_max="0.025" tty_port="/tmp/ttyUR" baudrate="115200" parity="N"
+      data_bits="8" stop_bit="1" slave_id="9" use_fake_hardware="true" include_ros2_control="false"
+      xyz="0 0 0.01" rpy="0 0 ${pi/2}"/>   <!-- yaw pi/2: fingers close along tool0 y, like the 2F-85 and OnRobot -->
+  </xacro:if>
+
+  <!-- DH Robotics AG-95 (one actuated joint left_outer_knuckle_joint, 0-0.93 rad; all other finger joints mimic it) -->
+  <xacro:if value="${gripper == 'dh_ag95'}">
+    <xacro:dh_ag95_gripper prefix="${tf_prefix}" parent="${tf_prefix}tool0">
+      <origin xyz="0 0 0.01" rpy="0 0 ${pi/2}"/>   <!-- yaw pi/2: fingers close along tool0 y, like the 2F-85 and OnRobot -->
+    </xacro:dh_ag95_gripper>
   </xacro:if>
 
   </xacro:macro>

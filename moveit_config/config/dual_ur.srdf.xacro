@@ -300,18 +300,17 @@ dual_ur.urdf.xacro's default, so nothing changes for existing (no-camera) use.
     <disable_collisions link1="${prefix}camera_head_link" link2="${prefix}upper_arm_link" reason="Never"/>
     </xacro:if>
 
-    <!-- TODO: placeholder, needs offline IK once a physical handover pose is
-         chosen (see project plan). Values below are NOT a real
-         reachable/collision-checked target, do not command this state
-         until replaced with real numbers derived from a chosen handover
-         Cartesian pose. -->
+    <!-- Tool-down in this arm's base: tool tip (0.25, 0, 0.20), tool0 0.15 m
+         above it. Solved on the UR3 chain in ur_description/config/ur3/default_kinematics.yaml.
+         Both arms get this same state, so each reaches 0.25 m forward in its own
+         base. The shared world handover is /dual/handover, not this named state. -->
     <group_state name="handover" group="${prefix}arm">
-        <joint name="${prefix}elbow_joint" value="0"/>
-        <joint name="${prefix}shoulder_lift_joint" value="0"/>
-        <joint name="${prefix}shoulder_pan_joint" value="0"/>
-        <joint name="${prefix}wrist_1_joint" value="0"/>
-        <joint name="${prefix}wrist_2_joint" value="0"/>
-        <joint name="${prefix}wrist_3_joint" value="0"/>
+        <joint name="${prefix}elbow_joint" value="0.8467"/>
+        <joint name="${prefix}shoulder_lift_joint" value="-2.7983"/>
+        <joint name="${prefix}shoulder_pan_joint" value="0.4661"/>
+        <joint name="${prefix}wrist_1_joint" value="0.3807"/>
+        <joint name="${prefix}wrist_2_joint" value="-1.5708"/>
+        <joint name="${prefix}wrist_3_joint" value="2.0369"/>
     </group_state>
     </xacro:macro>
 

@@ -100,6 +100,23 @@
         </geometry>
       </collision>
     </link>
+    <!-- The pad is merged into this link by the fixed joint and its own friction is dropped in the SDF,
+         so the grip has to be set here too (same as the 2F-140). -->
+    <gazebo reference="${prefix}${fingerprefix}_inner_finger">
+      <mu1>2.0</mu1>
+      <mu2>2.0</mu2>
+      <collision name="${prefix}${fingerprefix}_inner_finger_collision">
+        <surface>
+          <friction>
+            <torsional>
+              <coefficient>0.456</coefficient>
+              <use_patch_radius>true</use_patch_radius>
+              <patch_radius>0.05</patch_radius>
+            </torsional>
+          </friction>
+        </surface>
+      </collision>
+    </gazebo>
   </xacro:macro>
 
    <!-- Finger pad link, the default are the "big pads" with rubber-->

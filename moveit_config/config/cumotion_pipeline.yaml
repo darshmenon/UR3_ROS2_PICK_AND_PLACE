@@ -1,0 +1,7 @@
+# Not included by move_group.launch.py. Add this name to planning_pipelines
+# only after isaac_ros_cumotion is installed; the plugin is not on this machine.
+planning_plugin: isaac_ros_cumotion/CumotionPlanner
+request_adapters: ""
+response_adapters: ""
+urdf_path: ""
+xrdf_path: ur3.xrdf

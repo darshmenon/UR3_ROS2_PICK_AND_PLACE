@@ -25,11 +25,14 @@
             create_socat_tty:=false
             socat_ip_address:=192.168.100.10
             socat_port:=54321
+            include_ros2_control:=true
             coupler_mass:=0.119
             xyz:='0 0 0'
             rpy:='0 0 0'"
   >
-    <!-- ros2_control parameters  -->
+    <!-- ros2_control parameters (skip with include_ros2_control:=false when the host robot's own
+         ros2_control block already declares the finger joints, e.g. the UR Gazebo setup) -->
+    <xacro:if value="${include_ros2_control}">
     <xacro:robotiq_hande_ros2_control
       name="${name}"
       prefix="${prefix}"
@@ -47,6 +50,7 @@
       socat_port="${socat_port}"
       use_fake_hardware="${use_fake_hardware}"
     />
+    </xacro:if>
 
     <!-- Robotiq Hand-E specs -->
     <!--  + Height added by the IO coupler: 11.0mm -->
@@ -179,5 +183,15 @@
     </joint>
 
     <link name="${prefix}robotiq_hande_end"/>
+
+    <!-- Grasp point for MTC: the middle of the finger pads, on the gripper axis, z along the approach direction.
+         The finger inner face spans 0-0.0465 m above the finger joint (finger.dae), i.e. its middle is half the
+         end-frame offset above robotiq_hande_link's finger origin. -->
+    <joint name="${prefix}robotiq_hande_grasp_frame_joint" type="fixed">
+      <origin xyz="0 0 ${$(arg hande_height) + 0.0465 / 2}" rpy="0 0 0"/>
+      <parent link="${prefix}robotiq_hande_link"/>
+      <child link="${prefix}gripper_grasp_frame"/>
+    </joint>
+    <link name="${prefix}gripper_grasp_frame"/>
   </xacro:macro>
 </robot>

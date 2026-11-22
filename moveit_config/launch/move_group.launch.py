@@ -60,7 +60,7 @@ def generate_launch_description():
         name='gripper',
         default_value=os.environ.get("UR_GRIPPER", "onrobot_rg2"),
         description='Gripper to attach to the robot',
-        choices=['robotiq_2f_85', 'robotiq_2f_140', 'onrobot_rg2', 'onrobot_rg6'])
+        choices=['robotiq_2f_85', 'robotiq_2f_140', 'onrobot_rg2', 'onrobot_rg6', 'robotiq_hande', 'dh_ag95'])
 
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         name='rviz_config_file',
@@ -89,6 +89,14 @@ def generate_launch_description():
         if gripper_str in ("onrobot_rg2", "onrobot_rg6"):
             moveit_controllers_file_path = os.path.join(
                 moveit_config_share, "config", "moveit_controllers_onrobot.yaml"
+            )
+        elif gripper_str == "robotiq_hande":
+            moveit_controllers_file_path = os.path.join(
+                moveit_config_share, "config", "moveit_controllers_hande.yaml"
+            )
+        elif gripper_str == "dh_ag95":
+            moveit_controllers_file_path = os.path.join(
+                moveit_config_share, "config", "moveit_controllers_ag95.yaml"
             )
         else:
             moveit_controllers_file_path = os.path.join(

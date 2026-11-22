@@ -14,3 +14,10 @@ initial_positions:
   right_inner_knuckle_joint: 0.0
   left_inner_finger_joint: 0.0
   right_inner_finger_joint: 0.0
+  # Robotiq Hand-E (0.025 m = open)
+  robotiq_hande_left_finger_joint: 0.025
+  robotiq_hande_right_finger_joint: 0.025
+  # DH AG-95 (0 = open); right_outer_knuckle/left_inner/right_inner are shared with the Robotiq 2F-85 entries above
+  left_outer_knuckle_joint: 0.0
+  left_finger_joint: 0.0
+  right_finger_joint: 0.0

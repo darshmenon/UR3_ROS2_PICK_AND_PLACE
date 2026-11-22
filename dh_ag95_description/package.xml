@@ -3,7 +3,7 @@
 <package format="3">
   <name>dh_ag95_description</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Description (URDF, meshes) of the DH Robotics AG-95 gripper</description>
   <maintainer email="iantc104@gmail.com">root</maintainer>
   <license>Apache-2.0</license>
 

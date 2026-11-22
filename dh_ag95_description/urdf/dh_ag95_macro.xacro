@@ -282,6 +282,15 @@
       <child link="${prefix}ag95_body" />
     </joint>
 
+    <!-- Same point as grasp_link, but with the axes aligned to ag95_base_link (z = approach direction), which is
+         what MTC's grasp_frame_transform expects (grasp_link is rotated, its x axis is the approach direction). -->
+    <link name="${prefix}gripper_grasp_frame"/>
+    <joint name="${prefix}gripper_grasp_frame_joint" type="fixed">
+      <parent link="${prefix}ag95_base_link" />
+      <child link="${prefix}gripper_grasp_frame" />
+      <origin xyz="0.0 0.0 ${grasp_link_offset}" rpy="0 0 0" />
+    </joint>
+
     <link name="${prefix}grasp_link"/>
 
     <joint name="${prefix}grasp_joint" type="fixed">

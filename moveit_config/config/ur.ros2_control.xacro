@@ -181,6 +181,75 @@
                 </joint>
             </xacro:if>
 
+            <xacro:if value="${gripper == 'robotiq_hande'}">
+                <!-- Left finger is the only commanded joint; the right finger is a URDF mimic (state only, see the
+                     Robotiq note above). 0.025 m = fully open (50 mm). -->
+                <joint name="${prefix}robotiq_hande_left_finger_joint">
+                    <command_interface name="position"/>
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['robotiq_hande_left_finger_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                    <state_interface name="effort"/>
+                </joint>
+
+                <joint name="${prefix}robotiq_hande_right_finger_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['robotiq_hande_right_finger_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
+            </xacro:if>
+
+            <xacro:if value="${gripper == 'dh_ag95'}">
+                <!-- Same pattern as the Robotiq 2F-85: one commanded joint, everything else URDF mimic (state only) -->
+                <joint name="${prefix}left_outer_knuckle_joint">
+                    <command_interface name="position"/>
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['left_outer_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                    <state_interface name="effort">
+                        <param name="effort_limit">50.0</param>
+                    </state_interface>
+                </joint>
+
+                <joint name="${prefix}right_outer_knuckle_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['right_outer_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
+
+                <joint name="${prefix}left_inner_knuckle_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['left_inner_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
+
+                <joint name="${prefix}right_inner_knuckle_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['right_inner_knuckle_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
+
+                <joint name="${prefix}left_finger_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['left_finger_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
+
+                <joint name="${prefix}right_finger_joint">
+                    <state_interface name="position">
+                        <param name="initial_value">${initial_positions['right_finger_joint']}</param>
+                    </state_interface>
+                    <state_interface name="velocity"/>
+                </joint>
+            </xacro:if>
+
         </ros2_control>
     </xacro:macro>
 </robot>
