@@ -490,7 +490,7 @@ ros2 launch ur_web_dashboard view_logs.launch.py plotjuggler:=false # rqt_consol
 
 ### Pad friction in Gazebo
 
-Friction set on a link that a fixed joint merges into its parent is dropped from the generated SDF, so the 2F-85 pads had no friction until it was also set on the inner finger. Check with `gz sdf -p`. Adding the RG2's torsional friction (0.456, patch radius 0.05) to the 2F-85 raised a 5 cm cylinder from 4/10 to 7/10 within 20 mm. On the 2F-140 it made no difference (12/20, same as without).
+Friction set on a link that a fixed joint merges into its parent is dropped from the generated SDF, so the 2F-85 pads had no friction until it was also set on the inner finger. Check with `gz sdf -p`. Adding the RG2's torsional friction (0.456, patch radius 0.05) to the 2F-85 raised a 5 cm cylinder from 4/10 to 7/10 within 20 mm. On the 2F-140 it made no difference (12/20, same as without). A later 50-trial MTC run on the 2F-140 with the same 5 cm cylinder (simulation only) scored 27/50 within 20 mm (54%, 95% CI 40 to 67%), 34/50 within 30 mm, median cycle 35.1 s; the earlier 12/20 runs were 20 trials each and not identical configurations, so 27/50 is the number to quote.
 
 ### Running it
 
