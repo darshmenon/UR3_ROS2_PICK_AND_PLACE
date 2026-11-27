@@ -12,8 +12,8 @@ while pgrep -f 'testing/benchmark_mtc.py' >/dev/null; do sleep 30; done
 while pgrep -f 'testing/scripts/run_resume.sh' >/dev/null; do sleep 20; done
 while pgrep -f 'testing/scripts/run_rest.sh' >/dev/null; do sleep 20; done
 while pgrep -f 'testing/vlm_pick_check.py' >/dev/null; do sleep 20; done
-while pgrep -f 'gz sim' >/dev/null; do sleep 10; done
-while pgrep -f '/mtc_node' >/dev/null; do sleep 10; done
+while pgrep -f 'gz sim.*UR3_ROS2_PICK_AND_PLACE' >/dev/null; do sleep 10; done
+while pgrep -f 'UR3_ROS2_PICK_AND_PLACE/.*/mtc_node' >/dev/null; do sleep 10; done
 echo "idle $(date -Is)"
 
 set +u
