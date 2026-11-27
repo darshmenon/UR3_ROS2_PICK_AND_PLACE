@@ -61,6 +61,7 @@
 #include <map>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <string>
 #include <vector>
 
@@ -297,6 +298,9 @@ private:
   sensor_msgs::msg::JointState last_joint_state_;
   rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
   mtc::Task createTask();
+  // After the false-success guard fails an execution the arm can be left anywhere: move it to a known pose first.
+  void recoverArm();
+  bool needs_recovery_ = false;
   void logSceneComparison(const std::string& tag);
 
   void handleRunPickPlace(const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
@@ -430,6 +434,8 @@ declare_parameter("grasp_frame_transform",
   declare_parameter("lower_object_max_dist", 0.4, "Maximum distance for lowering object");
 
   // Timeout parameters
+  declare_parameter("planning_timeout", 120.0,
+                    "Upper bound for planning one whole task (seconds); normal plans take about 10 s");
   declare_parameter("move_to_pick_timeout", 10.0, "Timeout for move to pick stage (seconds)");
   declare_parameter("move_to_place_timeout", 10.0, "Timeout for move to place stage (seconds)");
 
@@ -508,6 +514,9 @@ void MTCTaskNode::handleRunPickPlace(const std::shared_ptr<std_srvs::srv::Trigge
 bool MTCTaskNode::runOnePickPlaceAttempt()
 {
   RCLCPP_INFO(this->get_logger(), "Setting up planning scene");
+  if (needs_recovery_) {
+    recoverArm();
+  }
   setupPlanningScene();
   RCLCPP_INFO(this->get_logger(), "Executing task");
   return doTask();
@@ -743,7 +752,7 @@ void MTCTaskNode::logSceneComparison(const std::string& tag)
       moveit_msgs::msg::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY |
       moveit_msgs::msg::PlanningSceneComponents::LINK_PADDING_AND_SCALING;
   auto future = client->async_send_request(request);
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
   while (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready &&
          std::chrono::steady_clock::now() < deadline) {
     rclcpp::sleep_for(std::chrono::milliseconds(50));
@@ -1011,7 +1020,102 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
   if (result.code != rclcpp_action::ResultCode::SUCCEEDED) {
     RCLCPP_ERROR(this->get_logger(), "Goal was aborted or canceled");
   }
+  if (result.result->error_code.val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS) {
+    return result.result->error_code;
+  }
+
+  // Guard against a false success: move_group reports SUCCESS when its action finishes, which does not prove
+  // the arm reached the end of the plan (execution_duration_monitoring is off). Compare the live arm joints
+  // with the last planned waypoint and fail the attempt if they disagree, so the retry wrapper retries.
+  std::map<std::string, double> planned_end;
+  for (const auto& sub : solution_msg.sub_trajectory) {
+    const auto& jt = sub.trajectory.joint_trajectory;
+    if (jt.points.empty()) continue;
+    for (size_t i = 0; i < jt.joint_names.size() && i < jt.points.back().positions.size(); ++i) {
+      const auto& n = jt.joint_names[i];
+      if (n.find("finger") != std::string::npos || n.find("knuckle") != std::string::npos) continue;
+      planned_end[n] = jt.points.back().positions[i];
+    }
+  }
+  if (!planned_end.empty()) {
+    sensor_msgs::msg::JointState live;
+    auto sub = client_node->create_subscription<sensor_msgs::msg::JointState>(
+      "/joint_states", rclcpp::SensorDataQoS(), [&live](const sensor_msgs::msg::JointState::SharedPtr m) { live = *m; });
+    const auto settle_end = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    double worst = 0.0;
+    std::string worst_joint;
+    bool compared = false;
+    while (std::chrono::steady_clock::now() < settle_end) {
+      rclcpp::spin_some(client_node);
+      worst = 0.0;
+      compared = false;
+      for (size_t i = 0; i < live.name.size() && i < live.position.size(); ++i) {
+        auto it = planned_end.find(live.name[i]);
+        if (it == planned_end.end()) continue;
+        compared = true;
+        const double d = std::abs(std::remainder(live.position[i] - it->second, 2.0 * M_PI));
+        if (d > worst) { worst = d; worst_joint = live.name[i]; }
+      }
+      if (compared && worst < 0.1) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    if (!compared) {
+      RCLCPP_WARN(this->get_logger(), "False-success guard: no /joint_states received for the planned joints, guard skipped");
+    } else {
+      RCLCPP_INFO(this->get_logger(), "False-success guard: largest end-pose residual %.4f rad (%s)", worst, worst_joint.c_str());
+    }
+    // The one real stall seen was 1.99 rad off. (Logged residuals of good runs are cut off by the early break above.)
+    if (compared && worst >= 0.1) {
+      needs_recovery_ = true;
+      RCLCPP_ERROR(this->get_logger(),
+                   "Execution reported success but %s is %.3f rad from the planned end pose; failing the attempt",
+                   worst_joint.c_str(), worst);
+      error_code.val = moveit_msgs::msg::MoveItErrorCodes::FAILURE;
+      return error_code;
+    }
+  }
   return result.result->error_code;
+}
+
+void MTCTaskNode::recoverArm()
+{
+  const std::string final_pose = this->get_parameter("arm_final_pose").as_string();
+  const std::string pose = final_pose.empty() ? this->get_parameter("arm_home_pose").as_string() : final_pose;
+  RCLCPP_WARN(this->get_logger(), "Recovery: moving the arm to '%s' before replanning", pose.c_str());
+  try {
+    mtc::Task task;
+    task.stages()->setName("recover arm");
+    task.loadRobotModel(this->shared_from_this());
+    task.add(std::make_unique<mtc::stages::CurrentState>("current"));
+    auto planner = std::make_shared<mtc::solvers::PipelinePlanner>(this->shared_from_this(), "ompl");
+    auto stage = std::make_unique<mtc::stages::MoveTo>("recovery move", planner);
+    stage->setGroup(this->get_parameter("arm_group_name").as_string());
+    stage->setGoal(pose);
+    stage->setTimeout(10.0);
+    stage->properties().set(
+        "trajectory_execution_info",
+        mtc::TrajectoryExecutionInfo().set__controller_names(
+            this->get_parameter("controller_names").as_string_array()));
+    task.add(std::move(stage));
+    task_ = std::move(task);
+    task_.setTimeout(30.0);
+    task_.init();
+    if (!task_.plan(1)) {
+      RCLCPP_ERROR(this->get_logger(), "Recovery: planning failed, continuing from the current pose");
+      return;
+    }
+    needs_recovery_ = false;  // executeSolution sets it again if this move stalls too
+    if (executeSolution(*task_.solutions().front()).val != moveit_msgs::msg::MoveItErrorCodes::SUCCESS) {
+      needs_recovery_ = true;
+      RCLCPP_ERROR(this->get_logger(), "Recovery: execution failed, continuing from the current pose");
+    }
+  } catch (const mtc::InitStageException& e) {
+    std::ostringstream error;
+    error << e;
+    RCLCPP_ERROR(this->get_logger(), "Recovery: task initialization failed:\n%s", error.str().c_str());
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(this->get_logger(), "Recovery failed: %s", e.what());
+  }
 }
 
 bool MTCTaskNode::doTask()
@@ -1072,7 +1176,8 @@ bool MTCTaskNode::planAndExecute()
     return false;
   }
 
-  // Attempt to plan the task
+  // Attempt to plan the task. Without a task timeout a hard start state can keep the generators busy for minutes.
+  task_.setTimeout(this->get_parameter("planning_timeout").as_double());
   if (!task_.plan(max_solutions))
   {
     RCLCPP_ERROR(this->get_logger(), "Task planning failed");
