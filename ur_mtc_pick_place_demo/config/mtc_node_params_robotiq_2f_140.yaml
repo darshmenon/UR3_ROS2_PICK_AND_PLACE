@@ -150,7 +150,7 @@ mtc_node:
     arm_final_pose: "view_clear"   # after a place, leave the arm where the camera sees the table (no arm clusters next run)
     use_transit_clear_via: true
     transit_planner_id: "RRTConnectkConfigDefault"
-    planning_robot_padding: 0.006
+    planning_robot_padding: 0.0   # both 50-trial runs (27/50, 25/50 within 20 mm) used 0.0; 0.006 was never run on an isolated cylinder
     planning_support_inflation: 0.005
 
     # Grasp generation (critical fixes)
