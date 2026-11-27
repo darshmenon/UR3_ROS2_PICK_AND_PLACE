@@ -434,6 +434,9 @@ declare_parameter("grasp_frame_transform",
   declare_parameter("lower_object_max_dist", 0.4, "Maximum distance for lowering object");
 
   // Timeout parameters
+  declare_parameter("execution_end_tolerance", 0.1,
+                    "Largest allowed joint error (rad) from the planned end pose after a reported success; "
+                    "0 fails every execution (for testing the recovery)");
   declare_parameter("planning_timeout", 120.0,
                     "Upper bound for planning one whole task (seconds); normal plans take about 10 s");
   declare_parameter("move_to_pick_timeout", 10.0, "Timeout for move to pick stage (seconds)");
@@ -742,7 +745,10 @@ void MTCTaskNode::logSceneComparison(const std::string& tag)
   };
   for (const auto& object : scene_world_.collision_objects) describe("mtc", object);
 
-  auto client = this->create_client<moveit_msgs::srv::GetPlanningScene>("/get_planning_scene");
+  // A client on this node never gets its reply processed while we are inside one of its own callbacks (or before
+  // spin() starts), so every call timed out. Use a private helper node that we spin ourselves.
+  auto helper = rclcpp::Node::make_shared("mtc_scene_compare_" + std::to_string(this->now().nanoseconds()));
+  auto client = helper->create_client<moveit_msgs::srv::GetPlanningScene>("/get_planning_scene");
   if (!client->wait_for_service(std::chrono::seconds(2))) {
     RCLCPP_WARN(this->get_logger(), "[scene-compare] %s move_group scene unavailable", tag.c_str());
     return;
@@ -752,12 +758,8 @@ void MTCTaskNode::logSceneComparison(const std::string& tag)
       moveit_msgs::msg::PlanningSceneComponents::WORLD_OBJECT_GEOMETRY |
       moveit_msgs::msg::PlanningSceneComponents::LINK_PADDING_AND_SCALING;
   auto future = client->async_send_request(request);
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-  while (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready &&
-         std::chrono::steady_clock::now() < deadline) {
-    rclcpp::sleep_for(std::chrono::milliseconds(50));
-  }
-  if (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+  if (rclcpp::spin_until_future_complete(helper, future, std::chrono::seconds(3)) !=
+      rclcpp::FutureReturnCode::SUCCESS) {
     RCLCPP_WARN(this->get_logger(), "[scene-compare] %s move_group scene timed out", tag.c_str());
     return;
   }
@@ -1041,7 +1043,8 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
     sensor_msgs::msg::JointState live;
     auto sub = client_node->create_subscription<sensor_msgs::msg::JointState>(
       "/joint_states", rclcpp::SensorDataQoS(), [&live](const sensor_msgs::msg::JointState::SharedPtr m) { live = *m; });
-    const auto settle_end = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    const double tolerance = this->get_parameter("execution_end_tolerance").as_double();
+    const auto settle_end = std::chrono::steady_clock::now() + std::chrono::seconds(5);
     double worst = 0.0;
     std::string worst_joint;
     bool compared = false;
@@ -1056,7 +1059,7 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
         const double d = std::abs(std::remainder(live.position[i] - it->second, 2.0 * M_PI));
         if (d > worst) { worst = d; worst_joint = live.name[i]; }
       }
-      if (compared && worst < 0.1) break;
+      if (compared && worst < tolerance) break;
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     if (!compared) {
@@ -1065,7 +1068,7 @@ moveit::core::MoveItErrorCode MTCTaskNode::executeSolution(const mtc::SolutionBa
       RCLCPP_INFO(this->get_logger(), "False-success guard: largest end-pose residual %.4f rad (%s)", worst, worst_joint.c_str());
     }
     // The one real stall seen was 1.99 rad off. (Logged residuals of good runs are cut off by the early break above.)
-    if (compared && worst >= 0.1) {
+    if (compared && worst >= tolerance) {
       needs_recovery_ = true;
       RCLCPP_ERROR(this->get_logger(),
                    "Execution reported success but %s is %.3f rad from the planned end pose; failing the attempt",
