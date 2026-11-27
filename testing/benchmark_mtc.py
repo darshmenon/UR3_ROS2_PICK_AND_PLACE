@@ -337,15 +337,16 @@ def run_cell(args, g, name):
                     if not any(k in status["text"] for k in ("SUCCESS", "FAILURE", "stopped")):
                         notes = "timeout"
             cycle = time.time() - t0
-            time.sleep(2.0)   # let the object settle
+            time.sleep(args.score_settle)   # let the object settle (a cylinder can tip well after the release)
             after = bench.object_pose()
             ex_xy = ex_z = err_dx = err_dy = float("nan")
             success = False
             if before is None or after is None:
                 notes = (notes + "; " if notes else "") + "no gz pose"
             else:
-                tx = before[0] + (bench.PLACE_XY[0] - bench.PICK_XY[0])
-                ty = before[1] + (bench.PLACE_XY[1] - bench.PICK_XY[1])
+                place_xy = overlay_place_xy(args.mtc_overrides)
+                tx = before[0] + (place_xy[0] - bench.PICK_XY[0])
+                ty = before[1] + (place_xy[1] - bench.PICK_XY[1])
                 err_dx, err_dy = after[0] - tx, after[1] - ty
                 ex_xy = math.hypot(err_dx, err_dy)
                 ex_z = after[2] - before[2]
@@ -395,6 +396,20 @@ def run_cell(args, g, name):
     return rows
 
 
+def overlay_place_xy(path):
+    """Place target for scoring: the overlay's place_pose xy if it sets one, else the world's drop zone."""
+    if path:
+        try:
+            import yaml
+            with open(path) as f:
+                pose = (yaml.safe_load(f) or {}).get("mtc_node", {}).get("ros__parameters", {}).get("place_pose")
+            if pose and len(pose) >= 2:
+                return (float(pose[0]), float(pose[1]))
+        except Exception as exc:  # noqa: BLE001 - fall back to the default target, say so
+            print(f"[mtc] could not read place_pose from {path}: {exc}; scoring against the default target")
+    return bench.PLACE_XY
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--grippers", nargs="+", default=bench.DEFAULT_GRIPPERS)
@@ -403,6 +418,8 @@ def main():
     ap.add_argument("--attempts", type=int, default=1, help="MTC attempts per trial (1 = no retries)")
     ap.add_argument("--tol", type=float, default=0.02)
     ap.add_argument("--domain", type=int, default=91)
+    ap.add_argument("--score-settle", type=float, default=2.0,
+                    help="seconds between the final MTC status and reading the object pose for scoring")
     ap.add_argument("--settle", type=float, default=45.0, help="seconds after the sim launch")
     ap.add_argument("--max-load", type=float, default=8.0,
                     help="wait (up to 15 min) for the 1-minute load average to drop below this before each sim start; 0 disables")
@@ -447,7 +464,7 @@ def main():
                 tmp = out.with_suffix(f".{g}.{name}.tmp.csv")
                 subprocess.run([sys.executable, str(Path(__file__).resolve()), "--child", "--grippers", g,
                                 "--objects", name, "--trials", str(n), "--trial-start", str(done + 1),
-                                "--attempts", str(args.attempts),
+                                "--attempts", str(args.attempts), "--score-settle", str(args.score_settle),
                                 *(["--mtc-overrides", args.mtc_overrides] if args.mtc_overrides else []),
                                 "--tol", str(args.tol), "--domain", str(args.domain), "--settle", str(args.settle),
                                 "--mtc-startup", str(args.mtc_startup), "--trial-timeout", str(args.trial_timeout),
