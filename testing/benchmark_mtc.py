@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import benchmark_grippers as bench  # noqa: E402
+from trial_trace import TrialTrace  # noqa: E402
 
 # moveit_config/config/initial_positions.yaml: pan, lift, elbow, wrist_1, wrist_2, wrist_3
 START_POSE = [-0.1, -1.6315, 0.0, 1.8251, 0.0, 1.2844]
@@ -209,6 +210,7 @@ def run_cell(args, g, name):
             m.pose.orientation.w = 1.0
             hint_pub.publish(m)
         node.create_timer(0.5, _send_hint)
+    trace = None
     try:
         if not client.wait_for_service(timeout_sec=90.0):
             rows.append(dict(pipeline="mtc", gripper=g, object=name, trial=0, executed=False, success=False,
@@ -232,6 +234,9 @@ def run_cell(args, g, name):
         recorder =bench.Recorder(node, args.record_topic, args.record_dir, args.record_period,
                                   args.record_frames, tail_s=args.record_tail) if args.record_dir else None
         demo = DemoRecorder(node, args.demo_dir) if args.demo_dir else None
+        if args.trace_dir:
+            trace = TrialTrace(args.trace_dir)
+            trace.attach(node)
         # The object is spawned slightly above the table and drops on start-up: take the reference pose only once
         # z has stopped changing, otherwise it is the pre-drop height (never reached again after a reset).
         initial, last = bench.object_pose(), None
@@ -256,6 +261,8 @@ def run_cell(args, g, name):
                         continue
                 mtc = launch_mtc(g, args.domain, args.attempts, args.mtc_startup, args.mtc_overrides)
                 client.wait_for_service(timeout_sec=60.0)
+            if trace is not None:                # from here, so the move back to the start pose is traced too
+                trace.start(f"mtc_{g}_{name}_t{t}")
             # Clear the old scene FIRST: leftover collision objects can block the move back, and an arm still
             # hovering over the place spot shows up in the point cloud as extra "objects".
             left = clear_scene(node, lambda m: print(f"[mtc] {m}", flush=True))
@@ -377,10 +384,14 @@ def run_cell(args, g, name):
                 recorder.save(f"mtc_{g}_{name}_t{t}", success)
             if demo is not None:
                 demo.save(f"mtc_{g}_{name}_t{t}_{int(time.time())}", success)
+            if trace is not None:
+                trace.save(success=success, notes=rows[-1]["notes"], cycle_time_s=cycle)
             print(f"[mtc] {g}/{name} trial {t}: success={success} xy={ex_xy * 1000:.0f}mm "
                   f"status={status['text']!r} {cycle:.0f}s", flush=True)
             bench.reset_object(initial, lift=0.0)
     finally:
+        if trace is not None:
+            trace.save(note="run ended during this trial")
         for p in (mtc,):
             try:
                 os.killpg(os.getpgid(p.pid), signal.SIGINT)
@@ -435,6 +446,8 @@ def main():
     ap.add_argument("--no-hint-target", dest="hint_target", action="store_false")
     ap.add_argument("--record-tail", type=float, default=0.0, help="also save a strip of the last N seconds of each trial")
     ap.add_argument("--demo-dir", default=None, help="save joint-state demos of successful trials here (.npz)")
+    ap.add_argument("--trace-dir", default=None,
+                    help="save joint states, clock, controller reference and planned trajectory of every trial (.npz)")
     ap.add_argument("--restart-mtc", action="store_true", help="relaunch the MTC nodes before every trial after the first")
     ap.add_argument("--chunk", type=int, default=4,
                     help="trials per sim: a fresh sim every N trials (and after a hang), the sim degrades after ~5")
@@ -476,6 +489,7 @@ def main():
                                    "--record-tail", str(args.record_tail)]
                                   if args.record_dir else []),
                                 *(["--demo-dir", args.demo_dir] if args.demo_dir else []),
+                                *(["--trace-dir", args.trace_dir] if args.trace_dir else []),
                                 "--output", str(tmp)], check=False)
                 got = []
                 if tmp.exists():
