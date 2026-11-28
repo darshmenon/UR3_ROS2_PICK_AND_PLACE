@@ -490,7 +490,7 @@ ros2 launch ur_web_dashboard view_logs.launch.py plotjuggler:=false # rqt_consol
 
 ### Pad friction in Gazebo
 
-Friction set on a link that a fixed joint merges into its parent is dropped from the generated SDF, so the 2F-85 pads had no friction until it was also set on the inner finger. Check with `gz sdf -p`. Adding the RG2's torsional friction (0.456, patch radius 0.05) to the 2F-85 raised a 5 cm cylinder from 4/10 to 7/10 within 20 mm. On the 2F-140 it made no difference (12/20, same as without). Two later 50-trial MTC runs on the 2F-140 with the same 5 cm cylinder (simulation only) scored 27/50 and 25/50 within 20 mm, but they read the object pose only 2 s after MTC reported its result, while the cylinder can still be wobbling, so they and the 12/20 runs are likely too high and are not a success rate to quote. In a 20-trial run that waited 12 s, at a different place point (y 0.10 instead of 0.20) and with machine load reaching 15 for part of it, 4 of 18 scored trials were within 20 mm and 13 toppled; the other 2 trials hung and were not scored. The original place point has not been rerun with the longer wait.
+Friction set on a link that a fixed joint merges into its parent is dropped from the generated SDF, so the 2F-85 pads had no friction until it was also set on the inner finger. Check with `gz sdf -p`. **Cylinder placement results are withdrawn** (simulation only). The physics engine used here (Gazebo Harmonic with Bullet-featherstone) can topple a slightly tilted cylinder on its own: with no robot, a 5 cm wide, 8 cm tall cylinder that should tip only past about 32 degrees fell in 60 of 60 trials started at 5 to 15 degrees (0 of 20 at 2 degrees). Earlier placement, toppling and pad-friction comparisons on the 5 cm cylinder therefore do not measure the pick-and-place pipeline, and they have not been re-measured.
 
 ### Running it
 
@@ -562,7 +562,8 @@ weights come with the repo). It needs the GPU free, so unload the VLM first.
 
 Point-cloud detector fix: clusters taller than `simple_max_object_height` (0.20 m) are dropped. They were the arm's
 own links, which made MTC stop mid-execution with "path became invalid". On the 2F-140 + 5 cm cylinder benchmark
-this took the pass rate from 3 of 10 to 5 of 9.
+the fix addresses that abort (the cylinder pass rates
+recorded around it are withdrawn, see *Pad friction in Gazebo*).
 
 ## Future Scope / Work in Progress
 

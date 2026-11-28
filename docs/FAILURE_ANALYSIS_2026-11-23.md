@@ -1,6 +1,8 @@
 # Failure analysis, MTC 2F-140 5 cm cylinder, 50 trials (simulation only)
 
-Scoring caveat (2026-11-26): the 12/20, 27/50 and 25/50 results read the object pose 2 s after MTC reported its result. One later trial wobbled and rolled off the table after that, so these numbers may be optimistic. A later 20-trial run with a 12 s wait, at a different place point (y 0.10), scored 4 successes in 18 executed trials with 13 toppled (trials 19 and 20 timed out), so treat the 2 s figures as likely too high; the y 0.20 setup has not been rerun with the longer wait.
+Withdrawn (2026-11-28): the 5 cm cylinder placement and toppling numbers below (including 12/20, 27/50, 25/50 and 4/18 with 13 topples) are not a measure of the pipeline. With no robot, Gazebo Harmonic with Bullet-featherstone topples a slightly tilted cylinder on its own: 60 of 60 trials started at 5 to 15 degrees fell, 0 of 20 at 2 degrees, although this shape should tip only past about 32 degrees. The results have not been re-measured.
+
+Earlier scoring caveat (2026-11-26): the 12/20, 27/50 and 25/50 results read the object pose 2 s after MTC reported its result. One later trial wobbled and rolled off the table after that, so these numbers may be optimistic. A later 20-trial run with a 12 s wait, at a different place point (y 0.10), scored 4 successes in 18 executed trials with 13 toppled (trials 19 and 20 timed out), so treat the 2 s figures as likely too high; the y 0.20 setup has not been rerun with the longer wait.
 
 Source: testing/_out/mtc_140_cyl5_n50.csv (run 2026-11-23, domain 91, padding 0.0 via overlay). Success means final xy error within 20 mm. All 50 trials executed, and every trial's retry wrapper ended "MTC retry: SUCCESS", so MTC reported success on all 50: the failures are execution outcomes, not planning failures.
 
