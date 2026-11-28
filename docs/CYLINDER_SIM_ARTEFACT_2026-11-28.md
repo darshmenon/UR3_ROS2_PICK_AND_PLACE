@@ -83,6 +83,18 @@ UR3 with Robotiq 2F-140, MoveIt Task Constructor, place point y 0.20, object pos
 
 With the mesh, the 18 executed trials had a median error of 6.3 mm (maximum 19.0 mm) and a median cycle of 27.1 s. The two stalls were consecutive trials in one simulation, both with wrist_1 1.92 rad from the planned end pose. The primitive-cylinder runs were made earlier the same day, not interleaved with these, at different machine load.
 
+## Other world objects
+`testing/_out/object_tilt_check.py` (results in `testing/_out/object_tilt.csv`): each free box and cylinder in the worlds, Bullet-featherstone, 1 ms, 12 s, 5 cases per starting tilt (5 deg, 5 deg below the tipping angle, 5 deg above it). Balls and mesh objects were not tested.
+
+| Object (size) | World files | Below tipping angle | Above it |
+|---|---|---|---|
+| Boxes 5 x 5 x 5 cm (red, green, blue) | colored_blocks, single_arm_transfer, colored_two_objects | all settled upright | all fell |
+| Boxes 4 x 4 x 9 cm (red, orange) | colored_tall_box, colored_two_objects | all settled upright | all fell |
+| Cylinders r 25 mm, 80 mm (red, yellow; each gave the same results) | colored_cylinder, colored_two_objects | at 5 deg 1 of 5 toppled; at 27 deg none toppled but 4 of 5 did not return upright | all fell |
+| Cylinder r 20 mm, 60 mm (red) | colored_small_cylinder | 4 of 5 failed to settle at 5 deg (2 past 45 deg); all 5 toppled at 28.7 deg | all fell |
+
+So the artefact appears on the cylinders only. Cylinders that fell often also left their test table.
+
 ## Limits of the evidence
 - The two setups disagree in detail: the full world toppled 100% at 5 deg and above and 0% at 2 deg; the standalone scene toppled a fraction at 2, 5 and 15 deg. The cause of the difference was not studied.
 - One cylinder size, one mass, one friction value, one table, one machine, one set of package versions. The simulation is deterministic enough that the 10 cases differ only by tilt direction and position, so the counts are not statistical rates.
