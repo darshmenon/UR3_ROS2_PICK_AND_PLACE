@@ -83,6 +83,8 @@ UR3 with Robotiq 2F-140, MoveIt Task Constructor, place point y 0.20, object pos
 
 With the mesh, the 18 executed trials had a median error of 6.3 mm (maximum 19.0 mm) and a median cycle of 27.1 s. The two stalls were consecutive trials in one simulation, both with wrist_1 1.92 rad from the planned end pose. The primitive-cylinder runs were made earlier the same day, not interleaved with these, at different machine load.
 
+Extended to 50 trials the same day (the last 30 after a machine restart, load 2.9 to 6.7; `testing/_out/mesh_bench/all50.csv`): 47 of 50 within 20 mm (95% Wilson interval about 84 to 98%), 0 toppled, median error of the successful trials 6.3 mm (maximum 19.4 mm), median cycle 28.1 s over executed trials. The three misses left the object unmoved: the two arm stalls above, and trial 35, where MoveIt Task Constructor reported success but the object was never lifted (cause not diagnosed). One simulation process aborted on shutdown after its five results were saved. The 20-trial primitive-cylinder comparison was not extended.
+
 ## Other world objects
 `testing/_out/object_tilt_check.py` (results in `testing/_out/object_tilt.csv`): each free box and cylinder in the worlds, Bullet-featherstone, 1 ms, 12 s, 5 cases per starting tilt (5 deg, 5 deg below the tipping angle, 5 deg above it). Balls and mesh objects were not tested.
 
